@@ -76,13 +76,13 @@ set VBOX_VER_PUB=
 
 Depend on what's the target architecture you want to compile, run the following for amd64 target
 
-`set BUILD_TARGET_ARCH=amd64
-set PATH=%PATH%;%~dp0kBuild\bin\win.amd64`
+```set BUILD_TARGET_ARCH=amd64
+set PATH=%PATH%;%~dp0kBuild\bin\win.amd64```
 
 Or this one for x86 target
 
-`set BUILD_TARGET_ARCH=x86
-set PATH=%PATH%;%~dp0kBuild\bin\win.x86`
+```set BUILD_TARGET_ARCH=x86
+set PATH=%PATH%;%~dp0kBuild\bin\win.x86```
 
 ### Run configure.vbs script
 
@@ -90,24 +90,34 @@ set PATH=%PATH%;%~dp0kBuild\bin\win.x86`
 
 ### Set last configuration parameters and build the project
 
+Set last environment variables
+
 `call env.bat`
+
+Run kmake with default target
+
 `kmk`
 
 ### Register COM components allowing run and debug Virtualbox.exe
 
 For amd64 target set the following working directory
+
 `cd .\out\win.amd64\release\bin\`
 
 and this directory x86 respectively
+
 `cd .\out\win.x86\release\bin\`
 
 Register Virtualbox Windows COM DLLs
+
 `call comregister.cmd`
 
 Load debug versions of drivers
+
 `call loadall.cmd`
 
 Perform cleanup
+
 `del /q AutoConfig.kmk configure.log env.bat 2>nul`
 
 ## Compiling Virtualbox Guest Additions for Windows
@@ -131,7 +141,8 @@ You should set the following parameters to your LocalConfig.kmk, if you want to 
 ```VBOX_ONLY_ADDITIONS := 1
 VBOX_WITH_ADDITIONS_PACKING := 1
 VBOX_WITHOUT_HARDENING := 1
-VBOX_ADDITIONS_WINDOWS_ONLY := 1```
+VBOX_ADDITIONS_WINDOWS_ONLY := 1
+```
 
 
 
