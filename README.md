@@ -47,10 +47,6 @@ Build host should have amd64 architecture.
 * NSIS 2.51
 * NSIS 2.51 Logs Patch
 
-## Compiling pre-requisites
-
-TODO
-
 ## Compiling Virtualbox OSE under Windows
 
 x64 version of the system is required, Windows 7, 8.0, 8.1 or any Windows 10 are fit for the compilation process
@@ -113,3 +109,29 @@ Load debug versions of drivers
 
 Perform cleanup
 `del /q AutoConfig.kmk configure.log env.bat 2>nul`
+
+## Compiling Virtualbox Guest Additions for Windows
+
+Virtualbox Guest Additions for Windows should be compiled on the same host, but in the different directory.
+
+### Differences between Virtualbox.exe and Additions build
+
+Instead of `kmk` command, building the default target, you shoud set special target for building additions
+
+`kmk additions-build`
+
+and one more for packing it into ISO image
+
+`kmk additions-packing`
+
+### Differences in LocalConfig.kmk
+
+You should set the following parameters to your LocalConfig.kmk, if you want to build additions only
+
+```VBOX_ONLY_ADDITIONS := 1
+VBOX_WITH_ADDITIONS_PACKING := 1
+VBOX_WITHOUT_HARDENING := 1
+VBOX_ADDITIONS_WINDOWS_ONLY := 1```
+
+
+
