@@ -3,10 +3,10 @@
 ## Summary
 
 Oracle VirtualBox Open Source Edition, with custom build toolchain, letting build the solution on any Windows workstation.
-Official Oracle source code is optimized for its own infrastructure, which structure is not known, and the process is not documented.
-This version allows to compile Virtualbox on Windows 7, 8.1 or 10.
-Includes configurations for Virtualbox itself, and Virtualbox Guest Additions for Windows.
-Build host should have amd64 architecture.
+Official Oracle source code is optimized for Oracle own infrastructure, which structure is not known, and the process is not documented.
+
+This version allows to compile Virtualbox on Windows 7, 8.1 or any Windows 10. It includes configurations for Virtualbox itself, and Virtualbox Guest Additions for Windows.
+Build host should have `x64` architecture.
 
 ## Pre-requisites
 
