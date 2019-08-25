@@ -49,7 +49,8 @@ Build host should have `x64` architecture.
 
 ## Compiling Virtualbox OSE under Windows
 
-x64 version of the system is required, Windows 7, 8.0, 8.1 or any Windows 10 are fit for the compilation process
+x64 version of the system is required, Windows 7, 8.0, 8.1 or any Windows 10 are fit for the compilation process.
+
 Use VirtualBox project root as a wolrking directory.
 
 ### Set VBOX_VER and other environment variables
