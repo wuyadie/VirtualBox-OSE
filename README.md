@@ -78,12 +78,14 @@ set VBOX_VER_PUB=
 Depend on what's the target architecture you want to compile, run the following for amd64 target
 
 ```set BUILD_TARGET_ARCH=amd64
-set PATH=%PATH%;%~dp0kBuild\bin\win.amd64```
+set PATH=%PATH%;%~dp0kBuild\bin\win.amd64
+```
 
 Or this one for x86 target
 
 ```set BUILD_TARGET_ARCH=x86
-set PATH=%PATH%;%~dp0kBuild\bin\win.x86```
+set PATH=%PATH%;%~dp0kBuild\bin\win.x86
+```
 
 ### Run configure.vbs script
 
