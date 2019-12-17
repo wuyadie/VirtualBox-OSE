@@ -3,9 +3,10 @@
 ## Summary
 
 Fork of a well-known virtualization solution, Oracle VirtualBox Open Source Edition, with improved and simplified build toolchain, video recording of a virtual instance activity, structured solution build requirements.
-Official Oracle source code is optimized for Oracle own infrastructure, which structure is not known, and the process is not documented.
 
-This version allows to compile Virtualbox on Windows 7, 8.1 or any Windows 10. It includes configurations for Virtualbox itself, and Virtualbox Guest Additions for Windows.
+Official Oracle source code is optimized for Oracle own infrastructure, which structure is not known, and the process is not documented. Below provided a complete and up-to-date list of the solution building requirements.
+
+This version allows to compile Virtualbox on Windows 7, 8.1 or any Windows 10. It includes configurations for Virtualbox itself and Virtualbox Guest Additions for Windows so far. Mac and Linux configurations are under development.
 Build host should have `x64` architecture.
 
 ## Pre-requisites
