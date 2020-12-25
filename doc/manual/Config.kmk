@@ -145,7 +145,9 @@ ifdef VBOX_XML_CATALOG
  # quite correctly with file:////, doing incorrect filename transformations)
  # and on Windows (where the absolute path starts with a drive letter).
  VBOX_FILE_URL_MAYBE_SLASH = $(if $(eq $(KBUILD_HOST),win),/,)
+ #
  # Triple-slash for raw paths
+ #
  VBOX_PATH_MANUAL_SRC_SLASHED = $(subst :/,:///,$(VBOX_PATH_MANUAL_SRC))
  VBOX_PATH_MANUAL_OUTBASE_SLASHED = $(subst :/,:///,$(VBOX_PATH_MANUAL_OUTBASE))
  #

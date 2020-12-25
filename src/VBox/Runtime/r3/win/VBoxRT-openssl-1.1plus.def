@@ -214,3 +214,8 @@
     BN_mod_exp_simple
     BN_ucmp
 
+    ; VBoxRT.dll OpenSSL imports
+    OpenSSL_version_num
+    DH_generate_parameters_ex
+    DH_new
+    ASN1_STRING_get0_data
