@@ -2180,7 +2180,6 @@ sub usage
    Print "  --with-libcurl=PATH   "
    Print "  --with-libcurl32=PATH (only for 64-bit targets)"
    Print "  --with-python=PATH    "
-   Print "  --with-mkisofs=PATH   "
    Print "  --with-libvpx=PATH    "
    Print "  --with-libopus=PATH   "
 end sub
@@ -2220,7 +2219,6 @@ Sub Main
    strOptCurl = ""
    strOptCurl32 = ""
    strOptPython = ""
-   strOptMkisofs = ""
    strOptVpx = ""
    strOptOpus = ""
    blnOptDisableCOM = False
@@ -2278,8 +2276,6 @@ Sub Main
             strOptCurl32 = strPath
          case "--with-python"
             strOptPython = strPath
-         case "--with-mkisofs"
-            strOptMkisofs = strPath
          case "--with-libvpx"
             strOptVpx = strPath
          case "--with-libopus"
@@ -2372,9 +2368,6 @@ Sub Main
    CheckForQt strOptQt5
    if (strOptPython <> "") then
      CheckForPython strOptPython
-   end if
-   if (strOptMkisofs <> "") then
-     CheckForMkisofs strOptMkisofs
    end if
    if (strOptVpx <> "") then
      CheckForVpx strOptVpx

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,8 @@ public:
     HRESULT i_loadSettings(const settings::Host &data);
     HRESULT i_saveSettings(settings::Host &data);
 
+    void    i_updateProcessorFeatures();
+
     HRESULT i_getDrives(DeviceType_T mediumType, bool fRefresh, MediaList *&pll, AutoWriteLock &treeLock);
     HRESULT i_findHostDriveById(DeviceType_T mediumType, const Guid &uuid, bool fRefresh, ComObjPtr<Medium> &pMedium);
     HRESULT i_findHostDriveByName(DeviceType_T mediumType, const Utf8Str &strLocationFull, bool fRefresh, ComObjPtr<Medium> &pMedium);
@@ -113,6 +115,7 @@ private:
     HRESULT getUTCTime(LONG64 *aUTCTime);
     HRESULT getAcceleration3DAvailable(BOOL *aAcceleration3DAvailable);
     HRESULT getVideoInputDevices(std::vector<ComPtr<IHostVideoInputDevice> > &aVideoInputDevices);
+    HRESULT getUpdate(ComPtr<IHostUpdate> &aUpdate);
 
     // wrapped IHost methods
     HRESULT getProcessorSpeed(ULONG aCpuId,

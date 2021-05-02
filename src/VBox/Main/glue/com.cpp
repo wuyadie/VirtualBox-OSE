@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2019 Oracle Corporation
+ * Copyright (C) 2005-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,13 +57,7 @@ namespace com
 /* static */
 const Guid Guid::Empty; /* default ctor is OK */
 
-#if defined (VBOX_WITH_XPCOM)
-
-/* static */
-const nsID *SafeGUIDArray::nsIDRef::Empty = (const nsID *)Guid::Empty.raw();
-
-#endif /* (VBOX_WITH_XPCOM) */
-
+const char Zeroes[16] = {0, };
 
 
 void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)

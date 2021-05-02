@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -230,7 +230,7 @@ RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem)
 #ifdef RT_USE_FAST_MUTEX
     return pThis->Mutex && pThis->Mutex->Owner != NULL;
 #else
-    return KeReadStateMutex(&pThis->Mutex) == 1;
+    return KeReadStateMutex(&pThis->Mutex) == 0;
 #endif
 }
 

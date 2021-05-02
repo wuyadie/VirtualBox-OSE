@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,13 +38,7 @@
 
 #include <dlfcn.h>
 #include <sys/mman.h>
-#ifdef RT_OS_DARWIN
-# include <errno.h>
-# include <fcntl.h>
-# include <sys/stat.h> /* fstat() */
-# include <unistd.h>   /* readlink() */
-# include <stdlib.h>
-#elif defined(RT_OS_SOLARIS)
+#if defined(RT_OS_SOLARIS)
 # include <link.h>
 #endif
 #include <stdio.h>
@@ -56,11 +50,6 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-
-/** For OS X. */
-#ifndef MAP_ANONYMOUS
-# define MAP_ANONYMOUS MAP_ANON
-#endif
 
 /**
  * Memory for code patching.
@@ -189,7 +178,7 @@ DECLASM(bool) supR3HardenedPosixMonitor_VerifyLibrary(const char *pszFilename)
     if (   pszFilename
         && strchr(pszFilename, '/') != NULL)
     {
-#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
+#if defined(RT_OS_LINUX)
         int rc = supR3HardenedVerifyFileFollowSymlinks(pszFilename, RTHCUINTPTR_MAX, true /* fMaybe3rdParty */,
                                                        NULL /* pErrInfo */);
 #else

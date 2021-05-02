@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -166,7 +166,9 @@ extern unsigned     g_cVerbosity;
 extern char         g_szLogFile[RTPATH_MAX + 128];
 extern uint32_t     g_DefaultInterval;
 extern VBOXSERVICE  g_TimeSync;
+#ifdef VBOX_WITH_VBOXSERVICE_CLIPBOARD
 extern VBOXSERVICE  g_Clipboard;
+#endif
 extern VBOXSERVICE  g_Control;
 extern VBOXSERVICE  g_VMInfo;
 extern VBOXSERVICE  g_CpuHotPlug;

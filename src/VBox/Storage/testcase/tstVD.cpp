@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -543,7 +543,7 @@ static int tstVDOpenCreateWriteMerge(const char *pszBackend,
     {
         RTFileClose(File);
         rc = VDGetFormat(NULL /* pVDIfsDisk */, NULL /* pVDIfsImage */,
-                         pszBaseFilename, &pszFormat, &enmType);
+                         pszBaseFilename, VDTYPE_INVALID, &pszFormat, &enmType);
         RTPrintf("VDGetFormat() pszFormat=%s rc=%Rrc\n", pszFormat, rc);
         if (RT_SUCCESS(rc) && strcmp(pszFormat, pszBackend))
         {

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,9 +74,9 @@ typedef struct RTSGBUF
 
     /** Current segment we are in. */
     unsigned  idxSeg;
-    /** Pointer to the current segment start. */
+    /** Pointer to current byte within the current segment. */
     void     *pvSegCur;
-    /** Number of bytes left in the current buffer. */
+    /** Number of bytes left in the current segment. */
     size_t    cbSegLeft;
 } RTSGBUF;
 /** Pointer to a S/G entry. */

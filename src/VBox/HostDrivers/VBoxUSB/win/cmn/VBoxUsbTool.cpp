@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -404,14 +404,14 @@ VBOXUSBTOOL_DECL(NTSTATUS) VBoxUsbToolIoInternalCtlSendSync(PDEVICE_OBJECT pDevO
 
     if (Status == STATUS_PENDING)
     {
-        LOG(("VBoxUsbToolIoInternalCtlSendAsync returned pending for pDevObj(0x%x)", pDevObj));
+        LOG(("VBoxUsbToolIoInternalCtlSendAsync returned pending for pDevObj(0x%p)", pDevObj));
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
         Status = IoStatus.Status;
-        LOG(("Pending VBoxUsbToolIoInternalCtlSendAsync completed with Status (0x%x) for pDevObj(0x%x)", Status, pDevObj));
+        LOG(("Pending VBoxUsbToolIoInternalCtlSendAsync completed with Status (0x%x) for pDevObj(0x%p)", Status, pDevObj));
     }
     else
     {
-        LOG(("VBoxUsbToolIoInternalCtlSendAsync completed with Status (0x%x) for pDevObj(0x%x)", Status, pDevObj));
+        LOG(("VBoxUsbToolIoInternalCtlSendAsync completed with Status (0x%x) for pDevObj(0x%p)", Status, pDevObj));
     }
 
     return Status;

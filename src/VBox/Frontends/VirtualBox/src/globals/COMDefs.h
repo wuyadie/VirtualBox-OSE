@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,17 +73,13 @@
 
 #include <VBox/com/com.h>
 #include <VBox/com/array.h>
-#include <VBox/com/assert.h>
 
 #undef ASSERT
 
 /* Qt includes */
 #include <QString>
-#include <QRect>
 #include <QUuid>
 #include <QVector>
-#include <QStringList>
-#include <QMetaType>
 
 /* GUI includes: */
 #include "UILibraryDefs.h"

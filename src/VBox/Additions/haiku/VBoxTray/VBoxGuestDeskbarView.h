@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,7 +91,7 @@ class VBoxGuestDeskbarView : public BView
         status_t               _Init(BMessage *archive = NULL);
         BBitmap               *fIcon;
 
-        VBoxClipboardService *fClipboardService;
+        VBoxShClService *fClipboardService;
         VBoxDisplayService *fDisplayService;
 };
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,14 +94,6 @@ void UIDialogPanel::retranslateUi()
         m_pCloseButton->setToolTip(QApplication::translate("UIVisoCreator", "Close the pane"));
 }
 
-bool UIDialogPanel::eventFilter(QObject *pObject, QEvent *pEvent)
-{
-    Q_UNUSED(pObject);
-    Q_UNUSED(pEvent);
-    /* Dont consume this event. Pass it back to Qt's event system: */
-    return false;
-}
-
 void UIDialogPanel::showEvent(QShowEvent *pEvent)
 {
     QWidget::showEvent(pEvent);
@@ -123,6 +115,8 @@ void UIDialogPanel::hideEvent(QHideEvent *pEvent)
 void UIDialogPanel::addVerticalSeparator()
 {
     QFrame *pSeparator = new QFrame();
+    if (!pSeparator)
+        return;
     pSeparator->setFrameShape(QFrame::VLine);
     pSeparator->setFrameShadow(QFrame::Sunken);
     mainLayout()->addWidget(pSeparator);

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,15 @@ using namespace ovf;
 // OVF reader implementation
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Default Constructor.
+ * Should be used if you don't have an OVF file, but want to fill the data
+ * m_mapDisks, m_llVirtualSystems manually
+ */
+OVFReader::OVFReader()
+{
+}
 
 /**
  * Constructor. This parses the given XML file out of the memory. Throws lots of exceptions

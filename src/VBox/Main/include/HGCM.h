@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,13 +48,6 @@ void HGCMGuestCancelled(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmdPtr, uint32_t 
 
 int HGCMHostCall(const char *pszServiceName, uint32_t function, uint32_t cParms, VBOXHGCMSVCPARM aParms[]);
 int HGCMBroadcastEvent(HGCMNOTIFYEVENT enmEvent);
-
-#ifdef VBOX_WITH_CRHGSMI
-int HGCMHostSvcHandleCreate(const char *pszServiceName, HGCMCVSHANDLE * phSvc);
-int HGCMHostSvcHandleDestroy(HGCMCVSHANDLE hSvc);
-int HGCMHostFastCallAsync(HGCMCVSHANDLE hSvc, uint32_t function, PVBOXHGCMSVCPARM pParm,
-                          PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion);
-#endif
 
 int HGCMHostSaveState(PSSMHANDLE pSSM);
 int HGCMHostLoadState(PSSMHANDLE pSSM, uint32_t uVersion);

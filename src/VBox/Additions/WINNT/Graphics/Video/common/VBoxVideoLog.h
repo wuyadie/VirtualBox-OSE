@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,7 +65,7 @@
 # define VBOX_VIDEO_LOG_SUFFIX_PARMS
 #endif
 
-#ifdef DEBUG_misha
+#ifdef DEBUG_sunlover
 # define BP_WARN() AssertFailed()
 #else
 # define BP_WARN() do {} while(0)

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,10 @@
 #include <VBox/vd-ifs.h>
 
 RT_C_DECLS_BEGIN
+
+/** @addtogroup grp_vd
+ * @internal
+ * @{ */
 
 /**
  * Interface to get the parent state.
@@ -683,8 +687,7 @@ DECLINLINE(PVDINTERFACETRAVERSEMETADATA) VDIfTraverseMetadataGet(PVDINTERFACE pV
     return (PVDINTERFACETRAVERSEMETADATA)pIf;
 }
 
-RT_C_DECLS_END
-
 /** @} */
+RT_C_DECLS_END
 
 #endif /* !VBOX_INCLUDED_vd_ifs_internal_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -768,12 +768,12 @@ VBOXSERVICE g_TimeSync =
     /* pszDescription. */
     "Time synchronization",
     /* pszUsage. */
-    "              [--timesync-interval <ms>] [--timesync-min-adjust <ms>]\n"
-    "              [--timesync-latency-factor <x>] [--timesync-max-latency <ms>]\n"
-    "              [--timesync-set-threshold <ms>]\n"
-    "              [--timesync-set-start|--timesync-no-set-start]\n"
-    "              [--timesync-set-on-restore|--timesync-no-set-on-restore]\n"
-    "              [--timesync-verbosity <level>]"
+    "           [--timesync-interval <ms>] [--timesync-min-adjust <ms>]\n"
+    "           [--timesync-latency-factor <x>] [--timesync-max-latency <ms>]\n"
+    "           [--timesync-set-threshold <ms>]\n"
+    "           [--timesync-set-start|--timesync-no-set-start]\n"
+    "           [--timesync-set-on-restore|--timesync-no-set-on-restore]\n"
+    "           [--timesync-verbosity <level>]"
     ,
     /* pszOptions. */
     "    --timesync-interval     Specifies the interval at which to synchronize the\n"

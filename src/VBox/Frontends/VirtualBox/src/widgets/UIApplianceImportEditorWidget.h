@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,6 @@
 
 /* Forward declarations: */
 class UIFilePathSelector;
-class QIRichTextLabel;
 class QComboBox;
 class QGridLayout;
 
@@ -38,6 +37,7 @@ enum MACAddressImportPolicy
     MACAddressImportPolicy_StripAllMACs,
     MACAddressImportPolicy_MAX
 };
+Q_DECLARE_METATYPE(MACAddressImportPolicy);
 
 class UIApplianceImportEditorWidget: public UIApplianceEditorWidget
 {
@@ -69,7 +69,7 @@ private:
     void    sltHandleMACAddressImportPolicyComboChange();
     void    updateMACAddressImportPolicyComboToolTip();
 
-    QIRichTextLabel    *m_pPathSelectorLabel;
+    QLabel             *m_pPathSelectorLabel;
     UIFilePathSelector *m_pPathSelector;
     /** Holds the checkbox that controls 'import HDs as VDI' behaviour. */
     QCheckBox          *m_pImportHDsAsVDI;

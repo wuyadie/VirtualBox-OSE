@@ -5,7 +5,7 @@
 # for Linux Guest Additions
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -614,6 +614,10 @@ EOF
     done
     echo >&2 "  ldconfig"
 fi
+
+# setuid bit of our drm client as drm ioctl calls
+# need to be done by elevated privileges
+chmod 4755 "$INSTALLATION_DIR"/bin/VBoxDRMClient
 
 # And do a final test as to whether the kernel modules were properly created
 # and loaded.  Return 0 if both are true, 1 if the modules could not be built

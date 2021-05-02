@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,7 @@ typedef enum SUPHARDNTVPKIND
     SUPHARDNTVPKIND_VERIFY_ONLY = 1,
     SUPHARDNTVPKIND_CHILD_PURIFICATION,
     SUPHARDNTVPKIND_SELF_PURIFICATION,
+    SUPHARDNTVPKIND_SELF_PURIFICATION_LIMITED,
     SUPHARDNTVPKIND_32BIT_HACK = 0x7fffffff
 } SUPHARDNTVPKIND;
 /** @name SUPHARDNTVP_F_XXX - Flags for supHardenedWinVerifyProcess
@@ -96,8 +97,7 @@ typedef struct SUPHNTVIRDR
     RTLDRREADER Core;
     /** The file handle. */
     HANDLE      hFile;
-    /** Handle to event sempahore in case we're force to deal with asynchronous
-     * I/O. */
+    /** Handle to event sempahore in case we're force to deal with asynchronous I/O. */
     HANDLE      hEvent;
     /** Current file offset. */
     RTFOFF      off;
@@ -105,8 +105,17 @@ typedef struct SUPHNTVIRDR
     uint64_t    cbFile;
     /** Flags for the verification callback, SUPHNTVI_F_XXX. */
     uint32_t    fFlags;
-    /** The executable timstamp in second since unix epoch. */
-    uint64_t    uTimestamp;
+    /** Number of signatures that verified okay. */
+    uint16_t    cOkaySignatures;
+    /** Number of signatures that couldn't be successfully verified (time stamp
+     * issues, no certificate path, etc) but weren't fatal. */
+    uint16_t    cNokSignatures;
+    /** Total number of signatures. */
+    uint16_t    cTotalSignatures;
+    /** The current signature (for passing to supHardNtViCertVerifyCallback). */
+    uint16_t    iCurSignature;
+    /** The last non-fatal signature failure. */
+    int         rcLastSignatureFailure;
     /** Log name. */
     char        szFilename[1];
 } SUPHNTVIRDR;
@@ -167,7 +176,7 @@ typedef struct SUPHNTLDRCACHEENTRY
     uint8_t            *pbBits;
     /** Set if verified. */
     bool                fVerified;
-    /** Whether we've got valid cacheable image bit.s */
+    /** Whether we've got valid cacheable image bits. */
     bool                fValidBits;
     /** The image base address. */
     uintptr_t           uImageBase;

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,7 @@ typedef struct RTVFSFSSWRITE2DIRENTRY
 #else
     /** The name (relative to RTVFSFSSWRITE2DIR::szBaseDir). */
 #endif
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char            szName[RT_FLEXIBLE_ARRAY];
 } RTVFSFSSWRITE2DIRENTRY;
 /** Pointer to a RTVFSFSSWRITE2DIR undo entry. */
@@ -86,6 +87,7 @@ typedef struct RTVFSFSSWRITE2DIR
     RTVFSDIR        hVfsBaseDir;
 #else
     /** Path to the directory that all operations are relative to. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char            szBaseDir[RT_FLEXIBLE_ARRAY];
 #endif
 } RTVFSFSSWRITE2DIR;

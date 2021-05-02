@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1719,6 +1719,9 @@ RTDECL(RTEXITCODE) RTZipTarCmd(unsigned cArgs, char **papszArgs)
         Opts.papszFiles = (const char * const *)&papszArgs[GetState.iNext - 1];
         Opts.cFiles     = cArgs - GetState.iNext + 1;
     }
+
+    if (!Opts.pszFile)
+        return RTMsgErrorExitFailure("No archive specified");
 
     /*
      * Post proceess the options.

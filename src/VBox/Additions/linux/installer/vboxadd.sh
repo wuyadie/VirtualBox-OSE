@@ -1,11 +1,11 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 131975 $)
+# Linux Additions kernel module init script ($Revision: 135976 $)
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -527,7 +527,9 @@ stop()
         ldconfig
     fi
     if ! umount -a -t vboxsf 2>/dev/null; then
-        fail "Cannot unmount vboxsf folders"
+        # Make sure we only fail, if there are truly no more vboxsf
+        # mounts in the system.
+        [ -n "$(findmnt -t vboxsf)" ] && fail "Cannot unmount vboxsf folders"
     fi
     test -n "${INSTALL_NO_MODULE_BUILDS}" ||
         info "You may need to restart your guest system to finish removing guest drivers."

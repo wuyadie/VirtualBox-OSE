@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4766,9 +4766,9 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
 
 /** @copydoc VDIMAGEBACKEND::pfnProbe */
 static DECLCALLBACK(int) iscsiProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                    PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                    PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
-    RT_NOREF4(pszFilename, pVDIfsDisk, pVDIfsImage, penmType);
+    RT_NOREF(pszFilename, pVDIfsDisk, pVDIfsImage, enmDesiredType, penmType);
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
 
     /* iSCSI images can't be checked for validity this way, as the filename

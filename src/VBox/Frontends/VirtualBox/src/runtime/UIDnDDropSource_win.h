@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,7 @@ protected:
 
     /** Pointer to parent widget. */
     QWidget         *m_pParent;
+    /** Pointer to current data object. */
     UIDnDDataObject *m_pDataObject;
     /** The current reference count. */
     LONG             m_cRefCount;

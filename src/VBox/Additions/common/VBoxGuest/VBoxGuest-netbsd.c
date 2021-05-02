@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -983,7 +983,9 @@ static int
 vboxguest_modcmd(modcmd_t cmd, void *opaque)
 {
     devmajor_t bmajor, cmajor;
+#if !__NetBSD_Prereq__(8,99,46)
     register_t retval;
+#endif
     int error;
 
     LogFlow((DEVICE_NAME ": %s\n", __func__));
@@ -1011,7 +1013,10 @@ vboxguest_modcmd(modcmd_t cmd, void *opaque)
 
             error = do_sys_mknod(curlwp, "/dev/vboxguest",
                                  0666|S_IFCHR, makedev(cmajor, 0),
-                                 &retval, UIO_SYSSPACE);
+#if !__NetBSD_Prereq__(8,99,46)
+                                 &retval,
+#endif
+                                 UIO_SYSSPACE);
             if (error == EEXIST)
                 error = 0;
             break;

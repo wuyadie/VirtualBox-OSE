@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -499,7 +499,14 @@ sorecvoob(PNATState pData, struct socket *so)
     ret = soread(pData, so);
     if (RT_LIKELY(ret > 0))
     {
+        /*
+         * @todo for now just scrub the URG pointer.  To faithfully
+         * proxy URG we need to read the srteam until SIOCATMARK, and
+         * then mark the first byte of the next read ar urgent.
+         */
+#if 0
         tp->snd_up = tp->snd_una + SBUF_LEN(&so->so_snd);
+#endif
         tp->t_force = 1;
         tcp_output(pData, tp);
         tp->t_force = 0;

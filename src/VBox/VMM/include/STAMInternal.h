@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,11 +38,6 @@ RT_C_DECLS_BEGIN
  * @internal
  * @{
  */
-
-/** Enables the lookup tree.
- * This is an optimization for speeding up registration as well as query. */
-#define STAM_WITH_LOOKUP_TREE
-
 
 /** Pointer to sample descriptor. */
 typedef struct STAMDESC    *PSTAMDESC;

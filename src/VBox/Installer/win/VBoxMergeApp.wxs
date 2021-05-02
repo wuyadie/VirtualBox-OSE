@@ -2,7 +2,7 @@
 <!--
     VirtualBox Windows Installation Script (WiX)
 
-    Copyright (C) 2006-2015 Oracle Corporation
+    Copyright (C) 2006-2020 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -52,8 +52,8 @@
         <?include PublicProperties.wxi ?>
 
         <Property Id="local_VBOX_REGISTERFILEEXTENSIONS" Value="Empty" />
-        <Configuration Name="argRegesterExtensions" Format="Text" DefaultValue="Not passed"/>
-        <Substitution Table="CustomAction" Row="registerExtensions" Column="Target" Value="[=argRegesterExtensions]"/>
+        <Configuration Name="argRegisterExtensions" Format="Text" DefaultValue="Not passed"/>
+        <Substitution Table="CustomAction" Row="registerExtensions" Column="Target" Value="[=argRegisterExtensions]"/>
         <CustomAction Id="registerExtensions" Property="local_VBOX_REGISTERFILEEXTENSIONS" Value="[local_VBOX_REGISTERFILEEXTENSIONS]" Execute="immediate" />
 
         <!-- Here comes the file/directory list -->

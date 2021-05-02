@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -418,6 +418,15 @@ void MyCheckFormatCString(PVFMTCHKSTATE pState, const char *pszFmt)
                 iArg += 2;
                 break;
             }
+
+            case 'R':
+                if (   pszFmt[0] == 'h'
+                    && pszFmt[1] == 'X')
+                {
+                    VFmtChkRequirePresentArg(pState, pszPct, iArg, "Expected argument");
+                    iArg++;
+                }
+                RT_FALL_THROUGH();
 
             default:
                 VFmtChkRequirePresentArg(pState, pszPct, iArg, "Expected argument");

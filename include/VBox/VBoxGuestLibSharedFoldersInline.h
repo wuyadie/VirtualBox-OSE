@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -969,6 +969,7 @@ typedef struct VBOXSFREADEMBEDDEDREQ
     VBGLIOCIDCHGCMFASTCALL  Hdr;
     VMMDevHGCMCall          Call;
     VBoxSFParmRead          Parms;
+    RT_FLEXIBLE_ARRAY_EXTENSION
     uint8_t                 abData[RT_FLEXIBLE_ARRAY];
 } VBOXSFREADEMBEDDEDREQ;
 
@@ -1116,6 +1117,7 @@ typedef struct VBOXSFWRITEEMBEDDEDREQ
     VBGLIOCIDCHGCMFASTCALL  Hdr;
     VMMDevHGCMCall          Call;
     VBoxSFParmWrite         Parms;
+    RT_FLEXIBLE_ARRAY_EXTENSION
     uint8_t                 abData[RT_FLEXIBLE_ARRAY];
 } VBOXSFWRITEEMBEDDEDREQ;
 

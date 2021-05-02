@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -258,6 +258,7 @@ private:
     HRESULT getSerialNumber(com::Utf8Str &aSerialNumber);
     HRESULT getAddress(com::Utf8Str &aAddress);
     HRESULT getPort(USHORT *aPort);
+    HRESULT getPortPath(com::Utf8Str &aPortPath);
     HRESULT getVersion(USHORT *aVersion);
     HRESULT getPortVersion(USHORT *aPortVersion);
     HRESULT getSpeed(USBConnectionSpeed_T *aSpeed);

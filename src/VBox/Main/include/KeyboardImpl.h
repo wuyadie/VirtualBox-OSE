@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,6 +76,7 @@ private:
                          ULONG *aCodesStored);
     HRESULT putCAD();
     HRESULT releaseKeys();
+    HRESULT putUsageCode(LONG aUsageCode, LONG aUsagePage, BOOL fKeyRelease);
 
     static DECLCALLBACK(void)   i_keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds);
     static DECLCALLBACK(void)   i_keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);

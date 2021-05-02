@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@
 # define SUP_CTL_CODE_SIZE(Function, Size)      _IOWRN('V', (Function) | SUP_IOCTL_FLAG, sizeof(SUPREQHDR))
 # define SUP_CTL_CODE_BIG(Function)             _IOWRN('V', (Function) | SUP_IOCTL_FLAG, sizeof(SUPREQHDR))
 # define SUP_CTL_CODE_FAST(Function)            _IO(   'V', (Function) | SUP_IOCTL_FLAG)
-# define SUP_CTL_CODE_NO_SIZE(uIOCtl)           (uIOCtl)
+# define SUP_CTL_CODE_NO_SIZE(uIOCtl)           ((uintptr_t)(uIOCtl))
 
 #elif defined(RT_OS_OS2)
   /* No automatic buffering, size not encoded. */
@@ -119,16 +119,14 @@
  * @note These must run parallel to SUP_VMMR0_DO_XXX
  * @note Implementations ASSUMES up to 32 I/O controls codes in the fast range.
  * @{ */
-/** Fast path IOCtl: VMMR0_DO_RAW_RUN */
-#define SUP_IOCTL_FAST_DO_RAW_RUN               SUP_CTL_CODE_FAST(64)
 /** Fast path IOCtl: VMMR0_DO_HM_RUN */
-#define SUP_IOCTL_FAST_DO_HM_RUN                SUP_CTL_CODE_FAST(65)
+#define SUP_IOCTL_FAST_DO_HM_RUN                SUP_CTL_CODE_FAST(64)
+/** Fast path IOCtl: VMMR0_DO_NEM_RUN */
+#define SUP_IOCTL_FAST_DO_NEM_RUN               SUP_CTL_CODE_FAST(65)
 /** Just a NOP call for profiling the latency of a fast ioctl call to VMMR0. */
 #define SUP_IOCTL_FAST_DO_NOP                   SUP_CTL_CODE_FAST(66)
-/** Fast path IOCtl: VMMR0_DO_NEM_RUN */
-#define SUP_IOCTL_FAST_DO_NEM_RUN               SUP_CTL_CODE_FAST(67)
 /** First fast path IOCtl number. */
-#define SUP_IOCTL_FAST_DO_FIRST                 SUP_IOCTL_FAST_DO_RAW_RUN
+#define SUP_IOCTL_FAST_DO_FIRST                 SUP_IOCTL_FAST_DO_HM_RUN
 /** @} */
 
 
@@ -222,11 +220,9 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - Move SUP_IOCTL_FAST_DO_NOP and SUP_VMMR0_DO_NEM_RUN after NEM.
- *
- * @remarks 0x002a0000 is used by 5.1. The next version number must be 0x002b0000.
+ *          - Nothing.
  */
-#define SUPDRV_IOC_VERSION                              0x00290008
+#define SUPDRV_IOC_VERSION                              0x00300000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -318,8 +314,8 @@ typedef struct SUPLDROPEN
     {
         struct
         {
-            /** Size of the image we'll be loading (including tables). */
-            uint32_t        cbImageWithTabs;
+            /** Size of the image we'll be loading (including all tables). */
+            uint32_t        cbImageWithEverything;
             /** The size of the image bits. (Less or equal to cbImageWithTabs.) */
             uint32_t        cbImageBits;
             /** Image name.
@@ -394,6 +390,29 @@ typedef SUPLDRSYM *PSUPLDRSYM;
 /** Pointer to a const symbol table entry. */
 typedef SUPLDRSYM const *PCSUPLDRSYM;
 
+#define SUPLDR_PROT_READ    1   /**< Grant read access (RTMEM_PROT_READ). */
+#define SUPLDR_PROT_WRITE   2   /**< Grant write access (RTMEM_PROT_WRITE). */
+#define SUPLDR_PROT_EXEC    4   /**< Grant execute access (RTMEM_PROT_EXEC). */
+
+/**
+ * A segment table entry - chiefly for conveying memory protection.
+ */
+typedef struct SUPLDRSEG
+{
+    /** The RVA of the segment. */
+    uint32_t        off;
+    /** The size of the segment. */
+    uint32_t        cb : 28;
+    /** The segment protection (SUPLDR_PROT_XXX). */
+    uint32_t        fProt : 3;
+    /** MBZ. */
+    uint32_t        fUnused;
+} SUPLDRSEG;
+/** Pointer to a segment table entry. */
+typedef SUPLDRSEG *PSUPLDRSEG;
+/** Pointer to a const segment table entry. */
+typedef SUPLDRSEG const *PCSUPLDRSEG;
+
 /**
  * SUPLDRLOAD::u::In::EP type.
  */
@@ -447,7 +466,7 @@ typedef struct SUPLDRLOAD
             /** The size of the image bits (starting at offset 0 and
              * approaching offSymbols). */
             uint32_t        cbImageBits;
-            /** The offset of the symbol table. */
+            /** The offset of the symbol table (SUPLDRSYM array). */
             uint32_t        offSymbols;
             /** The number of entries in the symbol table. */
             uint32_t        cSymbols;
@@ -455,8 +474,14 @@ typedef struct SUPLDRLOAD
             uint32_t        offStrTab;
             /** Size of the string table. */
             uint32_t        cbStrTab;
+            /** Offset to the segment table (SUPLDRSEG array). */
+            uint32_t        offSegments;
+            /** Number of segments. */
+            uint32_t        cSegments;
             /** Size of image data in achImage. */
-            uint32_t        cbImageWithTabs;
+            uint32_t        cbImageWithEverything;
+            /** Flags (SUPLDRLOAD_F_XXX). */
+            uint32_t        fFlags;
             /** The image data. */
             uint8_t         abImage[1];
         } In;
@@ -474,6 +499,10 @@ typedef struct SUPLDRLOAD
  * present on SUP_IOCTL_LDR_LOAD failure.
  * @remarks The value is choosen to be an unlikely init and term address. */
 #define SUPLDRLOAD_ERROR_MAGIC      UINT64_C(0xabcdefef0feddcb9)
+/** The module depends on VMMR0. */
+#define SUPLDRLOAD_F_DEP_VMMR0      RT_BIT_32(0)
+/** Valid flag mask. */
+#define SUPLDRLOAD_F_VALID_MASK     UINT32_C(0x00000001)
 /** @} */
 
 
@@ -1639,6 +1668,8 @@ typedef struct SUPUCODEREV
  *
  * This queries a lot more information than merely VT-x/AMD-V basic capabilities
  * provided by SUP_IOCTL_VT_CAPS.
+ *
+ * @{
  */
 #define SUP_IOCTL_GET_HWVIRT_MSRS                       SUP_CTL_CODE_SIZE(41, SUP_IOCTL_GET_HWVIRT_MSRS_SIZE)
 #define SUP_IOCTL_GET_HWVIRT_MSRS_SIZE                  sizeof(SUPGETHWVIRTMSRS)

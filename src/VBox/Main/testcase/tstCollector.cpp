@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -229,9 +229,9 @@ int testFsUsage(pm::CollectorHAL *collector)
             RTPrintf("tstCollector: getHostFilesystemUsage() -> %Rrc\n", rc);
             return 1;
         }
-        RTPrintf("tstCollector: host root fs total     = %lu mB\n", total);
-        RTPrintf("tstCollector: host root fs used      = %lu mB\n", used);
-        RTPrintf("tstCollector: host root fs available = %lu mB\n\n", available);
+        RTPrintf("tstCollector: host root fs total     = %lu MB\n", total);
+        RTPrintf("tstCollector: host root fs used      = %lu MB\n", used);
+        RTPrintf("tstCollector: host root fs available = %lu MB\n\n", available);
     }
     return 0;
 }

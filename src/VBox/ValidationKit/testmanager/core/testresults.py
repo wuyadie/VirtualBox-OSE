@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: testresults.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 ## @todo Rename this file to testresult.py!
 
@@ -10,7 +10,7 @@ Test Manager - Fetch test results.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135993 $"
 
 
 # Standard python imports.
@@ -219,7 +219,7 @@ class TestResultDataEx(TestResultData):
         """
         Get a list of test results instances actually contributing to cErrors.
 
-        Returns a list of TestResultDataEx instance from this tree. (shared!)
+        Returns a list of TestResultDataEx instances from this tree. (shared!)
         """
         # Check each child (if any).
         aoRet = [];
@@ -232,6 +232,25 @@ class TestResultDataEx(TestResultData):
         # Did we contribute as well?
         if self.cErrors > cChildErrors:
             aoRet.append(self);
+
+        return aoRet;
+
+    def getListOfLogFilesByKind(self, asKinds):
+        """
+        Get a list of test results instances actually contributing to cErrors.
+
+        Returns a list of TestResultFileDataEx instances from this tree. (shared!)
+        """
+        aoRet = [];
+
+        # Check the children first.
+        for oChild in self.aoChildren:
+            aoRet.extend(oChild.getListOfLogFilesByKind(asKinds));
+
+        # Check our own files next.
+        for oFile in self.aoFiles:
+            if oFile.sKind in asKinds:
+                aoRet.append(oFile);
 
         return aoRet;
 
@@ -401,7 +420,7 @@ class TestResultFileData(ModelDataBase):
     ksKind_LogReleaseVm         = 'log/release/vm';
     ksKind_LogDebugVm           = 'log/debug/vm';
     ksKind_LogReleaseSvc        = 'log/release/svc';
-    ksKind_LogRebugSvc          = 'log/debug/svc';
+    ksKind_LogDebugSvc          = 'log/debug/svc';
     ksKind_LogReleaseClient     = 'log/release/client';
     ksKind_LogDebugClient       = 'log/debug/client';
     ksKind_LogInstaller         = 'log/installer';
@@ -426,7 +445,7 @@ class TestResultFileData(ModelDataBase):
         ksKind_LogReleaseVm,
         ksKind_LogDebugVm,
         ksKind_LogReleaseSvc,
-        ksKind_LogRebugSvc,
+        ksKind_LogDebugSvc,
         ksKind_LogReleaseClient,
         ksKind_LogDebugClient,
         ksKind_LogInstaller,
@@ -549,7 +568,7 @@ class TestResultFileDataEx(TestResultFileData):
 
 
 
-class TestResultListingData(ModelDataBase): # pylint: disable=R0902
+class TestResultListingData(ModelDataBase): # pylint: disable=too-many-instance-attributes
     """
     Test case result data representation for table listing
     """
@@ -670,7 +689,7 @@ class TestResultListingData(ModelDataBase): # pylint: disable=R0902
 
 class TestResultHangingOffence(TMExceptionBase):
     """Hanging offence committed by test case."""
-    pass;
+    pass;                               # pylint: disable=unnecessary-pass
 
 
 class TestResultFilter(ModelFilterBase):
@@ -683,18 +702,19 @@ class TestResultFilter(ModelFilterBase):
     kiBranches              =  2;
     kiBuildTypes            =  3;
     kiRevisions             =  4;
-    kiFailReasons           =  5;
-    kiTestCases             =  6;
-    kiTestCaseMisc          =  7;
-    kiTestBoxes             =  8
-    kiOses                  =  9;
-    kiCpuArches             = 10;
-    kiCpuVendors            = 11;
-    kiCpuCounts             = 12;
-    kiMemory                = 13;
-    kiTestboxMisc           = 14;
-    kiPythonVersions        = 15;
-    kiSchedGroups           = 16;
+    kiRevisionRange         =  5;
+    kiFailReasons           =  6;
+    kiTestCases             =  7;
+    kiTestCaseMisc          =  8;
+    kiTestBoxes             =  9;
+    kiOses                  = 10;
+    kiCpuArches             = 11;
+    kiCpuVendors            = 12;
+    kiCpuCounts             = 13;
+    kiMemory                = 14;
+    kiTestboxMisc           = 15;
+    kiPythonVersions        = 16;
+    kiSchedGroups           = 17;
 
     ## Misc test case / variation name filters.
     ## Presented in table order.  The first sub element is the presistent ID.
@@ -707,9 +727,10 @@ class TestResultFilter(ModelFilterBase):
         (  6, 'hw', ),
         (  7, 'np', ),
         (  8, 'Install', ),
+        ( 20, 'UInstall', ),    # NB. out of order.
         (  9, 'Benchmark', ),
-        ( 18, 'smoke', ),   # NB. out of order.
-        ( 19, 'unit', ),    # NB. out of order.
+        ( 18, 'smoke', ),       # NB. out of order.
+        ( 19, 'unit', ),        # NB. out of order.
         ( 10, 'USB', ),
         ( 11, 'Debian', ),
         ( 12, 'Fedora', ),
@@ -761,6 +782,12 @@ class TestResultFilter(ModelFilterBase):
         oCrit = FilterCriterion('Revisions', sVarNm = 'rv', sTable = 'Builds', sColumn = 'iRevision');
         self.aCriteria.append(oCrit);
         assert self.aCriteria[self.kiRevisions] is oCrit;
+
+        # Revision Range
+        oCrit = FilterCriterion('Revision Range', sVarNm = 'rr', sType = FilterCriterion.ksType_Ranges,
+                                sKind = FilterCriterion.ksKind_ElementOfOrNot, sTable = 'Builds', sColumn = 'iRevision');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiRevisionRange] is oCrit;
 
         # Failure reasons
         oCrit = FilterCriterion('Failure reasons', sVarNm = 'fr', sType = FilterCriterion.ksType_UIntNil,
@@ -886,6 +913,24 @@ class TestResultFilter(ModelFilterBase):
                 for iValue in oCrit.aoSelected:
                     if iValue in dConditions:
                         sQuery += '%s   AND %s\n' % (sExtraIndent, dConditions[iValue],);
+            elif oCrit.sType == FilterCriterion.ksType_Ranges:
+                assert not oCrit.aoPossible;
+                if oCrit.aoSelected:
+                    asConditions = [];
+                    for tRange in oCrit.aoSelected:
+                        if tRange[0] == tRange[1]:
+                            asConditions.append('%s.%s = %s' % (oCrit.asTables[0], oCrit.sColumn, tRange[0]));
+                        elif tRange[1] is None: # 9999-
+                            asConditions.append('%s.%s >= %s' % (oCrit.asTables[0], oCrit.sColumn, tRange[0]));
+                        elif tRange[0] is None: # -9999
+                            asConditions.append('%s.%s <= %s' % (oCrit.asTables[0], oCrit.sColumn, tRange[1]));
+                        else:
+                            asConditions.append('%s.%s BETWEEN %s AND %s' % (oCrit.asTables[0], oCrit.sColumn,
+                                                                             tRange[0], tRange[1]));
+                    if not oCrit.fInverted:
+                        sQuery += '%s   AND (%s)\n' % (sExtraIndent, ' OR '.join(asConditions));
+                    else:
+                        sQuery += '%s   AND NOT (%s)\n' % (sExtraIndent, ' OR '.join(asConditions));
             else:
                 assert len(oCrit.asTables) == 1;
                 sQuery += '%s   AND (' % (sExtraIndent,);
@@ -989,7 +1034,7 @@ class TestResultFilter(ModelFilterBase):
 
 
 
-class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
+class TestResultLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Results grouped by scheduling group.
     """
@@ -1198,7 +1243,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                      sExtraIndent, sTsNow, sInterval );
         return sRet
 
-    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, oFilter, enmResultSortBy, # pylint: disable=R0913
+    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, oFilter, enmResultSortBy, # pylint: disable=too-many-arguments
                                enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures, fOnlyNeedingReason):
         """
         Fetches TestResults table content.
@@ -2557,7 +2602,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         for sAttr in [ 'value', ]:
             if sAttr in dAttribs:
                 try:
-                    _ = long(dAttribs[sAttr]);  # pylint: disable=R0204
+                    _ = long(dAttribs[sAttr]);  # pylint: disable=redefined-variable-type
                 except:
                     return 'Element %s has an invalid %s attribute value: %s.' % (sName, sAttr, dAttribs[sAttr],);
 
@@ -2727,7 +2772,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             aaiHints.insert(0, [len(aoStack), int(dAttribs['testdepth'])]);
 
         elif sName == 'PopHint':
-            if len(aaiHints) < 1:
+            if not aaiHints:
                 return 'No hint to pop.'
 
             iDesiredTestDepth = int(dAttribs['testdepth']);
@@ -2853,7 +2898,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class TestResultDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [TestResultData(),];

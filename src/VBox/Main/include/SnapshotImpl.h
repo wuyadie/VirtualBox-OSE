@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,6 +91,11 @@ public:
 
     bool i_sharesSavedStateFile(const Utf8Str &strPath,
                                 Snapshot *pSnapshotToIgnore);
+
+    void i_updateNVRAMPaths(const Utf8Str &strOldPath,
+                            const Utf8Str &strNewPath);
+    void i_updateNVRAMPathsImpl(const Utf8Str &strOldPath,
+                                const Utf8Str &strNewPath);
 
     HRESULT i_saveSnapshot(settings::Snapshot &data) const;
     HRESULT i_saveSnapshotImpl(settings::Snapshot &data) const;

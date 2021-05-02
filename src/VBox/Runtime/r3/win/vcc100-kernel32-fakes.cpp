@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,33 @@ DECL_KERNEL32(BOOL) Fake_InitializeCriticalSectionAndSpinCount(LPCRITICAL_SECTIO
     RT_NOREF(cSpin);
     InitializeCriticalSection(pCritSect);
     return TRUE;
+}
+
+
+DECL_KERNEL32(HANDLE) Fake_CreateIoCompletionPort(HANDLE hFile, HANDLE hExistingCompletionPort, ULONG_PTR uCompletionKey,
+                                                  DWORD cConcurrentThreads)
+{
+    RT_NOREF(hFile, hExistingCompletionPort, uCompletionKey, cConcurrentThreads);
+    SetLastError(ERROR_NOT_SUPPORTED);
+    return NULL;
+}
+
+
+DECL_KERNEL32(BOOL) Fake_GetQueuedCompletionStatus(HANDLE hCompletionPort, PDWORD_PTR pcbTransfered, PULONG_PTR puCompletionKey,
+                                                   LPOVERLAPPED *ppOverlapped, DWORD cMs)
+{
+    RT_NOREF(hCompletionPort, pcbTransfered, puCompletionKey, ppOverlapped, cMs);
+    SetLastError(ERROR_NOT_SUPPORTED);
+    return FALSE;
+}
+
+
+DECL_KERNEL32(BOOL) Fake_PostQueuedCompletionStatus(HANDLE hCompletionPort, DWORD cbTransfered, ULONG_PTR uCompletionKey,
+                                                    LPOVERLAPPED pOverlapped)
+{
+    RT_NOREF(hCompletionPort, cbTransfered, uCompletionKey, pOverlapped);
+    SetLastError(ERROR_NOT_SUPPORTED);
+    return FALSE;
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,6 +116,11 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtioNet_1_0);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
 #ifdef VBOX_WITH_INIP
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceINIP);
     if (RT_FAILURE(rc))
@@ -145,11 +150,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#ifdef VBOX_ACPI
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceACPI);
     if (RT_FAILURE(rc))
         return rc;
-#endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceDMA);
     if (RT_FAILURE(rc))
         return rc;
@@ -191,6 +194,11 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
 #endif
 #ifdef VBOX_WITH_NVME_IMPL
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceNVMe);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_VIRTIO_SCSI
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtioSCSI);
     if (RT_FAILURE(rc))
         return rc;
 #endif
@@ -381,6 +389,9 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvIfTrace);
+    if (RT_FAILURE(rc))
+        return rc;
 
     return VINF_SUCCESS;
 }

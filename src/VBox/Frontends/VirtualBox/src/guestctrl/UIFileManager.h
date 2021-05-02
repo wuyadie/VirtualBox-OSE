@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,15 +40,10 @@
 /* Forward declarations: */
 class QHBoxLayout;
 class QSplitter;
-class QTableWidget;
 class QTextEdit;
 class QVBoxLayout;
-class QITabWidget;
 class CGuestSessionStateChangedEvent;
 class UIActionPool;
-class UIFileOperationsList;
-class UIGuestControlConsole;
-class UIGuestControlInterface;
 class UIDialogPanel;
 class UIFileManagerLogPanel;
 class UIFileManagerOperationsPanel;
@@ -56,7 +51,6 @@ class UIFileManagerSessionPanel;
 class UIFileManagerOptionsPanel;
 class UIFileManagerGuestTable;
 class UIFileManagerHostTable;
-class UIGuestSessionCreateWidget;
 class UIToolBar;
 
 /** A Utility class to manage file  manager options. */
@@ -89,6 +83,10 @@ class UIFileManager : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
+signals:
+
+    void sigSetCloseButtonShortCut(QKeySequence);
+
 public:
 
     UIFileManager(EmbedTo enmEmbedding, UIActionPool *pActionPool,
@@ -100,10 +98,6 @@ public:
     /** Returns the toolbar. */
     UIToolBar *toolbar() const { return m_pToolBar; }
 #endif
-
-signals:
-
-    void sigSetCloseButtonShortCut(QKeySequence);
 
 protected:
 
@@ -177,8 +171,6 @@ private:
     UIToolBar                *m_pToolBar;
     UIToolBar                *m_pVerticalToolBar;
 
-    UIGuestControlConsole    *m_pConsole;
-    UIGuestControlInterface  *m_pControlInterface;
     UIFileManagerGuestTable         *m_pGuestFileTable;
     UIFileManagerHostTable   *m_pHostFileTable;
 

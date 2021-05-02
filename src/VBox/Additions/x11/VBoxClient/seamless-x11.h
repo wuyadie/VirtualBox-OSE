@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -154,13 +154,13 @@ public:
         VBoxGuestWinInfo *pInfo = new VBoxGuestWinInfo(isMapped, x, y, w, h, cRects,
                                                        pRects);
         pInfo->Core.Key = hWin;
-        LogRelFlowFunc(("returning\n"));
+        LogRelFlowFuncLeave();
         return RTAvlU32Insert(&mWindows, &pInfo->Core);
     }
 
     VBoxGuestWinInfo *removeWindow(Window hWin)
     {
-        LogRelFlowFunc(("called\n"));
+        LogRelFlowFuncEnter();
         return (VBoxGuestWinInfo *)RTAvlU32Remove(&mWindows, hWin);
     }
 };

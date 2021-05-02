@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,10 +95,11 @@ typedef struct VDIMAGEBACKEND
      * @param   pszFilename     Name of the image file.
      * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
      * @param   pVDIfsImage     Pointer to the per-image VD interface list.
+     * @param   enmDesiredType  The desired image type, VDTYPE_INVALID if anything goes.
      * @param   penmType        Returns the supported device type on success.
      */
     DECLR3CALLBACKMEMBER(int, pfnProbe, (const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                         PVDINTERFACE pVDIfsImage, VDTYPE *penmType));
+                                         PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType));
 
     /**
      * Open a disk image.

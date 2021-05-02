@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -219,7 +219,9 @@ GaDrvEnvWddm::gaEnvWddmSurfaceDefine(void *pvEnv,
 
     ddiEscape.hDevice               = 0; // pThis->mWddmCallbacks.hDevice;
     ddiEscape.Flags.Value           = 0;
-    ddiEscape.Flags.HardwareAccess  = 1;
+    ddiEscape.Flags.HardwareAccess  = 1; // Required, otherwise graphics corruption can happen. No idea why.
+                                         // Eventually we probably have to create allocations for surfaces,
+                                         // as a WDDM driver should do. Then the Escape hack will be removed.
     ddiEscape.pPrivateDriverData    = pData;
     ddiEscape.PrivateDriverDataSize = cbAlloc;
     ddiEscape.hContext              = 0;
@@ -253,7 +255,9 @@ GaDrvEnvWddm::gaEnvWddmSurfaceDestroy(void *pvEnv,
 
     ddiEscape.hDevice               = 0; // pThis->mWddmCallbacks.hDevice;
     ddiEscape.Flags.Value           = 0;
-    ddiEscape.Flags.HardwareAccess  = 1;
+    ddiEscape.Flags.HardwareAccess  = 1; // Required, otherwise graphics corruption can happen. No idea why.
+                                         // Eventually we probably have to create allocations for surfaces,
+                                         // as a WDDM driver should do. Then the Escape hack will be removed.
     ddiEscape.pPrivateDriverData    = &data;
     ddiEscape.PrivateDriverDataSize = sizeof(data);
     ddiEscape.hContext              = 0;

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -361,8 +361,8 @@ int main(int argc, char **argv)
  *          definition which matched.
  * @returns IPRT error status on parse error.
  * @returns VINF_GETOPT_NOT_OPTION when encountering a non-option argument and
- *          RTGETOPT_FLAG_SORT was not specified. pValueUnion->psz points to the
- *          argument string.
+ *          RTGETOPTINIT_FLAGS_OPTS_FIRST was not specified. pValueUnion->psz
+ *          points to the argument string.
  * @returns VERR_GETOPT_UNKNOWN_OPTION when encountering an unknown option.
  *          pValueUnion->psz points to the option string.
  * @returns VERR_GETOPT_REQUIRED_ARGUMENT_MISSING and pValueUnion->pDef if

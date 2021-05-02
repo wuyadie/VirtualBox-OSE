@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_mode.c
  * Copyright 2012 Red Hat Inc.
  * Parts based on xf86-video-ast
@@ -39,11 +39,11 @@
 #include "vbox_drv.h"
 #include <linux/export.h>
 #include <drm/drm_crtc_helper.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_72)
-#include <drm/drm_plane_helper.h>
+#if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
+# include <drm/drm_plane_helper.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
-#include <drm/drm_probe_helper.h>
+#if RTLNX_VER_MIN(5,1,0) || RTLNX_RHEL_MAJ_PREREQ(8,1)
+# include <drm/drm_probe_helper.h>
 #endif
 
 #include "VBoxVideo.h"
@@ -69,10 +69,10 @@ static void vbox_do_modeset(struct drm_crtc *crtc,
 	vbox = crtc->dev->dev_private;
 	width = mode->hdisplay ? mode->hdisplay : 640;
 	height = mode->vdisplay ? mode->vdisplay : 480;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+#if RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
 	bpp = crtc->enabled ? CRTC_FB(crtc)->format->cpp[0] * 8 : 32;
 	pitch = crtc->enabled ? CRTC_FB(crtc)->pitches[0] : width * bpp / 8;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+#elif RTLNX_VER_MIN(3,3,0)
 	bpp = crtc->enabled ? CRTC_FB(crtc)->bits_per_pixel : 32;
 	pitch = crtc->enabled ? CRTC_FB(crtc)->pitches[0] : width * bpp / 8;
 #else
@@ -93,7 +93,7 @@ static void vbox_do_modeset(struct drm_crtc *crtc,
 	    vbox_crtc->fb_offset % (bpp / 8) == 0)
 		VBoxVideoSetModeRegisters(
 			width, height, pitch * 8 / bpp,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+#if RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
 			CRTC_FB(crtc)->format->cpp[0] * 8,
 #else
 			CRTC_FB(crtc)->bits_per_pixel,
@@ -207,7 +207,9 @@ static bool vbox_set_up_input_mapping(struct vbox_private *vbox)
 }
 
 static int vbox_crtc_set_base(struct drm_crtc *crtc,
-				 struct drm_framebuffer *old_fb, int x, int y)
+				 struct drm_framebuffer *old_fb,
+				 struct drm_framebuffer *new_fb,
+				 int x, int y)
 {
 	struct vbox_private *vbox = crtc->dev->dev_private;
 	struct vbox_crtc *vbox_crtc = to_vbox_crtc(crtc);
@@ -217,7 +219,7 @@ static int vbox_crtc_set_base(struct drm_crtc *crtc,
 	int ret;
 	u64 gpu_addr;
 
-	vbox_fb = to_vbox_framebuffer(CRTC_FB(crtc));
+	vbox_fb = to_vbox_framebuffer(new_fb);
 	obj = vbox_fb->obj;
 	bo = gem_to_vbox_bo(obj);
 
@@ -225,7 +227,7 @@ static int vbox_crtc_set_base(struct drm_crtc *crtc,
 	if (ret)
 		return ret;
 
-	ret = vbox_bo_pin(bo, TTM_PL_FLAG_VRAM, &gpu_addr);
+	ret = vbox_bo_pin(bo, VBOX_MEM_TYPE_VRAM, &gpu_addr);
 	vbox_bo_unreserve(bo);
 	if (ret)
 		return ret;
@@ -267,7 +269,7 @@ static int vbox_crtc_mode_set(struct drm_crtc *crtc,
 			      int x, int y, struct drm_framebuffer *old_fb)
 {
 	struct vbox_private *vbox = crtc->dev->dev_private;
-	int ret = vbox_crtc_set_base(crtc, old_fb, x, y);
+	int ret = vbox_crtc_set_base(crtc, old_fb, CRTC_FB(crtc), x, y);
 	if (ret)
 		return ret;
 	mutex_lock(&vbox->hw_mutex);
@@ -278,6 +280,45 @@ static int vbox_crtc_mode_set(struct drm_crtc *crtc,
 	mutex_unlock(&vbox->hw_mutex);
 
 	return ret;
+}
+
+static int vbox_crtc_page_flip(struct drm_crtc *crtc,
+			       struct drm_framebuffer *fb,
+#if RTLNX_VER_MIN(4,12,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
+			       struct drm_pending_vblank_event *event,
+			       uint32_t page_flip_flags,
+			       struct drm_modeset_acquire_ctx *ctx)
+#elif RTLNX_VER_MIN(3,12,0) || RTLNX_RHEL_MAJ_PREREQ(7,0)
+			       struct drm_pending_vblank_event *event,
+			       uint32_t page_flip_flags)
+#else
+			       struct drm_pending_vblank_event *event)
+#endif
+{
+	struct vbox_private *vbox = crtc->dev->dev_private;
+	struct drm_device *drm = vbox->dev;
+	unsigned long flags;
+	int rc;
+
+	rc = vbox_crtc_set_base(crtc, CRTC_FB(crtc), fb, 0, 0);
+	if (rc)
+		return rc;
+
+	vbox_do_modeset(crtc, &crtc->mode);
+	mutex_unlock(&vbox->hw_mutex);
+
+	spin_lock_irqsave(&drm->event_lock, flags);
+
+	if (event)
+#if RTLNX_VER_MIN(3,19,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
+		drm_crtc_send_vblank_event(crtc, event);
+#else
+		drm_send_vblank_event(drm, -1, event);
+#endif
+
+	spin_unlock_irqrestore(&drm->event_lock, flags);
+
+	return 0;
 }
 
 static void vbox_crtc_disable(struct drm_crtc *crtc)
@@ -317,6 +358,7 @@ static const struct drm_crtc_funcs vbox_crtc_funcs = {
 	.reset = vbox_crtc_reset,
 	.set_config = drm_crtc_helper_set_config,
 	/* .gamma_set = vbox_crtc_gamma_set, */
+	.page_flip = vbox_crtc_page_flip,
 	.destroy = vbox_crtc_destroy,
 };
 
@@ -343,7 +385,7 @@ static void vbox_encoder_destroy(struct drm_encoder *encoder)
 	kfree(encoder);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && !defined(RHEL_71)
+#if RTLNX_VER_MAX(3,13,0) && !RTLNX_RHEL_MAJ_PREREQ(7,1)
 static struct drm_encoder *drm_encoder_find(struct drm_device *dev, u32 id)
 {
 	struct drm_mode_object *mo;
@@ -356,19 +398,23 @@ static struct drm_encoder *drm_encoder_find(struct drm_device *dev, u32 id)
 static struct drm_encoder *vbox_best_single_encoder(struct drm_connector
 						    *connector)
 {
+#if RTLNX_VER_MIN(5,5,0) || RTLNX_RHEL_MIN(8,3)
+        struct drm_encoder *encoder;
+
+        /* There is only one encoder per connector */
+        drm_connector_for_each_possible_encoder(connector, encoder)
+            return encoder;
+#else /* < 5.5 || RHEL < 8.3 */
 	int enc_id = connector->encoder_ids[0];
 
 	/* pick the encoder ids */
 	if (enc_id)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0) || \
-    (defined(CONFIG_SUSE_VERSION) && \
-        LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)) || \
-    defined(RHEL_76)
+# if RTLNX_VER_MIN(4,15,0) || RTLNX_RHEL_MAJ_PREREQ(7,6) || (defined(CONFIG_SUSE_VERSION) && RTLNX_VER_MIN(4,12,0))
 		return drm_encoder_find(connector->dev, NULL, enc_id);
-#else
+# else
 		return drm_encoder_find(connector->dev, enc_id);
-#endif
-
+# endif
+#endif /* < 5.5 || RHEL < 8.3 */
 	return NULL;
 }
 
@@ -419,7 +465,7 @@ static struct drm_encoder *vbox_encoder_init(struct drm_device *dev,
 		return NULL;
 
 	drm_encoder_init(dev, &vbox_encoder->base, &vbox_enc_funcs,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || defined(RHEL_73)
+#if RTLNX_VER_MIN(4,5,0) || RTLNX_RHEL_MAJ_PREREQ(7,3)
 			 DRM_MODE_ENCODER_DAC, NULL);
 #else
 			 DRM_MODE_ENCODER_DAC);
@@ -498,7 +544,7 @@ static void vbox_set_edid(struct drm_connector *connector, int width,
 	for (i = 0; i < EDID_SIZE - 1; ++i)
 		sum += edid[i];
 	edid[EDID_SIZE - 1] = (0x100 - (sum & 0xFF)) & 0xFF;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || defined(OPENSUSE_151)
+#if RTLNX_VER_MIN(4,19,0) || RTLNX_RHEL_MAJ_PREREQ(7,7) || RTLNX_RHEL_MAJ_PREREQ(8,1) || RTLNX_SUSE_MAJ_PREREQ(15,1) || RTLNX_SUSE_MAJ_PREREQ(12,5)
 	drm_connector_update_edid_property(connector, (struct edid *)edid);
 #else
 	drm_mode_connector_update_edid_property(connector, (struct edid *)edid);
@@ -556,7 +602,7 @@ static int vbox_get_modes(struct drm_connector *connector)
 	}
 	vbox_set_edid(connector, preferred_width, preferred_height);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) || defined(RHEL_72)
+#if RTLNX_VER_MIN(3,19,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
 	if (vbox_connector->vbox_crtc->x_hint != -1)
 		drm_object_property_set_value(&connector->base,
 			vbox->dev->mode_config.suggested_x_property,
@@ -577,7 +623,11 @@ static int vbox_get_modes(struct drm_connector *connector)
 	return num_modes;
 }
 
+#if RTLNX_VER_MAX(3,14,0) && !RTLNX_RHEL_MAJ_PREREQ(7,1)
 static int vbox_mode_valid(struct drm_connector *connector,
+#else
+static enum drm_mode_status vbox_mode_valid(struct drm_connector *connector,
+#endif
 			   struct drm_display_mode *mode)
 {
 	return MODE_OK;
@@ -585,7 +635,7 @@ static int vbox_mode_valid(struct drm_connector *connector,
 
 static void vbox_connector_destroy(struct drm_connector *connector)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(RHEL_72)
+#if RTLNX_VER_MAX(3,17,0) && !RTLNX_RHEL_MAJ_PREREQ(7,2)
 	drm_sysfs_connector_remove(connector);
 #else
 	drm_connector_unregister(connector);
@@ -656,20 +706,20 @@ static int vbox_connector_init(struct drm_device *dev,
 	connector->interlace_allowed = 0;
 	connector->doublescan_allowed = 0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) || defined(RHEL_72)
+#if RTLNX_VER_MIN(3,19,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
 	drm_mode_create_suggested_offset_properties(dev);
 	drm_object_attach_property(&connector->base,
 				   dev->mode_config.suggested_x_property, 0);
 	drm_object_attach_property(&connector->base,
 				   dev->mode_config.suggested_y_property, 0);
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(RHEL_72)
+#if RTLNX_VER_MAX(3,17,0) && !RTLNX_RHEL_MAJ_PREREQ(7,2)
 	drm_sysfs_connector_add(connector);
 #else
 	drm_connector_register(connector);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || defined(OPENSUSE_151)
+#if RTLNX_VER_MIN(4,19,0) || RTLNX_RHEL_MAJ_PREREQ(7,7) || RTLNX_RHEL_MAJ_PREREQ(8,1) || RTLNX_SUSE_MAJ_PREREQ(15,1) || RTLNX_SUSE_MAJ_PREREQ(12,5)
 	drm_connector_attach_encoder(connector, encoder);
 #else
 	drm_mode_connector_attach_encoder(connector, encoder);
@@ -777,7 +827,7 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
 		return -EBUSY;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) || defined(RHEL_74)
+#if RTLNX_VER_MIN(4,7,0) || RTLNX_RHEL_MAJ_PREREQ(7,4)
 	obj = drm_gem_object_lookup(file_priv, handle);
 #else
 	obj = drm_gem_object_lookup(crtc->dev, file_priv, handle);
@@ -806,7 +856,11 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
 	vbox->cursor_data_size = data_size;
 	dst = vbox->cursor_data;
 
+#if RTLNX_VER_MIN(5,12,0)
+	ret = ttm_bo_kmap(&bo->bo, 0, bo->bo.mem.num_pages, &uobj_map);
+#else
 	ret = ttm_bo_kmap(&bo->bo, 0, bo->bo.num_pages, &uobj_map);
+#endif
 	if (ret) {
 		vbox->cursor_data_size = 0;
 		goto out_unreserve_bo;
@@ -834,7 +888,11 @@ out_unmap_bo:
 out_unreserve_bo:
 	vbox_bo_unreserve(bo);
 out_unref_obj:
+#if RTLNX_VER_MIN(5,9,0) || RTLNX_RHEL_MIN(8,4)
+	drm_gem_object_put(obj);
+#else
 	drm_gem_object_put_unlocked(obj);
+#endif
 
 	return ret;
 }

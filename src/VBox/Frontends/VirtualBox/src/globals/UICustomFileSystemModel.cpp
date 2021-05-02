@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include "UIErrorString.h"
 #include "UICustomFileSystemModel.h"
 #include "UIPathOperations.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 const char *UICustomFileSystemModel::strUpDirectoryString = "..";
 
@@ -89,9 +89,9 @@ int UICustomFileSystemItem::childCount() const
     return m_childItems.count();
 }
 
-QList<const UICustomFileSystemItem*> UICustomFileSystemItem::children() const
+QList<UICustomFileSystemItem*> UICustomFileSystemItem::children() const
 {
-    QList<const UICustomFileSystemItem*> childList;
+    QList<UICustomFileSystemItem*> childList;
     foreach (UICustomFileSystemItem *child, m_childItems)
         childList << child;
     return childList;
@@ -439,7 +439,7 @@ QVariant UICustomFileSystemModel::data(const QModelIndex &index, int role) const
             if (m_fShowHumanReadableSizes)
             {
                 qulonglong size = item->data(index.column()).toULongLong();
-                return vboxGlobal().formatSize(size);
+                return uiCommon().formatSize(size);
             }
             else
                 return item->data(index.column());
@@ -610,6 +610,6 @@ void UICustomFileSystemModel::initializeTree()
     m_pRootItem->setData(UICustomFileSystemModel::tr("Change Time"), UICustomFileSystemModelColumn_ChangeTime);
     m_pRootItem->setData(UICustomFileSystemModel::tr("Owner"), UICustomFileSystemModelColumn_Owner);
     m_pRootItem->setData(UICustomFileSystemModel::tr("Permissions"), UICustomFileSystemModelColumn_Permissions);
-    m_pRootItem->setData(UICustomFileSystemModel::tr("LocalPath"), UICustomFileSystemModelColumn_LocalPath);
+    m_pRootItem->setData(UICustomFileSystemModel::tr("Local Path"), UICustomFileSystemModelColumn_LocalPath);
     m_pRootItem->setData(UICustomFileSystemModel::tr("Path"), UICustomFileSystemModelColumn_Path);
 }

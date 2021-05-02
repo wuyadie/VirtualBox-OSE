@@ -21,8 +21,8 @@
 
       <listitem>
         <para>
-          <emphasis role="strong">Keep software up to date</emphasis>.
-          One of the principles of good security practise is to keep all
+          <emphasis role="bold">Keep software up to date</emphasis>. One
+          of the principles of good security practise is to keep all
           software versions and patches up to date. Activate the
           &product-name; update notification to get notified when a new
           &product-name; release is available. When updating
@@ -34,7 +34,7 @@
 
       <listitem>
         <para>
-          <emphasis role="strong">Restrict network access to critical
+          <emphasis role="bold">Restrict network access to critical
           services.</emphasis> Use proper means, for instance a
           firewall, to protect your computer and your guests from
           accesses from the outside. Choosing the proper networking mode
@@ -45,7 +45,7 @@
 
       <listitem>
         <para>
-          <emphasis role="strong">Follow the principle of least
+          <emphasis role="bold">Follow the principle of least
           privilege.</emphasis> The principle of least privilege states
           that users should be given the least amount of privilege
           necessary to perform their jobs. Always execute &product-name;
@@ -62,7 +62,7 @@
 
       <listitem>
         <para>
-          <emphasis role="strong"> Monitor system activity.</emphasis>
+          <emphasis role="bold">Monitor system activity.</emphasis>
           System security builds on three pillars: good security
           protocols, proper system configuration and system monitoring.
           Auditing and reviewing audit records address the third
@@ -74,7 +74,7 @@
 
       <listitem>
         <para>
-          <emphasis role="strong">Keep up to date on latest security
+          <emphasis role="bold">Keep up to date on latest security
           information.</emphasis> Oracle continually improves its
           software and documentation. Check this note yearly for
           revisions.
@@ -96,10 +96,9 @@
       <para>
         The &product-name; base package should be downloaded only from a
         trusted source, for instance the official website
-        <ulink url="http://www.virtualbox.org">http://www.virtualbox.org</ulink>.
-        The integrity of the package should be verified with the
-        provided SHA256 checksum which can be found on the official
-        website.
+        <ulink url="http://www.virtualbox.org" />. The integrity of the
+        package should be verified with the provided SHA256 checksum
+        which can be found on the official website.
       </para>
 
       <para>
@@ -215,7 +214,9 @@
           <xref linkend="network_nat"/>. The guest is part of a private
           subnet belonging to this VM and the guest IP is not visible
           from the outside. This networking mode works without any
-          additional setup and is sufficient for many purposes.
+          additional setup and is sufficient for many purposes. Keep in
+          mind that NAT allows access to the host operating system's
+          loopback interface.
         </para>
 
         <para>
@@ -502,6 +503,19 @@
           </para>
         </listitem>
 
+        <listitem>
+          <para>
+            When using the &product-name; Extension Pack provided by
+            Oracle for disk encryption, the data stored in disk images
+            can optionally be encrypted. See
+            <xref linkend="diskencryption" />. This feature covers disk
+            image content only. All other data for a virtual machine is
+            stored unencrypted, including the VM's memory and device
+            state which is stored as part of a saved state, both when
+            created explicitly or part of a snapshot of a running VM.
+          </para>
+        </listitem>
+
       </itemizedlist>
 
     </sect2>
@@ -522,8 +536,8 @@
       This section contains security recommendations for specific
       issues. By default VirtualBox will configure the VMs to run in a
       secure manner, however this may not always be possible without
-      additional user actions (e.g. host OS / firmware configuration
-      changes).
+      additional user actions such as host OS or firmware configuration
+      changes.
     </para>
 
     <sect2 id="sec-rec-cve-2018-3646">
@@ -544,12 +558,12 @@
       </para>
 
       <para>
-        Mitigation options:
+        The following mitigation options are available.
       </para>
 
       <sect3>
 
-        <title>Disable nested paging</title>
+        <title>Disable Nested Paging</title>
 
         <para>
           By disabling nested paging (EPT), the VMM will construct page
@@ -564,7 +578,7 @@
           features are AVX, AVX2, XSAVE, AESNI, and POPCNT. Not all
           guests may be able to cope with dropping these features after
           installation. Also, for some guests, especially in SMP
-          configurations, there could be stability issues arrising from
+          configurations, there could be stability issues arising from
           disabling nested paging. Finally, some workloads may
           experience a performance degradation.
         </para>
@@ -573,7 +587,7 @@
 
       <sect3>
 
-        <title>Flushing the level 1 data cache</title>
+        <title>Flushing the Level 1 Data Cache</title>
 
         <para>
           This aims at removing potentially sensitive data from the
@@ -613,23 +627,19 @@
 
         <para>
           A more aggressive flushing option is provided via the
-          VBoxManage modifyvm option
-          <computeroutput>--l1d-flush-on-vm-entry</computeroutput>. When
-          enabled the level 1 data cache will be flushed on every VM
-          entry. The performance impact is greater than with the default
-          option, though this of course depends on the workload.
-          Workloads producing a lot of VM exits (like networking, VGA
-          access, and similiar) will probably be most impacted.
+          <command>VBoxManage modifyvm</command>
+          <option>--l1d-flush-on-vm-entry</option> option. When enabled
+          the level 1 data cache will be flushed on every VM entry. The
+          performance impact is greater than with the default option,
+          though this of course depends on the workload. Workloads
+          producing a lot of VM exits (like networking, VGA access, and
+          similiar) will probably be most impacted.
         </para>
 
         <para>
           For users not concerned by this security issue, the default
-          mitigation can be disabled using
-        </para>
-
-        <para>
-          <computeroutput>VBoxManage modifyvm name --l1d-flush-on-sched
-          off</computeroutput>
+          mitigation can be disabled using the <command>VBoxManage
+          modifyvm name --l1d-flush-on-sched off</command> command.
         </para>
 
       </sect3>
@@ -642,73 +652,72 @@
 
       <para>
         These security issues affect a range of Intel CPUs starting with
-        Nehalem.  The CVE-2018-12130 also affects some Atom Silvermont,
-        Atom Airmont, and Knights family CPUs, however the scope is so limited
-        that the host OS should deal with it for us and VBox therefore not
-        be affected (leaks only happens when entering and leaving C states).
+        Nehalem. The CVE-2018-12130 also affects some Atom Silvermont,
+        Atom Airmont, and Knights family CPUs, however the scope is so
+        limited that the host OS should deal with it and &product-name;
+        is therefore not affected. Leaks only happens when entering and
+        leaving C states.
       </para>
 
       <para>
-        Mitigation option:
+        The following mitigation option is available.
       </para>
 
       <sect3>
 
-        <title>Buffer overwriting and disabling HT</title>
+        <title>Buffer Overwriting and Disabling Hyper-Threading</title>
 
         <para>
-          First, up to date CPU microcode is a prerequisite for the buffer
-          overwriting (clearing) mitigations.  Some host OSes may install
-          these automatically, though it has traditionally been a task best
-          performed by the system firmware.  So, please check with your
-          system / mainboard manufacturer for the latest firmware update.
+          First, up to date CPU microcode is a prerequisite for the
+          buffer overwriting (clearing) mitigations. Some host OSes may
+          install these automatically, though it has traditionally been
+          a task best performed by the system firmware. Please check
+          with your system or mainboard manufacturer for the latest
+          firmware update.
         </para>
 
         <para>
-          This mitigation aims at removing potentially sensitive data from
-          the affected buffers before running guest code.  Since this means
-          additional work each time the guest is scheduled, there might be
-          some performance side effects.
+          This mitigation aims at removing potentially sensitive data
+          from the affected buffers before running guest code. Since
+          this means additional work each time the guest is scheduled,
+          there might be some performance side effects.
         </para>
 
         <para>
-          We recommend disabling hyper threading on host affected by
-          CVE-2018-12126 and CVE-2018-12127 because the affected sets of
-          buffers are normally shared between thread pairs and therefore
-          cause leaks between the threads. This is traditionally done from
-          the firmware setup, but some OSes also offers ways disable HT. In
-          some cases it may be disabled by default, but please verify as the
-          effectiveness of the mitigation depends on it.
+          We recommend disabling hyper-threading (HT) on hosts affected
+          by CVE-2018-12126 and CVE-2018-12127, because the affected
+          sets of buffers are normally shared between thread pairs and
+          therefore cause leaks between the threads. This is
+          traditionally done from the firmware setup, but some OSes also
+          offers ways disable HT. In some cases it may be disabled by
+          default, but please verify as the effectiveness of the
+          mitigation depends on it.
         </para>
 
         <para>
-          The default action taken by VirtualBox is to clear the affected
-          buffers when a thread is scheduled to execute guest code, rather
-          than on each VM entry. This reduces the performance impact, while
-          making the assumption that the host OS will not handle security
-          sensitive data from interrupt handlers and similar without taking
-          precautions.
+          The default action taken by &product-name; is to clear the
+          affected buffers when a thread is scheduled to execute guest
+          code, rather than on each VM entry. This reduces the
+          performance impact, while making the assumption that the host
+          OS will not handle security sensitive data from interrupt
+          handlers and similar without taking precautions.
         </para>
 
         <para>
-          A more aggressive flushing option is provided via the
-          VBoxManage modifyvm option
-          <computeroutput>--mds-clear-on-vm-entry</computeroutput>. When
-          enabled the affected buffers will be cleared on every VM entry.
-          The performance impact is greater than with the default option,
-          though this of course depends on the workload.  Workloads producing
-          a lot of VM exits (like networking, VGA access, and similiar) will
-          probably be most impacted.
+          The <command>VBoxManage modifyvm</command> command provides a
+          more aggressive flushing option is provided by means of the
+          <option>--mds-clear-on-vm-entry</option> option. When enabled
+          the affected buffers will be cleared on every VM entry. The
+          performance impact is greater than with the default option,
+          though this of course depends on the workload. Workloads
+          producing a lot of VM exits (like networking, VGA access, and
+          similiar) will probably be most impacted.
         </para>
 
         <para>
           For users not concerned by this security issue, the default
-          mitigation can be disabled using
-        </para>
-
-        <para>
-          <computeroutput>VBoxManage modifyvm name --mds-clear-on-sched
-          off</computeroutput>
+          mitigation can be disabled using the <command>VBoxManage
+          modifyvm name --mds-clear-on-sched off</command> command.
         </para>
 
       </sect3>

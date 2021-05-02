@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,17 +52,17 @@ public:
                  VirtualBox *pParent,
 #endif
                  IUnknown *pInitiator,
-                 CBSTR bstrDescription,
+                 Utf8Str strDescription,
                  BOOL fCancelable);
     HRESULT init(
 #ifndef VBOX_COM_INPROC
                  VirtualBox *pParent,
 #endif
                  IUnknown *pInitiator,
-                 CBSTR bstrDescription,
+                 Utf8Str strDescription,
                  BOOL fCancelable,
                  ULONG uTotalOperationsWeight,
-                 CBSTR bstrFirstOperationDescription,
+                 Utf8Str strFirstOperationDescription,
                  ULONG uFirstOperationWeight,
                  ULONG cOtherProgressObjectOperations);
     void    uninit();

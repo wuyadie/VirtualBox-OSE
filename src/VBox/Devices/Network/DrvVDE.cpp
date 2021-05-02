@@ -6,7 +6,7 @@
 /*
  * Contributed by Renzo Davoli. VirtualSquare. University of Bologna, 2010
  *
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,9 +215,6 @@ static DECLCALLBACK(int) drvVDENetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     AssertPtr(pSgBuf);
     Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
-
-    /* Set an FTM checkpoint as this operation changes the state permanently. */
-    PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
 
     int rc;
     if (!pSgBuf->pvUser)

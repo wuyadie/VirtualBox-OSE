@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -606,7 +606,7 @@ static int vgsvcVMInfoWriteUsers(void)
         {
             bool fFound = false;
             for (uint32_t i = 0; i < cUsersInList && !fFound; i++)
-                fFound = strcmp(papszUsers[i], ut_user->ut_user) == 0;
+                fFound = strncmp(papszUsers[i], ut_user->ut_user, sizeof(ut_user->ut_user)) == 0;
 
             if (!fFound)
             {
@@ -942,7 +942,7 @@ static int vgsvcVMInfoWriteNetwork(void)
            return VINF_SUCCESS;
 
     ULONG            cbAdpInfo = sizeof(IP_ADAPTER_INFO);
-    IP_ADAPTER_INFO *pAdpInfo  = (IP_ADAPTER_INFO *)RTMemAlloc(cbAdpInfo);
+    IP_ADAPTER_INFO *pAdpInfo  = (IP_ADAPTER_INFO *)RTMemAllocZ(cbAdpInfo);
     if (!pAdpInfo)
     {
         VGSvcError("VMInfo/Network: Failed to allocate IP_ADAPTER_INFO\n");
@@ -955,6 +955,7 @@ static int vgsvcVMInfoWriteNetwork(void)
         if (pAdpInfoNew)
         {
             pAdpInfo = pAdpInfoNew;
+            RT_BZERO(pAdpInfo, cbAdpInfo);
             dwRet = g_pfnGetAdaptersInfo(pAdpInfo, &cbAdpInfo);
         }
     }
@@ -964,7 +965,10 @@ static int vgsvcVMInfoWriteNetwork(void)
 
         /* If no network adapters available / present in the
          * system we pretend success to not bail out too early. */
-        dwRet = ERROR_SUCCESS;
+        RTMemFree(pAdpInfo);
+        pAdpInfo  = NULL;
+        cbAdpInfo = 0;
+        dwRet     = ERROR_SUCCESS;
     }
     if (dwRet != ERROR_SUCCESS)
     {
@@ -993,7 +997,7 @@ static int vgsvcVMInfoWriteNetwork(void)
 
     INTERFACE_INFO  aInterfaces[20] = {0};
     DWORD           cbReturned      = 0;
-# ifdef RT_ARCH_x86
+# ifdef RT_ARCH_X86
     /* Workaround for uninitialized variable used in memcpy in GetTcpipInterfaceList
        (NT4SP1 at least).  It seems to be happy enough with garbages, no failure
        returns so far, so we just need to prevent it from crashing by filling the
@@ -1322,7 +1326,7 @@ static int vgsvcVMInfoWriteNetwork(void)
             struct lifreq   IfReq;
             RT_ZERO(IfReq);
             AssertCompile(sizeof(IfReq.lifr_name) >= sizeof(pCur->ifr_name));
-            strncpy(IfReq.lifr_name, pCur->ifr_name, sizeof(pCur->ifr_name));
+            strncpy(IfReq.lifr_name, pCur->ifr_name, sizeof(IfReq.lifr_name));
             if (ioctl(sd, SIOCGLIFADDR, &IfReq) >= 0)
             {
                 struct arpreq ArpReq;
@@ -1668,7 +1672,7 @@ VBOXSERVICE g_VMInfo =
     /* pszDescription. */
     "Virtual Machine Information",
     /* pszUsage. */
-    "              [--vminfo-interval <ms>] [--vminfo-user-idle-threshold <ms>]"
+    "           [--vminfo-interval <ms>] [--vminfo-user-idle-threshold <ms>]"
     ,
     /* pszOptions. */
     "    --vminfo-interval       Specifies the interval at which to retrieve the\n"

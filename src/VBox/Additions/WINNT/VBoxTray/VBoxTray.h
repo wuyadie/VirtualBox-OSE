@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,25 +21,7 @@
 # pragma once
 #endif
 
-#       define _InterlockedExchange           _InterlockedExchange_StupidDDKVsCompilerCrap
-#       define _InterlockedExchangeAdd        _InterlockedExchangeAdd_StupidDDKVsCompilerCrap
-#       define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
-#       define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandset      _interlockedbittestandset_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandreset    _interlockedbittestandreset_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandset64    _interlockedbittestandset64_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandreset64  _interlockedbittestandreset64_StupidDDKVsCompilerCrap
-#       pragma warning(disable : 4163)
 #include <iprt/win/windows.h>
-#       pragma warning(default : 4163)
-#       undef  _InterlockedExchange
-#       undef  _InterlockedExchangeAdd
-#       undef  _InterlockedCompareExchange
-#       undef  _InterlockedAddLargeStatistic
-#       undef  _interlockedbittestandset
-#       undef  _interlockedbittestandreset
-#       undef  _interlockedbittestandset64
-#       undef  _interlockedbittestandreset64
 
 #include <tchar.h>
 #include <stdio.h>
@@ -108,6 +90,9 @@ typedef struct _VBOXSERVICEDESC
     /**
      * Initializes a service.
      * @returns VBox status code.
+     *          VERR_NOT_SUPPORTED if the service is not supported on this guest system. Logged.
+     *          VERR_HGCM_SERVICE_NOT_FOUND if the service is not available on the host system. Logged.
+     *          Returning any other error will be considered as a fatal error.
      * @param   pEnv
      * @param   ppInstance      Where to return the thread-specific instance data.
      * @todo r=bird: The pEnv type is WRONG!  Please check all your const pointers.
@@ -138,7 +123,9 @@ typedef struct _VBOXSERVICEDESC
 } VBOXSERVICEDESC, *PVBOXSERVICEDESC;
 
 extern VBOXSERVICEDESC g_SvcDescDisplay;
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
 extern VBOXSERVICEDESC g_SvcDescClipboard;
+#endif
 extern VBOXSERVICEDESC g_SvcDescSeamless;
 extern VBOXSERVICEDESC g_SvcDescVRDP;
 extern VBOXSERVICEDESC g_SvcDescIPC;
@@ -186,8 +173,8 @@ typedef struct _VBOXGLOBALMESSAGE
     UINT     uMsgID;
 } VBOXGLOBALMESSAGE, *PVBOXGLOBALMESSAGE;
 
-extern HWND         g_hwndToolWindow;
 extern HINSTANCE    g_hInstance;
+extern HWND         g_hwndToolWindow;
 extern uint32_t     g_fGuestDisplaysChanged;
 
 RTEXITCODE VBoxTrayShowError(const char *pszFormat, ...);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@
 /** @def SUP_HARDENED_SUID
  * Whether we're employing set-user-ID-on-execute in the hardening.
  */
-#if !defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_L4)
+#if (!defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_L4)) || defined(DOXYGEN_RUNNING)
 # define SUP_HARDENED_SUID
 #else
 # undef  SUP_HARDENED_SUID
@@ -184,6 +184,9 @@ typedef enum SUPINSTDIR
     kSupID_AppPrivArchComp,
     kSupID_AppPrivNoArch,
     kSupID_Testcase,
+#ifdef RT_OS_DARWIN
+    kSupID_AppMacHelper,
+#endif
     kSupID_End
 } SUPINSTDIR;
 
@@ -447,7 +450,7 @@ DECLHIDDEN(void)    supR3HardenedLogFlush(void);
 
 
 DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName, const char *pszExePath, uint32_t fMainFlags);
-DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal);
+DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal, PCSUPINSTFILE pFile);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
 DECLHIDDEN(int)     supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile, bool fMaybe3rdParty,
@@ -492,7 +495,11 @@ DECLHIDDEN(char *)  supR3HardenedWinReadErrorInfoDevice(char *pszErrorInfo, size
 DECLHIDDEN(void)    supR3HardenedWinReportErrorToParent(const char *pszWhere, SUPINITOP enmWhat, int rc,
                                                         const char *pszFormat, va_list va);
 #else   /* !RT_OS_WINDOWS */
+# if !defined(RT_OS_DARWIN)
 DECLHIDDEN(void)    supR3HardenedPosixInit(void);
+# else  /* !RT_OS_DARWIN */
+DECLHIDDEN(void)    supR3HardenedDarwinInit(void);
+#endif  /* !RT_OS_DARWIN */
 #endif  /* !RT_OS_WINDOWS */
 
 SUPR3DECL(int)      supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages);

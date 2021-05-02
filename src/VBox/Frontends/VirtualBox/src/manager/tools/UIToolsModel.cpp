@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 
 /* GUI includes: */
 #include "QIMessageBox.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolManager.h"
 #include "UIIconPool.h"
 #include "UITools.h"
@@ -53,8 +53,8 @@
 typedef QSet<QString> UIStringSet;
 
 
-UIToolsModel:: UIToolsModel(UITools *pParent)
-    : QObject(pParent)
+UIToolsModel::UIToolsModel(UITools *pParent)
+    : QIWithRetranslateUI3<QObject>(pParent)
     , m_pTools(pParent)
     , m_pScene(0)
     , m_pMouseHandler(0)
@@ -176,6 +176,24 @@ bool UIToolsModel::areToolsEnabled(UIToolClass enmClass) const
     return m_statesToolsEnabled.value(enmClass);
 }
 
+void UIToolsModel::setRestrictedToolTypes(const QList<UIToolType> &types)
+{
+    /* Update linked values: */
+    if (m_restrictedToolTypes != types)
+    {
+        m_restrictedToolTypes = types;
+        updateLayout();
+        updateNavigation();
+        sltItemMinimumWidthHintChanged();
+        sltItemMinimumHeightHintChanged();
+    }
+}
+
+QList<UIToolType> UIToolsModel::restrictedToolTypes() const
+{
+    return m_restrictedToolTypes;
+}
+
 void UIToolsModel::closeParent()
 {
     m_pTools->close();
@@ -255,10 +273,10 @@ void UIToolsModel::setFocusItem(UIToolsItem *pItem)
 
     /* Disconnect old focus-item (if any): */
     if (pOldFocusItem)
-        disconnect(pOldFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
+        disconnect(pOldFocusItem, &UIToolsItem::destroyed, this, &UIToolsModel::sltFocusItemDestroyed);
     /* Connect new focus-item (if any): */
     if (m_pFocusItem)
-        connect(m_pFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
+        connect(m_pFocusItem.data(), &UIToolsItem::destroyed, this, &UIToolsModel::sltFocusItemDestroyed);
 
     /* Notify about focus change: */
     emit sigFocusChanged();
@@ -331,7 +349,8 @@ void UIToolsModel::updateLayout()
     foreach (UIToolsItem *pItem, items())
     {
         /* Hide/skip unrelated items: */
-        if (pItem->itemClass() != m_enmCurrentClass)
+        if (   pItem->itemClass() != m_enmCurrentClass
+            || m_restrictedToolTypes.contains(pItem->itemType()))
         {
             pItem->hide();
             continue;
@@ -391,15 +410,15 @@ bool UIToolsModel::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
     /* Process only scene events: */
     if (pWatched != scene())
-        return QObject::eventFilter(pWatched, pEvent);
+        return QIWithRetranslateUI3<QObject>::eventFilter(pWatched, pEvent);
 
     /* Process only item focused by model: */
     if (scene()->focusItem())
-        return QObject::eventFilter(pWatched, pEvent);
+        return QIWithRetranslateUI3<QObject>::eventFilter(pWatched, pEvent);
 
     /* Do not handle disabled items: */
     if (!currentItem()->isEnabled())
-        return QObject::eventFilter(pWatched, pEvent);
+        return QIWithRetranslateUI3<QObject>::eventFilter(pWatched, pEvent);
 
     /* Checking event-type: */
     switch (pEvent->type())
@@ -419,7 +438,25 @@ bool UIToolsModel::eventFilter(QObject *pWatched, QEvent *pEvent)
     }
 
     /* Call to base-class: */
-    return QObject::eventFilter(pWatched, pEvent);
+    return QIWithRetranslateUI3<QObject>::eventFilter(pWatched, pEvent);
+}
+
+void UIToolsModel::retranslateUi()
+{
+    foreach (UIToolsItem *pItem, m_items)
+    {
+        switch (pItem->itemType())
+        {
+            case UIToolType_Welcome:   pItem->reconfigure(tr("Welcome")); break;
+            case UIToolType_Media:     pItem->reconfigure(tr("Media")); break;
+            case UIToolType_Network:   pItem->reconfigure(tr("Network")); break;
+            case UIToolType_Cloud:     pItem->reconfigure(tr("Cloud")); break;
+            case UIToolType_Details:   pItem->reconfigure(tr("Details")); break;
+            case UIToolType_Snapshots: pItem->reconfigure(tr("Snapshots")); break;
+            case UIToolType_Logs:      pItem->reconfigure(tr("Logs")); break;
+            default: break;
+        }
+    }
 }
 
 void UIToolsModel::sltFocusItemDestroyed()
@@ -437,6 +474,8 @@ void UIToolsModel::prepare()
     prepareHandlers();
     /* Prepare connections: */
     prepareConnections();
+    /* Apply language settings: */
+    retranslateUi();
 }
 
 void UIToolsModel::prepareScene()
@@ -449,7 +488,7 @@ void UIToolsModel::prepareScene()
 void UIToolsModel::prepareItems()
 {
     /* Check if Ext Pack is ready, some of actions my depend on it: */
-    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+    CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
     const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
 
     /* Enable both classes of tools initially: */
@@ -457,32 +496,32 @@ void UIToolsModel::prepareItems()
     m_statesToolsEnabled[UIToolClass_Machine] = true;
 
     /* Welcome: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Welcome, tr("Welcome"),
-                               UIIconPool::iconSet(":/welcome_screen_24px.png", ":/welcome_screen_24px.png")); /// @todo fix icon!
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Welcome, QString(),
+                               UIIconPool::iconSet(":/welcome_screen_24px.png", ":/welcome_screen_24px.png"));
 
     /* Media: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Media, tr("Media"),
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Media, QString(),
                                UIIconPool::iconSet(":/media_manager_24px.png", ":/media_manager_disabled_24px.png"));
 
     /* Network: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Network, tr("Network"),
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Network, QString(),
                                UIIconPool::iconSet(":/host_iface_manager_24px.png", ":/host_iface_manager_disabled_24px.png"));
 
     /* Cloud: */
     if (fExtPackAccessible)
-        m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Cloud, tr("Cloud"),
+        m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Cloud, QString(),
                                    UIIconPool::iconSet(":/cloud_profile_manager_24px.png", ":/cloud_profile_manager_disabled_24px.png"));
 
     /* Details: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Details, tr("Details"),
+    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Details, QString(),
                                UIIconPool::iconSet(":/machine_details_manager_24px.png", ":/machine_details_manager_disabled_24px.png"));
 
     /* Snapshots: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Snapshots, tr("Snapshots"),
-                               UIIconPool::iconSet(":/snapshot_manager_24px.png",        ":/snapshot_manager_disabled_24px.png"));
+    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Snapshots, QString(),
+                               UIIconPool::iconSet(":/snapshot_manager_24px.png", ":/snapshot_manager_disabled_24px.png"));
 
     /* Logs: */
-    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Logs, tr("Logs"),
+    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Logs, QString(),
                                UIIconPool::iconSet(":/vm_show_logs_24px.png", ":/vm_show_logs_disabled_24px.png"));
 }
 
@@ -494,13 +533,17 @@ void UIToolsModel::prepareHandlers()
 
 void UIToolsModel::prepareConnections()
 {
-    /* Setup parent connections: */
-    connect(this, SIGNAL(sigSelectionChanged()),
-            parent(), SIGNAL(sigSelectionChanged()));
-    connect(this, SIGNAL(sigExpandingStarted()),
-            parent(), SIGNAL(sigExpandingStarted()));
-    connect(this, SIGNAL(sigExpandingFinished()),
-            parent(), SIGNAL(sigExpandingFinished()));
+    UITools* pTools = qobject_cast<UITools*>(parent());
+    AssertPtrReturnVoid(pTools);
+    {
+        /* Setup parent connections: */
+        connect(this, &UIToolsModel::sigSelectionChanged,
+                pTools, &UITools::sigSelectionChanged);
+        connect(this, &UIToolsModel::sigExpandingStarted,
+                pTools, &UITools::sigExpandingStarted);
+        connect(this, &UIToolsModel::sigExpandingFinished,
+                pTools, &UITools::sigExpandingFinished);
+    }
 }
 
 void UIToolsModel::loadLastSelectedItems()
@@ -538,6 +581,15 @@ void UIToolsModel::saveLastSelectedItems()
     gEDataManager->setToolsPaneLastItemsChosen(set);
 }
 
+void UIToolsModel::cleanupConnections()
+{
+    /* Disconnect selection-changed signal prematurelly.
+     * Keep in mind, we are using static_cast instead of qobject_cast here to be
+     * sure connection is disconnected even if parent is self-destroyed. */
+    disconnect(this, &UIToolsModel::sigSelectionChanged,
+               static_cast<UITools*>(parent()), &UITools::sigSelectionChanged);
+}
+
 void UIToolsModel::cleanupHandlers()
 {
     delete m_pKeyboardHandler;
@@ -561,6 +613,8 @@ void UIToolsModel::cleanupScene()
 
 void UIToolsModel::cleanup()
 {
+    /* Cleanup connections: */
+    cleanupConnections();
     /* Cleanup handlers: */
     cleanupHandlers();
     /* Cleanup items: */

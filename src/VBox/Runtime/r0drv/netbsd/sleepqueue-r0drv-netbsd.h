@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
 #include <iprt/time.h>
 
 static syncobj_t vbox_syncobj = {
-        SOBJ_SLEEPQ_FIFO,
+        SOBJ_SLEEPQ_SORTED,
         sleepq_unsleep,
         sleepq_changepri,
         sleepq_lendpri,
@@ -45,7 +45,7 @@ static syncobj_t vbox_syncobj = {
 };
 
 /**
- * Kernel mode Linux wait state structure.
+ * Kernel mode NetBSD wait state structure.
  */
 typedef struct RTR0SEMBSDSLEEP
 {

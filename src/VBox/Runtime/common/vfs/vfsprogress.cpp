@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -401,7 +401,7 @@ static DECLCALLBACK(int) rtVfsProgressFile_Seek(void *pvThis, RTFOFF offSeek, un
 static DECLCALLBACK(int) rtVfsProgressFile_QuerySize(void *pvThis, uint64_t *pcbFile)
 {
     PRTVFSPROGRESSFILE pThis = (PRTVFSPROGRESSFILE)pvThis;
-    return RTVfsFileGetSize(pThis->hVfsFile, pcbFile);
+    return RTVfsFileQuerySize(pThis->hVfsFile, pcbFile);
 }
 
 

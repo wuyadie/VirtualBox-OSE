@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,14 @@ RTCRestObjectBase::RTCRestObjectBase(RTCRestObjectBase const &a_rThat) RT_NOEXCE
 RTCRestObjectBase::~RTCRestObjectBase()
 {
     /* nothing to do */
+}
+
+
+/** Copy assignment operator. */
+RTCRestObjectBase &RTCRestObjectBase::operator=(RTCRestObjectBase const &a_rThat) RT_NOEXCEPT
+{
+    m_fNullIndicator = a_rThat.m_fNullIndicator;
+    return *this;
 }
 
 

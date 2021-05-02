@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -669,7 +669,7 @@ RTR3DECL(int)  RTFileSetSize(RTFILE hFile, uint64_t cbSize)
 }
 
 
-RTR3DECL(int) RTFileGetSize(RTFILE hFile, uint64_t *pcbSize)
+RTR3DECL(int) RTFileQuerySize(RTFILE hFile, uint64_t *pcbSize)
 {
     /*
      * Ask fstat() first.
@@ -730,7 +730,7 @@ RTR3DECL(int) RTFileGetSize(RTFILE hFile, uint64_t *pcbSize)
 
 #else
         /* PORTME! Avoid this path when possible. */
-        uint64_t offSaved;
+        uint64_t offSaved = UINT64_MAX;
         int rc = RTFileSeek(hFile, 0, RTFILE_SEEK_CURRENT, &offSaved);
         if (RT_SUCCESS(rc))
         {
@@ -745,41 +745,73 @@ RTR3DECL(int) RTFileGetSize(RTFILE hFile, uint64_t *pcbSize)
 }
 
 
-RTR3DECL(int) RTFileGetMaxSizeEx(RTFILE hFile, PRTFOFF pcbMax)
+RTR3DECL(int) RTFileQueryMaxSizeEx(RTFILE hFile, PRTFOFF pcbMax)
 {
     /*
      * Save the current location
      */
-    uint64_t offOld;
+    uint64_t offOld = UINT64_MAX;
     int rc = RTFileSeek(hFile, 0, RTFILE_SEEK_CURRENT, &offOld);
     if (RT_FAILURE(rc))
         return rc;
 
-    /*
-     * Perform a binary search for the max file size.
-     */
     uint64_t offLow  =       0;
-    uint64_t offHigh = 8 * _1T; /* we don't need bigger files */
+    uint64_t offHigh = INT64_MAX; /* we don't need bigger files */
     /** @todo Unfortunately this does not work for certain file system types,
      * for instance cifs mounts. Even worse, statvfs.f_fsid returns 0 for such
      * file systems. */
-    //uint64_t offHigh = INT64_MAX;
-    for (;;)
-    {
-        uint64_t cbInterval = (offHigh - offLow) >> 1;
-        if (cbInterval == 0)
-        {
-            if (pcbMax)
-                *pcbMax = offLow;
-            return RTFileSeek(hFile, offOld, RTFILE_SEEK_BEGIN, NULL);
-        }
 
-        rc = RTFileSeek(hFile, offLow + cbInterval, RTFILE_SEEK_BEGIN, NULL);
-        if (RT_FAILURE(rc))
-            offHigh = offLow + cbInterval;
-        else
-            offLow  = offLow + cbInterval;
+    /*
+     * Quickly guess the order of magnitude for offHigh and offLow.
+     */
+    {
+        uint64_t offHighPrev = offHigh;
+        while (offHigh >= INT32_MAX)
+        {
+            rc = RTFileSeek(hFile, offHigh, RTFILE_SEEK_BEGIN, NULL);
+            if (RT_SUCCESS(rc))
+            {
+                offLow = offHigh;
+                offHigh = offHighPrev;
+                break;
+            }
+            else
+            {
+                offHighPrev = offHigh;
+                offHigh >>= 8;
+            }
+        }
     }
+
+    /*
+     * Sanity: if the seek to the initial offHigh (INT64_MAX) works, then
+     * this algorithm cannot possibly work. Declare defeat.
+     */
+    if (offLow == offHigh)
+    {
+        rc = RTFileSeek(hFile, offOld, RTFILE_SEEK_BEGIN, NULL);
+        if (RT_SUCCESS(rc))
+            rc = VERR_NOT_IMPLEMENTED;
+
+        return rc;
+    }
+
+    /*
+     * Perform a binary search for the max file size.
+     */
+    while (offLow <= offHigh)
+    {
+        uint64_t offMid = offLow + (offHigh - offLow) / 2;
+        rc = RTFileSeek(hFile, offMid, RTFILE_SEEK_BEGIN, NULL);
+        if (RT_FAILURE(rc))
+            offHigh = offMid - 1;
+        else
+            offLow  = offMid + 1;
+    }
+
+    if (pcbMax)
+        *pcbMax = RT_MIN(offLow, offHigh);
+    return RTFileSeek(hFile, offOld, RTFILE_SEEK_BEGIN, NULL);
 }
 
 
@@ -818,7 +850,7 @@ RTR3DECL(int) RTFileSetMode(RTFILE hFile, RTFMODE fMode)
     /*
      * Normalize the mode and call the API.
      */
-    fMode = rtFsModeNormalize(fMode, NULL, 0);
+    fMode = rtFsModeNormalize(fMode, NULL, 0, RTFS_TYPE_FILE);
     if (!rtFsModeIsValid(fMode))
         return VERR_INVALID_PARAMETER;
 

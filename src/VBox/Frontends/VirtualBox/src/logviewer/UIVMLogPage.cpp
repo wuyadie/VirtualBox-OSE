@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,9 +79,9 @@ void UIVMLogPage::prepareWidgets()
     m_pTextEdit = new UIVMLogViewerTextEdit(this);
     m_pMainLayout->addWidget(m_pTextEdit);
 
-    connect(qobject_cast<UIVMLogViewerTextEdit*>(m_pTextEdit), &UIVMLogViewerTextEdit::sigAddBookmark,
+    connect(m_pTextEdit, &UIVMLogViewerTextEdit::sigAddBookmark,
             this, &UIVMLogPage::sltAddBookmark);
-    connect(qobject_cast<UIVMLogViewerTextEdit*>(m_pTextEdit), &UIVMLogViewerTextEdit::sigDeleteBookmark,
+    connect(m_pTextEdit, &UIVMLogViewerTextEdit::sigDeleteBookmark,
             this, &UIVMLogPage::sltDeleteBookmark);
 }
 
@@ -145,7 +145,7 @@ void UIVMLogPage::setTextEditText(const QString &strText)
     QTextCursor cursor = m_pTextEdit->textCursor();
     cursor.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
     m_pTextEdit->setTextCursor(cursor);
-    repaint();
+    update();
 }
 
 void UIVMLogPage::setTextEditTextAsHtml(const QString &strText)
@@ -153,7 +153,7 @@ void UIVMLogPage::setTextEditTextAsHtml(const QString &strText)
     if (!m_pTextEdit)
         return;
     m_pTextEdit->appendHtml(strText);
-    repaint();
+    update();
 }
 
 void UIVMLogPage::markForError()
@@ -168,7 +168,7 @@ void UIVMLogPage::setScrollBarMarkingsVector(const QVector<float> &vector)
     if (!m_pTextEdit)
         return;
     m_pTextEdit->setScrollBarMarkingsVector(vector);
-    repaint();
+    update();
 }
 
 void UIVMLogPage::clearScrollBarMarkingsVector()
@@ -176,7 +176,7 @@ void UIVMLogPage::clearScrollBarMarkingsVector()
     if (!m_pTextEdit)
         return;
     m_pTextEdit->clearScrollBarMarkingsVector();
-    repaint();
+    update();
 }
 
 void UIVMLogPage::documentUndo()
@@ -340,16 +340,4 @@ void UIVMLogPage::setCurrentFont(QFont font)
 {
     if (m_pTextEdit)
         m_pTextEdit->setCurrentFont(font);
-}
-
-void UIVMLogPage::setSearchResultOverlayShowHide(bool fShow)
-{
-    if (m_pTextEdit)
-        m_pTextEdit->setSearchResultOverlayShowHide(fShow);
-}
-
-void UIVMLogPage::setSearchMatchCount(int iMatchCount)
-{
-    if (m_pTextEdit)
-        m_pTextEdit->setSearchMatchCount(iMatchCount);
 }

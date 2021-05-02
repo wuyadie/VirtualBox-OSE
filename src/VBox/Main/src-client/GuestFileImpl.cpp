@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -402,40 +402,41 @@ int GuestFile::i_closeFile(int *prcGuest)
     return vrc;
 }
 
+/**
+ * Converts a given guest file error to a string.
+ *
+ * @returns Error string.
+ * @param   rcGuest             Guest file error to return string for.
+ * @param   pcszWhat            Hint of what was involved when the error occurred.
+ */
 /* static */
-Utf8Str GuestFile::i_guestErrorToString(int rcGuest)
+Utf8Str GuestFile::i_guestErrorToString(int rcGuest, const char *pcszWhat)
 {
-    Utf8Str strError;
+    AssertPtrReturn(pcszWhat, "");
+
+    Utf8Str strErr;
+
+#define CASE_MSG(a_iRc, ...) \
+    case a_iRc: strErr = Utf8StrFmt(__VA_ARGS__); break;
 
     /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
     switch (rcGuest)
     {
-        case VERR_ACCESS_DENIED:
-            strError += Utf8StrFmt(tr("Access denied"));
-            break;
-
-        case VERR_ALREADY_EXISTS:
-            strError += Utf8StrFmt(tr("File already exists"));
-            break;
-
-        case VERR_FILE_NOT_FOUND:
-            strError += Utf8StrFmt(tr("File not found"));
-            break;
-
-        case VERR_NET_HOST_NOT_FOUND:
-            strError += Utf8StrFmt(tr("Host name not found"));
-            break;
-
-        case VERR_SHARING_VIOLATION:
-            strError += Utf8StrFmt(tr("Sharing violation"));
-            break;
-
+        CASE_MSG(VERR_ACCESS_DENIED     , tr("Access to guest file \"%s\" denied"), pcszWhat);
+        CASE_MSG(VERR_ALREADY_EXISTS    , tr("Guest file \"%s\" already exists"), pcszWhat);
+        CASE_MSG(VERR_FILE_NOT_FOUND    , tr("Guest file \"%s\" not found"), pcszWhat);
+        CASE_MSG(VERR_NET_HOST_NOT_FOUND, tr("Host name \"%s\", not found"), pcszWhat);
+        CASE_MSG(VERR_SHARING_VIOLATION , tr("Sharing violation for guest file \"%s\""), pcszWhat);
         default:
-            strError += Utf8StrFmt("%Rrc", rcGuest);
+        {
+            strErr = Utf8StrFmt("Error \"%s\" (%Rrc) for guest file \"%s\" occurred\n", RTErrGetFull(rcGuest), rcGuest, pcszWhat);
             break;
+        }
     }
 
-    return strError;
+#undef CASE_MSG
+
+    return strErr;
 }
 
 int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData)
@@ -450,6 +451,7 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
 
     int idx = 1; /* Current parameter index. */
     CALLBACKDATA_FILE_NOTIFY dataCb;
+    RT_ZERO(dataCb);
     /* pSvcCb->mpaParms[0] always contains the context ID. */
     HGCMSvcGetU32(&pSvcCbData->mpaParms[idx++], &dataCb.uType);
     HGCMSvcGetU32(&pSvcCbData->mpaParms[idx++], &dataCb.rc);
@@ -665,10 +667,17 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
 
     if (RT_SUCCESS(rc))
     {
-        GuestWaitEventPayload payload(dataCb.uType, &dataCb, sizeof(dataCb));
+        try
+        {
+            GuestWaitEventPayload payload(dataCb.uType, &dataCb, sizeof(dataCb));
 
-        /* Ignore rc, as the event to signal might not be there (anymore). */
-        signalWaitEventInternal(pCbCtx, rcGuest, &payload);
+            /* Ignore rc, as the event to signal might not be there (anymore). */
+            signalWaitEventInternal(pCbCtx, rcGuest, &payload);
+        }
+        catch (int rcEx) /* Thrown by GuestWaitEventPayload constructor. */
+        {
+            rc = rcEx;
+        }
     }
 
     LogFlowThisFunc(("uType=%RU32, rcGuest=%Rrc, rc=%Rrc\n", dataCb.uType, rcGuest, rc));
@@ -1019,15 +1028,6 @@ int GuestFile::i_seekAt(int64_t iOffset, GUEST_FILE_SEEKTYPE eSeekType,
     return vrc;
 }
 
-/* static */
-HRESULT GuestFile::i_setErrorExternal(VirtualBoxBase *pInterface, int rcGuest)
-{
-    AssertPtr(pInterface);
-    AssertMsg(RT_FAILURE(rcGuest), ("Guest rc does not indicate a failure when setting error\n"));
-
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestFile::i_guestErrorToString(rcGuest).c_str());
-}
-
 int GuestFile::i_setFileStatus(FileStatus_T fileStatus, int fileRc)
 {
     LogFlowThisFuncEnter();
@@ -1058,7 +1058,7 @@ int GuestFile::i_setFileStatus(FileStatus_T fileStatus, int fileRc)
         {
             hr = errorInfo->initEx(VBOX_E_IPRT_ERROR, fileRc,
                                    COM_IIDOF(IGuestFile), getComponentName(),
-                                   i_guestErrorToString(fileRc));
+                                   i_guestErrorToString(fileRc, mData.mOpenInfo.mFilename.c_str()));
             ComAssertComRC(hr);
         }
 
@@ -1153,6 +1153,12 @@ int GuestFile::i_waitForRead(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
     return vrc;
 }
 
+/**
+ * Undocumented, use with great care.
+ *
+ * @note Similar code in GuestProcess::i_waitForStatusChange() and
+ *       GuestSession::i_waitForStatusChange().
+ */
 int GuestFile::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
                                      FileStatus_T *pFileStatus, int *prcGuest)
 {
@@ -1193,6 +1199,18 @@ int GuestFile::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS
         if (prcGuest)
             *prcGuest = (int)lGuestRc;
     }
+    /* waitForEvent may also return VERR_GSTCTL_GUEST_ERROR like we do above, so make prcGuest is set. */
+    /** @todo r=bird: Andy, you seem to have forgotten this scenario.  Showed up occasionally when
+     * using the wrong password with a copyto command in a debug  build on windows, error info
+     * contained "Unknown Status -858993460 (0xcccccccc)".  As you know windows fills the stack frames
+     * with 0xcccccccc in debug builds to highlight use of uninitialized data, so that's what happened
+     * here.  It's actually good you didn't initialize lGuest, as it would be heck to find otherwise.
+     *
+     * I'm still not very impressed with the error managment or the usuefullness of the documentation
+     * in this code, though the latter is getting better! */
+    else if (vrc == VERR_GSTCTL_GUEST_ERROR && prcGuest)
+        *prcGuest = pEvent->GuestResult();
+    Assert(vrc != VERR_GSTCTL_GUEST_ERROR || !prcGuest || *prcGuest != (int)0xcccccccc);
 
     return vrc;
 }
@@ -1226,7 +1244,7 @@ int GuestFile::i_waitForWrite(GuestWaitEvent *pEvent,
     return vrc;
 }
 
-int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
+int GuestFile::i_writeData(uint32_t uTimeoutMS, const void *pvData, uint32_t cbData,
                            uint32_t *pcbWritten)
 {
     AssertPtrReturn(pvData, VERR_INVALID_POINTER);
@@ -1262,7 +1280,7 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU32(&paParms[i++], cbData /* Size (in bytes) to write */);
-    HGCMSvcSetPv(&paParms[i++], pvData, cbData);
+    HGCMSvcSetPv (&paParms[i++], unconst(pvData), cbData);
 
     alock.release(); /* Drop write lock before sending. */
 
@@ -1290,7 +1308,7 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
 }
 
 int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
-                             void *pvData, uint32_t cbData, uint32_t *pcbWritten)
+                             const void *pvData, uint32_t cbData, uint32_t *pcbWritten)
 {
     AssertPtrReturn(pvData, VERR_INVALID_POINTER);
     AssertReturn(cbData, VERR_INVALID_PARAMETER);
@@ -1326,7 +1344,7 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU64(&paParms[i++], uOffset /* Offset where to starting writing */);
     HGCMSvcSetU32(&paParms[i++], cbData /* Size (in bytes) to write */);
-    HGCMSvcSetPv(&paParms[i++], pvData, cbData);
+    HGCMSvcSetPv (&paParms[i++], unconst(pvData), cbData);
 
     alock.release(); /* Drop write lock before sending. */
 
@@ -1363,7 +1381,7 @@ HRESULT GuestFile::close()
     LogFlowThisFuncEnter();
 
     /* Close file on guest. */
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_closeFile(&rcGuest);
     /* On failure don't return here, instead do all the cleanup
      * work first and then return an error. */
@@ -1376,8 +1394,10 @@ HRESULT GuestFile::close()
     if (RT_FAILURE(vrc))
     {
         if (vrc == VERR_GSTCTL_GUEST_ERROR)
-            return GuestFile::i_setErrorExternal(this, rcGuest);
-        return setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Closing guest file failed with %Rrc\n"), vrc);
+            return setErrorExternal(this, tr("Closing guest file failed"),
+                                    GuestErrorInfo(GuestErrorInfo::Type_File, rcGuest, mData.mOpenInfo.mFilename.c_str()));
+        return setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Closing guest file \"%s\" failed with %Rrc\n"),
+                            mData.mOpenInfo.mFilename.c_str(), vrc);
     }
 
     LogFlowThisFunc(("Returning S_OK / vrc=%Rrc\n", vrc));
@@ -1393,7 +1413,8 @@ HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
 
     HRESULT hr = S_OK;
 
-    GuestFsObjData fsObjData; int rcGuest;
+    GuestFsObjData fsObjData;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_queryInfo(fsObjData, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1405,15 +1426,19 @@ HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
             if (RT_SUCCESS(vrc))
                 hr = ptrFsObjInfo.queryInterfaceTo(aObjInfo.asOutParam());
             else
-                hr = setErrorVrc(vrc);
+                hr = setErrorVrc(vrc,
+                                 tr("Initialization of guest file object for \"%s\" failed: %Rrc"),
+                                 mData.mOpenInfo.mFilename.c_str(), vrc);
         }
     }
     else
     {
         if (GuestProcess::i_isGuestError(vrc))
-            hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+            hr = setErrorExternal(this, tr("Querying guest file information failed"),
+                                  GuestErrorInfo(GuestErrorInfo::Type_ToolStat, rcGuest, mData.mOpenInfo.mFilename.c_str()));
         else
-            hr = setErrorVrc(vrc, tr("Querying file information failed: %Rrc"), vrc);
+            hr = setErrorVrc(vrc,
+                             tr("Querying guest file information for \"%s\" failed: %Rrc"), mData.mOpenInfo.mFilename.c_str(), vrc);
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1429,7 +1454,8 @@ HRESULT GuestFile::querySize(LONG64 *aSize)
 
     HRESULT hr = S_OK;
 
-    GuestFsObjData fsObjData; int rcGuest;
+    GuestFsObjData fsObjData;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_queryInfo(fsObjData, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1438,9 +1464,10 @@ HRESULT GuestFile::querySize(LONG64 *aSize)
     else
     {
         if (GuestProcess::i_isGuestError(vrc))
-            hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+            hr = setErrorExternal(this, tr("Querying guest file size failed"),
+                                  GuestErrorInfo(GuestErrorInfo::Type_ToolStat, rcGuest, mData.mOpenInfo.mFilename.c_str()));
         else
-            hr = setErrorVrc(vrc, tr("Querying file size failed: %Rrc"), vrc);
+            hr = setErrorVrc(vrc, tr("Querying guest file size for \"%s\" failed: %Rrc"), mData.mOpenInfo.mFilename.c_str(), vrc);
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1492,7 +1519,7 @@ HRESULT GuestFile::readAt(LONG64 aOffset, ULONG aToRead, ULONG aTimeoutMS, std::
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     if (aToRead == 0)
-        return setError(E_INVALIDARG, tr("The size to read is zero"));
+        return setError(E_INVALIDARG, tr("The size to read for guest file \"%s\" is zero"), mData.mOpenInfo.mFilename.c_str());
 
     LogFlowThisFuncEnter();
 
@@ -1547,7 +1574,8 @@ HRESULT GuestFile::seek(LONG64 aOffset, FileSeekOrigin_T aWhence, LONG64 *aNewOf
             break;
 
         default:
-            return setError(E_INVALIDARG, tr("Invalid seek type specified"));
+            return setError(E_INVALIDARG, tr("Invalid seek type for guest file \"%s\" specified"),
+                            mData.mOpenInfo.mFilename.c_str());
     }
 
     LogFlowThisFuncEnter();
@@ -1579,7 +1607,8 @@ HRESULT GuestFile::setSize(LONG64 aSize)
      * Validate.
      */
     if (aSize < 0)
-        return setError(E_INVALIDARG, tr("The size (%RI64) cannot be a negative value"), aSize);
+        return setError(E_INVALIDARG, tr("The size (%RI64) for guest file \"%s\" cannot be a negative value"),
+                        aSize, mData.mOpenInfo.mFilename.c_str());
 
     /*
      * Register event callbacks.
@@ -1641,7 +1670,7 @@ HRESULT GuestFile::setSize(LONG64 aSize)
     if (RT_SUCCESS(vrc))
         hrc = S_OK;
     else
-        hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Setting the file size of '%s' to %RU64 (%#RX64) bytes failed: %Rrc"),
+        hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Setting the guest file size of \"%s\" to %RU64 (%#RX64) bytes failed: %Rrc"),
                            mData.mOpenInfo.mFilename.c_str(), aSize, aSize, vrc);
     LogFlowFuncLeaveRC(vrc);
     return hrc;
@@ -1652,15 +1681,18 @@ HRESULT GuestFile::write(const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    if (aData.size() == 0)
+        return setError(E_INVALIDARG, tr("No data to write specified"), mData.mOpenInfo.mFilename.c_str());
+
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    const uint32_t cbData = (uint32_t)aData.size();
+    const void *pvData = (void *)&aData.front();
     int vrc = i_writeData(aTimeoutMS, pvData, cbData, (uint32_t*)aWritten);
     if (RT_FAILURE(vrc))
-        hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zubytes to file \"%s\" failed: %Rrc"),
+        hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zu bytes to guest file \"%s\" failed: %Rrc"),
                           aData.size(), mData.mOpenInfo.mFilename.c_str(), vrc);
 
     LogFlowFuncLeaveRC(vrc);
@@ -1672,15 +1704,18 @@ HRESULT GuestFile::writeAt(LONG64 aOffset, const std::vector<BYTE> &aData, ULONG
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    if (aData.size() == 0)
+        return setError(E_INVALIDARG, tr("No data to write at for guest file \"%s\" specified"), mData.mOpenInfo.mFilename.c_str());
+
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    const uint32_t cbData = (uint32_t)aData.size();
+    const void *pvData = (void *)&aData.front();
     int vrc = i_writeDataAt(aOffset, aTimeoutMS, pvData, cbData, (uint32_t*)aWritten);
     if (RT_FAILURE(vrc))
-        hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zubytes to file \"%s\" (at offset %RU64) failed: %Rrc"),
+        hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zu bytes to file \"%s\" (at offset %RU64) failed: %Rrc"),
                           aData.size(), mData.mOpenInfo.mFilename.c_str(), aOffset, vrc);
 
     LogFlowFuncLeaveRC(vrc);

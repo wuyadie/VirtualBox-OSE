@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -108,8 +108,10 @@ static int tstStartVM(IVirtualBox *pVBox, ISession *pSession, Bstr machineID, bo
     if(SUCCEEDED(rc))
         rc = TST_COM_EXPR(machine->COMGETTER(Name)(machineName.asOutParam()));
     if(SUCCEEDED(rc))
+    {
         rc = machine->LaunchVMProcess(pSession, Bstr("headless").raw(),
-                                      Bstr("").raw(), progress.asOutParam());
+                                      ComSafeArrayNullInParam(), progress.asOutParam());
+    }
     if (SUCCEEDED(rc) && !progress.isNull())
     {
         CHECK_ERROR_L(progress, WaitForCompletion(-1));

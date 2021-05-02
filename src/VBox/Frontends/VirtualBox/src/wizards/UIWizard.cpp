@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include "UIIconPool.h"
 #include "UIWizard.h"
 #include "UIWizardPage.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "QIRichTextLabel.h"
 #include "UIExtraDataManager.h"
 
@@ -413,7 +413,11 @@ double UIWizard::ratio() const
             dRatio += 0.1;
             break;
         case WizardType_ExportAppliance:
+        case WizardType_ImportAppliance:
             dRatio += 0.3;
+            break;
+        case WizardType_NewCloudVM:
+            dRatio += 0.7;
             break;
         case WizardType_FirstRun:
             dRatio += 0.3;

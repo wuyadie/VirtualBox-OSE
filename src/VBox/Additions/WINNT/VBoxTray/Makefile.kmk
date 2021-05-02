@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,15 +36,32 @@ VBoxTray_SOURCES  = \
 	VBoxTray.cpp \
 	VBoxDispIf.cpp \
 	VBoxSeamless.cpp \
-	VBoxClipboard.cpp \
 	VBoxDisplay.cpp \
 	VBoxVRDP.cpp \
 	VBoxIPC.cpp \
-	VBoxHelpers.cpp \
-	VBoxTray.rc
+	VBoxHelpers.cpp
 VBoxTray_USES.win = vboximportchecker
 VBoxTray_VBOX_IMPORT_CHECKER.win.x86 = nt4 #nt350
 VBoxTray_VBOX_IMPORT_CHECKER.win.amd64 = xp64
+ifdef VBOX_WITH_SHARED_CLIPBOARD
+ VBoxTray_DEFS     += \
+	$(if $(VBOX_WITH_SHARED_CLIPBOARD),VBOX_WITH_SHARED_CLIPBOARD,) \
+	$(if $(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS),VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS,)
+ VBoxTray_SOURCES  += \
+	VBoxClipboard.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp
+ ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+  VBoxTray_DEFS     += VBOX_WITH_SHARED_CLIPBOARD_GUEST
+  VBoxTray_SOURCES  += \
+ 	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardArea.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardDataObjectImpl-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardEnumFormatEtcImpl-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardPath.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardStreamImpl-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp
+ endif
+endif
 ifdef VBOX_WITH_DRAG_AND_DROP
  VBoxTray_DEFS     += \
 	VBOX_WITH_DRAG_AND_DROP \
@@ -74,15 +91,8 @@ endif
 VBoxTray.cpp_DEFS += VBOX_SVN_REV=$(VBOX_SVN_REV)
 VBoxTray.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
-# The icon location is configurable.
-VBoxTray.rc_INCS = $(VBoxTray_0_OUTDIR)
-VBoxTray.rc_DEPS = $(VBoxTray_0_OUTDIR)/VBoxTray-icon.rc
-VBoxTray.rc_CLEAN = $(VBoxTray_0_OUTDIR)/VBoxTray-icon.rc
-
-# Icon include file.
-$$(VBoxTray_0_OUTDIR)/VBoxTray-icon.rc: $(VBOX_WINDOWS_ADDITIONS_ICON_FILE) $$(VBoxTray_DEFPATH)/Makefile.kmk | $$(dir $$@)
-	$(RM) -f $@
-	$(APPEND) $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ADDITIONS_ICON_FILE))"'
+# Version info / description + icon.
+$(call VBOX_SET_VER_INFO_EXE,VBoxTray,VirtualBox Guest Additions Tray Application,$(VBOX_WINDOWS_ADDITIONS_ICON_FILE))
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

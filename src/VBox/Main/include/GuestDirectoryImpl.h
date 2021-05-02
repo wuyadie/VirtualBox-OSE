@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,14 +58,14 @@ public:
     /** @name Public internal methods.
      * @{ */
     int            i_closeInternal(int *pGuestRc);
-    int            i_readInternal(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *pGuestRc);
+    int            i_read(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *pGuestRc);
+    int            i_readInternal(GuestFsObjData &objData, int *prcGuest);
     /** @}  */
 
 public:
     /** @name Public static internal methods.
      * @{ */
-    static Utf8Str i_guestErrorToString(int guestRc);
-    static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    static Utf8Str i_guestErrorToString(int rcGuest, const char *pcszWhat);
     /** @}  */
 
 private:
@@ -88,6 +88,9 @@ private:
         GuestDirectoryOpenInfo     mOpenInfo;
         /** The process tool instance to use. */
         GuestProcessTool           mProcessTool;
+        /** Object data cache.
+         *  Its mName attribute acts as a beacon if the cache is valid or not. */
+        GuestFsObjData             mObjData;
     } mData;
 };
 

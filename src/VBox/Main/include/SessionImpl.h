@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,13 +92,15 @@ private:
     HRESULT onAudioAdapterChange(const ComPtr<IAudioAdapter> &aAudioAdapter);
     HRESULT onSerialPortChange(const ComPtr<ISerialPort> &aSerialPort);
     HRESULT onParallelPortChange(const ComPtr<IParallelPort> &aParallelPort);
-    HRESULT onStorageControllerChange();
+    HRESULT onStorageControllerChange(const Guid &aMachineId, const com::Utf8Str& aControllerName);
     HRESULT onMediumChange(const ComPtr<IMediumAttachment> &aMediumAttachment,
                            BOOL aForce);
     HRESULT onStorageDeviceChange(const ComPtr<IMediumAttachment> &aMediumAttachment,
                                   BOOL aRemove,
                                   BOOL aSilent);
+    HRESULT onVMProcessPriorityChange(VMProcPriority_T priority);
     HRESULT onClipboardModeChange(ClipboardMode_T aClipboardMode);
+    HRESULT onClipboardFileTransferModeChange(BOOL aEnabled);
     HRESULT onDnDModeChange(DnDMode_T aDndMode);
     HRESULT onCPUChange(ULONG aCpu,
                         BOOL aAdd);

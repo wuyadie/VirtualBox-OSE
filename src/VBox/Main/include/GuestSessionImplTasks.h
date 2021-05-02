@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,13 +46,19 @@ struct GuestSessionFsSourceSpec
     GuestSessionFsSourceSpec()
         : enmType(FsObjType_Unknown)
         , enmPathStyle(PathStyle_Unknown)
-        , fDryRun(false) { }
+        , fDryRun(false) { RT_ZERO(Type); }
 
+    /** The (absolute) path to the source to use. */
     Utf8Str     strSource;
+    /** Filter to use. Currently not implemented and thus ignored. */
     Utf8Str     strFilter;
+    /** The object type of this source. */
     FsObjType_T enmType;
+    /** The path style to use. */
     PathStyle_T enmPathStyle;
+    /** Whether to do a dry run (e.g. not really touching anything) or not. */
     bool        fDryRun;
+    /** Union to keep type-specific data. Must be a POD type (zero'ing). */
     union
     {
         /** Directory-specific data. */
@@ -60,7 +66,9 @@ struct GuestSessionFsSourceSpec
         {
             /** Directory copy flags. */
             DirectoryCopyFlag_T fCopyFlags;
+            /** Whether to follow symbolic links or not. */
             bool                fFollowSymlinks; /** @todo Remove once we have that parameter in DirectoryCopyFlag_T. */
+            /** Whether to copy the directory recursively or not. */
             bool                fRecursive;
         } Dir;
         /** File-specific data. */
@@ -68,11 +76,11 @@ struct GuestSessionFsSourceSpec
         {
             /** File copy flags. */
             FileCopyFlag_T      fCopyFlags;
+            /** Source file offset to start copying from. */
+            size_t              offStart;
             /** Host file handle to use for reading from / writing to.
              *  Optional and can be NULL if not used. */
             PRTFILE             phFile;
-            /** Source file offset to start copying from. */
-            size_t              offStart;
             /** Source size (in bytes) to copy. */
             uint64_t            cbSize;
         } File;
@@ -167,7 +175,7 @@ public:
          */
     }
 
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
+    // unused: int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
 
     virtual HRESULT Init(const Utf8Str &strTaskDesc)
     {
@@ -195,11 +203,13 @@ protected:
 
     /** @name File handling primitives.
      * @{ */
-    int fileCopyFromGuestInner(ComObjPtr<GuestFile> &srcFile, PRTFILE phDstFile, FileCopyFlag_T fFileCopyFlags,
-                               uint64_t offCopy, uint64_t cbSize);
+    int fileCopyFromGuestInner(const Utf8Str &strSrcFile, ComObjPtr<GuestFile> &srcFile,
+                               const Utf8Str &strDstFile, PRTFILE phDstFile,
+                               FileCopyFlag_T fFileCopyFlags, uint64_t offCopy, uint64_t cbSize);
     int fileCopyFromGuest(const Utf8Str &strSource, const Utf8Str &strDest, FileCopyFlag_T fFileCopyFlags);
-    int fileCopyToGuestInner(RTVFSFILE hSrcFile, ComObjPtr<GuestFile> &dstFile, FileCopyFlag_T fFileCopyFlags,
-                             uint64_t offCopy, uint64_t cbSize);
+    int fileCopyToGuestInner(const Utf8Str &strSrcFile, RTVFSFILE hSrcFile,
+                             const Utf8Str &strDstFile, ComObjPtr<GuestFile> &dstFile,
+                             FileCopyFlag_T fFileCopyFlags, uint64_t offCopy, uint64_t cbSize);
 
     int fileCopyToGuest(const Utf8Str &strSource, const Utf8Str &strDest, FileCopyFlag_T fFileCopyFlags);
     /** @}  */
@@ -212,6 +222,7 @@ protected:
     int setProgress(ULONG uPercent);
     int setProgressSuccess(void);
     HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg);
+    HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg, const GuestErrorInfo &guestErrorInfo);
 
     inline void setTaskDesc(const Utf8Str &strTaskDesc) throw()
     {
@@ -280,7 +291,7 @@ class GuestSessionTaskCopyFrom : public GuestSessionCopyTask
 {
 public:
 
-    GuestSessionTaskCopyFrom(GuestSession *pSession, GuestSessionFsSourceSet vecSrc, const Utf8Str &strDest);
+    GuestSessionTaskCopyFrom(GuestSession *pSession, GuestSessionFsSourceSet const &vecSrc, const Utf8Str &strDest);
     virtual ~GuestSessionTaskCopyFrom(void);
 
     HRESULT Init(const Utf8Str &strTaskDesc);
@@ -294,7 +305,7 @@ class GuestSessionTaskCopyTo : public GuestSessionCopyTask
 {
 public:
 
-    GuestSessionTaskCopyTo(GuestSession *pSession, GuestSessionFsSourceSet vecSrc, const Utf8Str &strDest);
+    GuestSessionTaskCopyTo(GuestSession *pSession, GuestSessionFsSourceSet const &vecSrc, const Utf8Str &strDest);
     virtual ~GuestSessionTaskCopyTo(void);
 
     HRESULT Init(const Utf8Str &strTaskDesc);
@@ -308,9 +319,8 @@ class GuestSessionTaskUpdateAdditions : public GuestSessionTask
 {
 public:
 
-    GuestSessionTaskUpdateAdditions(GuestSession *pSession,
-                               const Utf8Str &strSource, const ProcessArguments &aArguments,
-                               uint32_t fFlags);
+    GuestSessionTaskUpdateAdditions(GuestSession *pSession, const Utf8Str &strSource,
+                                    const ProcessArguments &aArguments, uint32_t fFlags);
     virtual ~GuestSessionTaskUpdateAdditions(void);
     int Run(void);
 

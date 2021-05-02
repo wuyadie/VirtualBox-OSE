@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,7 @@ RTDECL(int) RTFileSetMode(RTFILE hFile, RTFMODE fMode)
 {
     HANDLE hNative = (HANDLE)RTFileToNative(hFile);
     AssertReturn(hNative != RTNT_INVALID_HANDLE_VALUE, VERR_INVALID_HANDLE);
-    fMode = rtFsModeNormalize(fMode, NULL, 0);
+    fMode = rtFsModeNormalize(fMode, NULL, 0, RTFS_TYPE_FILE);
     AssertReturn(rtFsModeIsValidPermissions(fMode), VERR_INVALID_FMODE);
 
     return rtNtFileSetModeWorker(hNative, fMode);

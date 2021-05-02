@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,7 +87,7 @@ static DECLCALLBACK(uint64_t) rtldrVfsFileSize(PRTLDRREADER pReader)
 {
     PRTLDRREADERVFSFILE pFileReader = (PRTLDRREADERVFSFILE)pReader;
     uint64_t cbFile;
-    int rc = RTVfsFileGetSize(pFileReader->hVfsFile, &cbFile);
+    int rc = RTVfsFileQuerySize(pFileReader->hVfsFile, &cbFile);
     if (RT_SUCCESS(rc))
         return cbFile;
     return 0;

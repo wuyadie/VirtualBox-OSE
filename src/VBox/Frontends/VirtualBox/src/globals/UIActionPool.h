@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -246,9 +246,11 @@ public:
     virtual QString shortcutExtraDataID() const { return QString(); }
     /** Returns default keyboard shortcut for this action. */
     virtual QKeySequence defaultShortcut(UIActionPoolType) const { return QKeySequence(); }
+    /** Returns standard keyboard shortcut for this action. */
+    virtual QKeySequence standardShortcut(UIActionPoolType) const { return QKeySequence(); }
 
-    /** Defines current keyboard shortcut for this action. */
-    void setShortcut(const QKeySequence &shortcut);
+    /** Defines current keyboard shortcuts for this action. */
+    void setShortcuts(const QList<QKeySequence> &shortcuts);
     /** Make action show keyboard shortcut. */
     void showShortcut();
     /** Make action hide keyboard shortcut. */
@@ -274,6 +276,10 @@ protected:
     /** Updates action text accordingly. */
     virtual void updateText();
 
+    /** Simplifies passed @a strText by removing dots and ampersands.
+      * @note Used to simplify action names for tool-tip needs. */
+    static QString simplifyText(QString strText);
+
 private:
 
     /** Holds the action type. */
@@ -287,17 +293,17 @@ private:
     UIActionPoolType  m_enmActionPoolType;
 
     /** Holds current action state. */
-    int             m_iState;
+    int                  m_iState;
     /** Holds action icons. */
-    QVector<QIcon>  m_icons;
+    QVector<QIcon>       m_icons;
     /** Holds the action name. */
-    QString         m_strName;
+    QString              m_strName;
     /** Holds the action shortcut scope. */
-    QString         m_strShortcutScope;
-    /** Holds the action shortcut. */
-    QKeySequence    m_shortcut;
+    QString              m_strShortcutScope;
+    /** Holds the action shortcuts. */
+    QList<QKeySequence>  m_shortcuts;
     /** Holds whether action shortcut hidden. */
-    bool            m_fShortcutHidden;
+    bool                 m_fShortcutHidden;
 };
 
 
@@ -626,7 +632,7 @@ protected:
     /** Updates shortcuts. */
     virtual void updateShortcuts();
 
-    /** Hadles translation event. */
+    /** Handles translation event. */
     virtual void retranslateUi() /* override */;
 
     /** Handles any Qt @a pEvent */

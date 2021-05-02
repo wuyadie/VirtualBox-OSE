@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,6 +76,7 @@ HRESULT DataStream::init(unsigned long aBufferSize)
     m_hSemEvtDataAvail   = NIL_RTSEMEVENT;
     m_hSemEvtBufSpcAvail = NIL_RTSEMEVENT;
     m_pBuffer            = NULL;
+    m_fEos               = false;
     int vrc = RTSemEventCreate(&m_hSemEvtDataAvail);
     if (RT_SUCCESS(vrc))
         vrc = RTSemEventCreate(&m_hSemEvtBufSpcAvail);

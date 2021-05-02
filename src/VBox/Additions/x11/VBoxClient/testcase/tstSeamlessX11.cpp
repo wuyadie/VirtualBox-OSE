@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 #include <iprt/errcore.h>
 #include <iprt/initterm.h>
 #include <iprt/semaphore.h>
+#include <iprt/string.h>
 #include <iprt/stream.h>
 #include <VBox/VBoxGuestLib.h>
 
@@ -27,10 +28,34 @@
 
 static RTSEMEVENT eventSem;
 
-/** Exit with a fatal error. */
-void vbclFatalError(char *pszMessage)
+void VBClLogError(const char *pszFormat, ...)
 {
-    RTPrintf("Fatal error: %s", pszMessage);
+    va_list args;
+    va_start(args, pszFormat);
+    char *psz = NULL;
+    RTStrAPrintfV(&psz, pszFormat, args);
+    va_end(args);
+
+    AssertPtr(psz);
+    RTPrintf("Error: %s", psz);
+
+    RTStrFree(psz);
+}
+
+/** Exit with a fatal error. */
+void VBClLogFatalError(const char *pszFormat, ...)
+{
+    va_list args;
+    va_start(args, pszFormat);
+    char *psz = NULL;
+    RTStrAPrintfV(&psz, pszFormat, args);
+    va_end(args);
+
+    AssertPtr(psz);
+    RTPrintf("Fatal error: %s", psz);
+
+    RTStrFree(psz);
+
     exit(1);
 }
 

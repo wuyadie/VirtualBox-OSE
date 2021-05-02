@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -325,7 +325,7 @@ static int vbsfCheckHandleAccess(SHFLCLIENTDATA *pClient, SHFLROOT root,
  * @param  fShflFlags shared folder create flags
  * @param  fMode      file attributes
  * @param  handleInitial initial handle
- * @retval pfOpen     iprt create flags
+ * @param  pfOpen     Where to return iprt create flags
  */
 static int vbsfConvertFileOpenFlags(bool fWritable, unsigned fShflFlags, RTFMODE fMode, SHFLHANDLE handleInitial, uint64_t *pfOpen)
 {
@@ -555,17 +555,19 @@ static int vbsfConvertFileOpenFlags(bool fWritable, unsigned fShflFlags, RTFMODE
  * Open a file or create and open a new one.
  *
  * @returns IPRT status code
- * @param  pClient               Data structure describing the client accessing the shared folder
- * @param  root                  The index of the shared folder in the table of mappings.
- * @param  pszPath               Path to the file or folder on the host.
- * @param  pParms @a CreateFlags Creation or open parameters, see include/VBox/shflsvc.h
- * @param  pParms @a Info        When a new file is created this specifies the initial parameters.
- *                               When a file is created or overwritten, it also specifies the
- *                               initial size.
- * @retval pParms @a Resulte     Shared folder status code, see include/VBox/shflsvc.h
- * @retval pParms @a Handle      On success the (shared folder) handle of the file opened or
- *                               created
- * @retval pParms @a Info        On success the parameters of the file opened or created
+ * @param  pClient  Data structure describing the client accessing the shared folder
+ * @param  root     The index of the shared folder in the table of mappings.
+ * @param  pszPath  Path to the file or folder on the host.
+ * @param  pParms   Input:
+ *                    - @a CreateFlags: Creation or open parameters, see include/VBox/shflsvc.h
+ *                    - @a Info:        When a new file is created this specifies the initial parameters.
+ *                                      When a file is created or overwritten, it also specifies the
+ *                                      initial size.
+ *                  Output:
+ *                    - @a Result:      Shared folder status code, see include/VBox/shflsvc.h
+ *                    - @a Handle:      On success the (shared folder) handle of the file opened or
+ *                                      created
+ *                    - @a Info:        On success the parameters of the file opened or created
  */
 static int vbsfOpenFile(SHFLCLIENTDATA *pClient, SHFLROOT root, char *pszPath, SHFLCREATEPARMS *pParms)
 {
@@ -763,14 +765,17 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, SHFLROOT root, char *pszPath, S
  * Open a folder or create and open a new one.
  *
  * @returns IPRT status code
- * @param  pClient               Data structure describing the client accessing the shared folder
- * @param  root                  The index of the shared folder in the table of mappings.
- * @param  pszPath               Path to the file or folder on the host.
- * @param  pParms @a CreateFlags Creation or open parameters, see include/VBox/shflsvc.h
- * @retval pParms @a Result      Shared folder status code, see include/VBox/shflsvc.h
- * @retval pParms @a Handle      On success the (shared folder) handle of the folder opened or
- *                               created
- * @retval pParms @a Info        On success the parameters of the folder opened or created
+ * @param  pClient  Data structure describing the client accessing the shared
+ *                  folder
+ * @param  root     The index of the shared folder in the table of mappings.
+ * @param  pszPath  Path to the file or folder on the host.
+ * @param  pParms   Input: @a CreateFlags Creation or open parameters, see
+ *                  include/VBox/shflsvc.h
+ *                  Output:
+ *                    - @a Result: Shared folder status code, see include/VBox/shflsvc.h
+ *                    - @a Handle: On success the (shared folder) handle of the folder opened or
+ *                                 created
+ *                    - @a Info:   On success the parameters of the folder opened or created
  *
  * @note folders are created with fMode = 0777
  */
@@ -948,8 +953,10 @@ static int vbsfCloseFile(SHFLFILEHANDLE *pHandle)
  * @returns iprt status code (currently VINF_SUCCESS)
  * @param   pClient    client data
  * @param   pszPath    The path of the file to be looked up
- * @retval  pParms->Result Status of the operation (success or error)
- * @retval  pParms->Info   On success, information returned about the file
+ * @param   pParms     Output:
+ *                      - @a Result: Status of the operation (success or error)
+ *                      - @a Info:   On success, information returned about the
+ *                                   file
  */
 static int vbsfLookupFile(SHFLCLIENTDATA *pClient, char *pszPath, SHFLCREATEPARMS *pParms)
 {
@@ -1011,19 +1018,21 @@ void testCreate(RTTEST hTest)
  * conversion on the file name if necessary.
  *
  * @returns IPRT status code, but see note below
- * @param   pClient        Data structure describing the client accessing the shared
- *                         folder
- * @param   root           The index of the shared folder in the table of mappings.
- *                         The host path of the shared folder is found using this.
- * @param   pPath          The path of the file or folder relative to the host path
- *                         indexed by root.
- * @param   cbPath         Presumably the length of the path in pPath.  Actually
- *                         ignored, as pPath contains a length parameter.
- * @param   pParms @a Info If a new file is created or an old one overwritten, set
- *                         these attributes
- * @retval  pParms @a Result Shared folder result code, see include/VBox/shflsvc.h
- * @retval  pParms @a Handle Shared folder handle to the newly opened file
- * @retval  pParms @a Info Attributes of the file or folder opened
+ * @param   pClient     Data structure describing the client accessing the
+ *                      shared folder
+ * @param   root        The index of the shared folder in the table of mappings.
+ *                      The host path of the shared folder is found using this.
+ * @param   pPath       The path of the file or folder relative to the host path
+ *                      indexed by root.
+ * @param   cbPath      Presumably the length of the path in pPath. Actually
+ *                      ignored, as pPath contains a length parameter.
+ * @param   pParms      Input: If a new file is created or an old one
+ *                      overwritten, set the @a Info attribute.
+ *
+ *                      Output:
+ *                        - @a Result Shared folder result code, see include/VBox/shflsvc.h
+ *                        - @a Handle Shared folder handle to the newly opened file
+ *                        - @a Info Attributes of the file or folder opened
  *
  * @note This function returns success if a "non-exceptional" error occurred,
  *       such as "no such file".  In this case, the caller should check the
@@ -1954,56 +1963,69 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
 
     Assert(flags == (SHFL_INFO_SET | SHFL_INFO_FILE));
 
-    /* Change only the time values that are not zero */
-    if (type == SHFL_HF_TYPE_DIR)
+    /*
+     * Get the handle.
+     */
+    SHFLFILEHANDLE *pHandle;
+    if (type == SHFL_HF_TYPE_FILE)
     {
-        SHFLFILEHANDLE *pHandle = vbsfQueryDirHandle(pClient, Handle);
+        pHandle = vbsfQueryFileHandle(pClient, Handle);
         rc = vbsfCheckHandleAccess(pClient, root, pHandle, VBSF_CHECK_ACCESS_WRITE);
-        if (RT_SUCCESS(rc))
-            rc = RTDirSetTimes(pHandle->dir.Handle,
-                                (RTTimeSpecGetNano(&pSFDEntry->AccessTime)) ?       &pSFDEntry->AccessTime : NULL,
-                                (RTTimeSpecGetNano(&pSFDEntry->ModificationTime)) ? &pSFDEntry->ModificationTime: NULL,
-                                (RTTimeSpecGetNano(&pSFDEntry->ChangeTime)) ?       &pSFDEntry->ChangeTime: NULL,
-                                (RTTimeSpecGetNano(&pSFDEntry->BirthTime)) ?        &pSFDEntry->BirthTime: NULL
-                                );
     }
     else
     {
-        SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
+        Assert(type == SHFL_HF_TYPE_DIR);
+        pHandle = vbsfQueryDirHandle(pClient, Handle);
         rc = vbsfCheckHandleAccess(pClient, root, pHandle, VBSF_CHECK_ACCESS_WRITE);
-        if (RT_SUCCESS(rc))
-            rc = RTFileSetTimes(pHandle->file.Handle,
-                                 (RTTimeSpecGetNano(&pSFDEntry->AccessTime)) ?       &pSFDEntry->AccessTime : NULL,
-                                 (RTTimeSpecGetNano(&pSFDEntry->ModificationTime)) ? &pSFDEntry->ModificationTime: NULL,
-                                 (RTTimeSpecGetNano(&pSFDEntry->ChangeTime)) ?       &pSFDEntry->ChangeTime: NULL,
-                                 (RTTimeSpecGetNano(&pSFDEntry->BirthTime)) ?        &pSFDEntry->BirthTime: NULL
-                                 );
     }
-    if (rc != VINF_SUCCESS)
+    if (RT_SUCCESS(rc))
     {
-        Log(("RTFileSetTimes failed with %Rrc\n", rc));
-        Log(("AccessTime       %RX64\n", RTTimeSpecGetNano(&pSFDEntry->AccessTime)));
-        Log(("ModificationTime %RX64\n", RTTimeSpecGetNano(&pSFDEntry->ModificationTime)));
-        Log(("ChangeTime       %RX64\n", RTTimeSpecGetNano(&pSFDEntry->ChangeTime)));
-        Log(("BirthTime        %RX64\n", RTTimeSpecGetNano(&pSFDEntry->BirthTime)));
-        /* temporary hack */
-        rc = VINF_SUCCESS;
-    }
-
-    if (type == SHFL_HF_TYPE_FILE)
-    {
-        SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
-        rc = vbsfCheckHandleAccess(pClient, root, pHandle, VBSF_CHECK_ACCESS_WRITE);
-        if (RT_SUCCESS(rc))
+        /*
+         * Any times to set?
+         */
+        if (   RTTimeSpecGetNano(&pSFDEntry->AccessTime)
+            || RTTimeSpecGetNano(&pSFDEntry->ModificationTime)
+            || RTTimeSpecGetNano(&pSFDEntry->ChangeTime)
+            || RTTimeSpecGetNano(&pSFDEntry->BirthTime))
         {
-            /* Change file attributes if necessary */
-            if (pSFDEntry->Attr.fMode)
-            {
-                RTFMODE fMode = pSFDEntry->Attr.fMode;
 
+            /* Change only the time values that are not zero */
+            if (type == SHFL_HF_TYPE_FILE)
+                rc = RTFileSetTimes(pHandle->file.Handle,
+                                    RTTimeSpecGetNano(&pSFDEntry->AccessTime)       ? &pSFDEntry->AccessTime         : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->ModificationTime) ? &pSFDEntry->ModificationTime   : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->ChangeTime)       ? &pSFDEntry->ChangeTime         : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->BirthTime)        ? &pSFDEntry->BirthTime          : NULL);
+            else
+                rc = RTDirSetTimes( pHandle->dir.Handle,
+                                    RTTimeSpecGetNano(&pSFDEntry->AccessTime)       ? &pSFDEntry->AccessTime         : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->ModificationTime) ? &pSFDEntry->ModificationTime   : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->ChangeTime)       ? &pSFDEntry->ChangeTime         : NULL,
+                                    RTTimeSpecGetNano(&pSFDEntry->BirthTime)        ? &pSFDEntry->BirthTime          : NULL);
+            if (RT_FAILURE(rc))
+            {
+                Log(("RT%sSetTimes failed with %Rrc\n", type == SHFL_HF_TYPE_FILE ? "File" : "Dir", rc));
+                Log(("AccessTime       %#RX64\n", RTTimeSpecGetNano(&pSFDEntry->AccessTime)));
+                Log(("ModificationTime %#RX64\n", RTTimeSpecGetNano(&pSFDEntry->ModificationTime)));
+                Log(("ChangeTime       %#RX64\n", RTTimeSpecGetNano(&pSFDEntry->ChangeTime)));
+                Log(("BirthTime        %#RX64\n", RTTimeSpecGetNano(&pSFDEntry->BirthTime)));
+                /* "temporary" hack */
+                rc = VINF_SUCCESS;
+            }
+        }
+
+        /*
+         * Any mode changes?
+         */
+        if (pSFDEntry->Attr.fMode)
+        {
+            RTFMODE fMode = pSFDEntry->Attr.fMode;
+
+            if (type == SHFL_HF_TYPE_FILE)
+            {
 #ifndef RT_OS_WINDOWS
-                /* Don't allow the guest to clear the own bit, otherwise the guest wouldn't be
-                 * able to access this file anymore. Only for guests, which set the UNIX mode.
+                /* Don't allow the guest to clear the read own bit, otherwise the guest wouldn't
+                 * be able to access this file anymore. Only for guests, which set the UNIX mode.
                  * Also, clear bits which we don't pass through for security reasons. */
                 if (fMode & RTFS_UNIX_MASK)
                 {
@@ -2011,32 +2033,44 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
                     fMode &= ~(RTFS_UNIX_ISUID | RTFS_UNIX_ISGID | RTFS_UNIX_ISTXT);
                 }
 #endif
-
                 rc = RTFileSetMode(pHandle->file.Handle, fMode);
-                if (rc != VINF_SUCCESS)
+            }
+            else
+            {
+#ifndef RT_OS_WINDOWS
+                /* Don't allow the guest to clear the read+execute own bits, otherwise the guest
+                 * wouldn't be able to access this directory anymore.  Only for guests, which set
+                 * the UNIX mode.  Also, clear bits which we don't pass through for security reasons. */
+                if (fMode & RTFS_UNIX_MASK)
                 {
-                    Log(("RTFileSetMode %x failed with %Rrc\n", fMode, rc));
-                    /* silent failure, because this tends to fail with e.g. windows guest & linux host */
-                    rc = VINF_SUCCESS;
+                    fMode |= RTFS_UNIX_IRUSR | RTFS_UNIX_IXUSR;
+                    fMode &= ~(RTFS_UNIX_ISUID | RTFS_UNIX_ISGID | RTFS_UNIX_ISTXT /*?*/);
                 }
+#endif
+                rc = RTDirSetMode(pHandle->dir.Handle, fMode);
+            }
+            if (RT_FAILURE(rc))
+            {
+                Log(("RT%sSetMode %#x (%#x) failed with %Rrc\n", type == SHFL_HF_TYPE_FILE ? "File" : "Dir",
+                     fMode, pSFDEntry->Attr.fMode, rc));
+                /* silent failure, because this tends to fail with e.g. windows guest & linux host */
+                rc = VINF_SUCCESS;
             }
         }
-    }
-    /** @todo mode for directories */
 
-    if (rc == VINF_SUCCESS)
-    {
-        uint32_t bufsize = sizeof(*pSFDEntry);
-
-        rc = vbsfQueryFileInfo(pClient, root, Handle, SHFL_INFO_GET|SHFL_INFO_FILE, &bufsize, (uint8_t *)pSFDEntry);
-        if (rc == VINF_SUCCESS)
+        /*
+         * Return the current file info on success.
+         */
+        if (RT_SUCCESS(rc))
         {
-            *pcbBuffer = sizeof(SHFLFSOBJINFO);
+            uint32_t bufsize = sizeof(*pSFDEntry);
+            rc = vbsfQueryFileInfo(pClient, root, Handle, SHFL_INFO_GET | SHFL_INFO_FILE, &bufsize, (uint8_t *)pSFDEntry);
+            if (RT_SUCCESS(rc))
+                *pcbBuffer = sizeof(SHFLFSOBJINFO);
+            else
+                AssertFailed();
         }
-        else
-            AssertFailed();
     }
-
     return rc;
 }
 

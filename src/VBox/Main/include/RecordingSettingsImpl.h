@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@ private:
     typedef std::map <uint32_t, ComObjPtr<RecordingScreenSettings> > RecordScreenSettingsMap;
 
     void i_reset(void);
-    int i_syncToMachineDisplays(void);
+    int i_syncToMachineDisplays(uint32_t cMonitors);
     int i_createScreenObj(RecordScreenSettingsMap &screenSettingsMap, uint32_t uScreenId, const settings::RecordingScreenSettings &data);
     int i_destroyScreenObj(RecordScreenSettingsMap &screenSettingsMap, uint32_t uScreenId);
     int i_destroyAllScreenObj(RecordScreenSettingsMap &screenSettingsMap);

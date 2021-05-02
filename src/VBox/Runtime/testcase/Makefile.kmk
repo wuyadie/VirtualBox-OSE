@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -61,12 +61,12 @@ PROGRAMS += \
 	tstDir-2 \
 	tstDir-3 \
 	tstRTDvm \
-	tstEnv \
+	tstRTEnv \
 	tstRTErrUnique \
 	tstFile \
 	tstRTFileAio \
 	tstRTFileAppend-1 \
-	tstRTFileGetSize-1 \
+	tstRTFileQuerySize-1 \
 	tstRTFileModeStringToFlags \
 	tstFileLock \
 	tstRTFileOpenEx-1 \
@@ -126,6 +126,7 @@ PROGRAMS += \
 	tstRTStrVersion \
 	tstRTSymlink \
 	tstRTSystemQueryDmi \
+	tstRTSystemQueryFirmware \
 	tstRTSystemQueryOsInfo \
 	tstRTTcp-1 \
 	tstRTTemp \
@@ -135,13 +136,14 @@ PROGRAMS += \
 	tstRTThreadPoke \
 	tstRTThreadExecutionTime \
 	tstRTTime \
-	tstRTTraceLog \
 	tstTime-2 \
 	tstTime-3 \
 	tstTime-4 \
 	tstTimer \
-	tstTimerLR \
+	tstRTTimerLR \
 	tstRTTimeSpec \
+	tstRTTls-1 \
+	tstRTTraceLog \
 	tstRTUdp-1 \
 	tstUtf8 \
 	tstRTUuid \
@@ -207,20 +209,23 @@ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
   	tstRTR0ThreadPreemptionDriver \
   	tstRTR0ThreadDriver
  endif
- SYSMODS += \
- 	tstLdrObjR0 \
+ if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
+  	tstLdrObjR0
+  ifdef VBOX_WITH_RAW_MODE
+   SYSMODS += tstLdrObj
+  endif
+ endif
+ $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
  	tstRTR0MemUserKernel \
  	tstRTR0SemMutex \
  	tstRTR0Timer \
  	tstRTR0ThreadPreemption \
  	tstRTR0Thread
- ifdef VBOX_WITH_RAW_MODE
-  SYSMODS += tstLdrObj
- endif
  if1of ($(KBUILD_TARGET), solaris darwin)
   PROGRAMS += tstRTR0DbgKrnlInfoDriver
-  SYSMODS += tstRTR0DbgKrnlInfo
- endif
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += tstRTR0DbgKrnlInfo
+ endif # VBOX_SUPPORTED_HOST_ARCHS only
 
 endif
 if1of ($(VBOX_LDR_FMT)), lx pe)
@@ -342,8 +347,8 @@ tstDir-3_SOURCES = tstDir-3.cpp
 tstRTDvm_TEMPLATE = VBOXR3TSTEXE
 tstRTDvm_SOURCES = tstRTDvm.cpp
 
-tstEnv_TEMPLATE = VBOXR3TSTEXE
-tstEnv_SOURCES = tstEnv.cpp
+tstRTEnv_TEMPLATE = VBOXR3TSTEXE
+tstRTEnv_SOURCES = tstRTEnv.cpp
 
 tstRTErrUnique_SOURCES = tstRTErrUnique.cpp
 tstRTErrUnique_INCS = $(IPRT_OUT_DIR)/
@@ -358,8 +363,8 @@ tstRTFileAio_SOURCES = tstRTFileAio.cpp
 tstRTFileAppend-1_TEMPLATE = VBOXR3TSTEXE
 tstRTFileAppend-1_SOURCES = tstRTFileAppend-1.cpp
 
-tstRTFileGetSize-1_TEMPLATE = VBOXR3TSTEXE
-tstRTFileGetSize-1_SOURCES = tstRTFileGetSize-1.cpp
+tstRTFileQuerySize-1_TEMPLATE = VBOXR3TSTEXE
+tstRTFileQuerySize-1_SOURCES = tstRTFileQuerySize-1.cpp
 
 tstRTFileModeStringToFlags_TEMPLATE = VBOXR3TSTEXE
 tstRTFileModeStringToFlags_SOURCES = tstRTFileModeStringToFlags.cpp
@@ -502,8 +507,15 @@ tstRTLocalIpc_SOURCES = tstRTLocalIpc.cpp
 tstRTLockValidator_TEMPLATE = VBOXR3TSTEXE
 tstRTLockValidator_SOURCES = tstRTLockValidator.cpp
 
-tstLog_TEMPLATE = VBOXR3TSTEXE
-tstLog_SOURCES = tstLog.cpp
+tstLog_TEMPLATE      = VBOXR3TSTEXE
+tstLog_SOURCES       = tstLog.cpp
+tstLog_INCS          = $(tstLog_0_OUTDIR)
+tstLog_INTERMEDIATES = $(tstLog_0_OUTDIR)/tstLogGroups.h
+tstLog_CLEAN         = $(tstLog_0_OUTDIR)/tstLogGroups.h
+$$(tstLog_0_OUTDIR)/tstLogGroups.h: $(PATH_ROOT)/include/VBox/log.h
+	$(call MSG_GENERATE,,$@,$<)
+	$(QUIET)$(RM) -f -- "$@"
+	$(QUIET)$(SED) -n -e 's/^ *LOG_GROUP_\([A-Z0-9_]*\),.*$(DOLLAR)/{ LOG_GROUP_\1, "\1" },/p' --output "$@" "$<"
 
 tstRTMemEf_TEMPLATE = VBOXR3TSTEXE
 tstRTMemEf_SOURCES = tstRTMemEf.cpp
@@ -645,6 +657,9 @@ tstRTSymlink_SOURCES = tstRTSymlink.cpp
 tstRTSystemQueryDmi_TEMPLATE = VBOXR3TSTEXE
 tstRTSystemQueryDmi_SOURCES = tstRTSystemQueryDmi.cpp
 
+tstRTSystemQueryFirmware_TEMPLATE = VBOXR3TSTEXE
+tstRTSystemQueryFirmware_SOURCES = tstRTSystemQueryFirmware.cpp
+
 tstRTSystemQueryOsInfo_TEMPLATE = VBOXR3TSTEXE
 tstRTSystemQueryOsInfo_SOURCES = tstRTSystemQueryOsInfo.cpp
 
@@ -672,6 +687,9 @@ tstRTThreadExecutionTime_SOURCES = tstRTThreadExecutionTime.cpp
 tstRTTime_TEMPLATE = VBOXR3TSTEXE
 tstRTTime_SOURCES = tstRTTime.cpp
 
+tstRTTls-1_TEMPLATE = VBOXR3TSTEXE
+tstRTTls-1_SOURCES = tstRTTls-1.cpp
+
 tstRTTraceLog_TEMPLATE = VBOXR3TSTEXE
 tstRTTraceLog_SOURCES = tstRTTraceLog.cpp
 
@@ -687,8 +705,8 @@ tstTime-4_SOURCES = tstTime-4.cpp
 tstTimer_TEMPLATE = VBOXR3TSTEXE
 tstTimer_SOURCES = tstTimer.cpp
 
-tstTimerLR_TEMPLATE = VBOXR3TSTEXE
-tstTimerLR_SOURCES = tstTimerLR.cpp
+tstRTTimerLR_TEMPLATE = VBOXR3TSTEXE
+tstRTTimerLR_SOURCES = tstRTTimerLR.cpp
 
 tstRTTimeSpec_TEMPLATE = VBOXR3TSTEXE
 tstRTTimeSpec_SOURCES = tstRTTimeSpec.cpp

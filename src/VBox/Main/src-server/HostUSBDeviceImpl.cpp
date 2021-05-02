@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2019 Oracle Corporation
+ * Copyright (C) 2005-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,6 +203,16 @@ HRESULT HostUSBDevice::getPort(USHORT *aPort)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aPort = mUsb->bPort;
+
+    return S_OK;
+}
+
+
+HRESULT HostUSBDevice::getPortPath(com::Utf8Str &aPortPath)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    aPortPath = mUsb->pszPortPath;
 
     return S_OK;
 }

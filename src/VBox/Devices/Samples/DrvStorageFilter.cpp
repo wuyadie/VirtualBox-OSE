@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -336,15 +336,16 @@ static DECLCALLBACK(int) drvStorageFltIMedia_IoReqDiscard(PPDMIMEDIAEX pInterfac
 }
 
 /** @interface_method_impl{PDMIMEDIAEX,pfnIoReqSendScsiCmd} */
-static DECLCALLBACK(int) drvStorageFltIMedia_IoReqSendScsiCmd(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint32_t uLun,
-                                                              const uint8_t *pbCdb, size_t cbCdb, PDMMEDIAEXIOREQSCSITXDIR enmTxDir,
-                                                              size_t cbBuf, uint8_t *pabSense, size_t cbSense, uint8_t *pu8ScsiSts,
-                                                              uint32_t cTimeoutMillies)
+static DECLCALLBACK(int) drvStorageFltIMedia_IoReqSendScsiCmd(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                                              uint32_t uLun, const uint8_t *pbCdb, size_t cbCdb,
+                                                              PDMMEDIAEXIOREQSCSITXDIR enmTxDir, PDMMEDIAEXIOREQSCSITXDIR *penmTxDirRet,
+                                                              size_t cbBuf, uint8_t *pabSense, size_t cbSense, size_t *pcbSenseRet,
+                                                              uint8_t *pu8ScsiSts, uint32_t cTimeoutMillies)
 {
     PDRVSTORAGEFILTER pThis = RT_FROM_MEMBER(pInterface, DRVSTORAGEFILTER, IMediaEx);
     return pThis->pIMediaExBelow->pfnIoReqSendScsiCmd(pThis->pIMediaExBelow, hIoReq, uLun, pbCdb, cbCdb,
-                                                      enmTxDir, cbBuf, pabSense, cbSense, pu8ScsiSts,
-                                                      cTimeoutMillies);
+                                                      enmTxDir, penmTxDirRet, cbBuf, pabSense, cbSense, pcbSenseRet,
+                                                      pu8ScsiSts, cTimeoutMillies);
 }
 
 /** @interface_method_impl{PDMIMEDIAEX,pfnIoReqGetActiveCount} */

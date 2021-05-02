@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,10 +45,12 @@
 #include <sys/sunddi.h>
 #include <sys/file.h>
 #include <sys/priv_names.h>
+#include <vm/hat.h>
 #undef u /* /usr/include/sys/user.h:249:1 is where this is defined to (curproc->p_user). very cool. */
 
 #include "../SUPDrvInternal.h"
 #include <VBox/log.h>
+#include <VBox/param.h>
 #include <VBox/version.h>
 #include <iprt/semaphore.h>
 #include <iprt/spinlock.h>
@@ -63,6 +65,8 @@
 #include <iprt/err.h>
 
 #include "dtrace/SUPDrv.h"
+
+extern caddr_t hat_kpm_pfn2va(pfn_t); /* Found in vm/hat.h on solaris 11.3, but not on older like 10u7. */
 
 
 /*********************************************************************************************************************************
@@ -1155,8 +1159,6 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
                 case SUPLDRLOADEP_VMMR0:
                 {
                     if (RT_SUCCESS(rc))
-                        rc = supdrvSolLdrResolvEp(pImage, "VMMR0EntryInt",  (void **)&pReq->u.In.EP.VMMR0.pvVMMR0EntryInt);
-                    if (RT_SUCCESS(rc))
                         rc = supdrvSolLdrResolvEp(pImage, "VMMR0EntryFast", (void **)&pReq->u.In.EP.VMMR0.pvVMMR0EntryFast);
                     if (RT_SUCCESS(rc))
                         rc = supdrvSolLdrResolvEp(pImage, "VMMR0EntryEx",   (void **)&pReq->u.In.EP.VMMR0.pvVMMR0EntryEx);
@@ -1274,6 +1276,17 @@ int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
 }
 
 #endif /* SUPDRV_WITH_MSR_PROBER */
+
+
+SUPR0DECL(int) SUPR0HCPhysToVirt(RTHCPHYS HCPhys, void **ppv)
+{
+    AssertReturn(!(HCPhys & PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
+    AssertReturn(HCPhys != NIL_RTHCPHYS, VERR_INVALID_POINTER);
+    HCPhys >>= PAGE_SHIFT;
+    AssertReturn(HCPhys <= physmax, VERR_INVALID_POINTER);
+    *ppv = hat_kpm_pfn2va(HCPhys);
+    return VINF_SUCCESS;
+}
 
 
 RTDECL(int) SUPR0Printf(const char *pszFormat, ...)

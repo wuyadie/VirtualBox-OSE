@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -172,15 +172,7 @@ DECLINLINE(void *)  MMHyperR3ToCC(PVM pVM, RTR3PTR R3Ptr)
 #endif
 
 
-#ifndef IN_RC
 VMMDECL(void *)     MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr);
-#else
-DECLINLINE(void *)  MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr)
-{
-    NOREF(pVM);
-    return (void *)RCPtr;
-}
-#endif
 
 #ifndef IN_RING3
 VMMDECL(RTR3PTR)    MMHyperCCToR3(PVM pVM, void *pv);
@@ -202,21 +194,13 @@ DECLINLINE(RTR0PTR) MMHyperCCToR0(PVM pVM, void *pv)
 }
 #endif
 
-#ifndef IN_RC
 VMMDECL(RTRCPTR)    MMHyperCCToRC(PVM pVM, void *pv);
-#else
-DECLINLINE(RTRCPTR) MMHyperCCToRC(PVM pVM, void *pv)
-{
-    NOREF(pVM);
-    return (RTRCPTR)pv;
-}
-#endif
 
 
-VMMDECL(int)        MMHyperAlloc(PVM pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
-VMMDECL(int)        MMHyperDupMem(PVM pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv);
-VMMDECL(int)        MMHyperFree(PVM pVM, void *pv);
-VMMDECL(void)       MMHyperHeapCheck(PVM pVM);
+VMMDECL(int)        MMHyperAlloc(PVMCC pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
+VMMDECL(int)        MMHyperDupMem(PVMCC pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv);
+VMMDECL(int)        MMHyperFree(PVMCC pVM, void *pv);
+VMMDECL(void)       MMHyperHeapCheck(PVMCC pVM);
 VMMDECL(int)        MMR3LockCall(PVM pVM);
 #ifdef DEBUG
 VMMDECL(void)       MMHyperHeapDump(PVM pVM);
@@ -228,11 +212,12 @@ VMMDECL(uint32_t)   MMHyperHeapPtrToOffset(PVM pVM, void *pv);
 VMMDECL(RTGCPTR)    MMHyperGetArea(PVM pVM, size_t *pcb);
 VMMDECL(bool)       MMHyperIsInsideArea(PVM pVM, RTGCPTR GCPtr);
 
-
+#if 0
 VMMDECL(RTHCPHYS)   MMPage2Phys(PVM pVM, void *pvPage);
 VMMDECL(void *)     MMPagePhys2Page(PVM pVM, RTHCPHYS HCPhysPage);
 VMMDECL(int)        MMPagePhys2PageEx(PVM pVM, RTHCPHYS HCPhysPage, void **ppvPage);
 VMMDECL(int)        MMPagePhys2PageTry(PVM pVM, RTHCPHYS HCPhysPage, void **ppvPage);
+#endif
 
 
 /** @def MMHYPER_RC_ASSERT_RCPTR
@@ -240,11 +225,7 @@ VMMDECL(int)        MMPagePhys2PageTry(PVM pVM, RTHCPHYS HCPhysPage, void **ppvP
  * This assertion only works while IN_RC, it's a NOP everywhere else.
  * @thread  The Emulation Thread.
  */
-#ifdef IN_RC
-# define MMHYPER_RC_ASSERT_RCPTR(pVM, RCPtr)   Assert(MMHyperIsInsideArea((pVM), (RTRCUINTPTR)(RCPtr)) || !(RCPtr))
-#else
-# define MMHYPER_RC_ASSERT_RCPTR(pVM, RCPtr)   do { } while (0)
-#endif
+#define MMHYPER_RC_ASSERT_RCPTR(pVM, RCPtr)   do { } while (0)
 
 /** @} */
 
@@ -280,17 +261,19 @@ VMMR3DECL(int)      MMR3HyperRealloc(PVM pVM, void *pv, size_t cb, unsigned uAli
 #define MMHYPER_AONR_FLAGS_KERNEL_MAPPING   RT_BIT(0)
 /** @} */
 VMMR3DECL(int)      MMR3HyperSetGuard(PVM pVM, void *pvStart, size_t cb, bool fSet);
+#ifndef PGM_WITHOUT_MAPPINGS
 VMMR3DECL(int)      MMR3HyperMapHCPhys(PVM pVM, void *pvR3, RTR0PTR pvR0, RTHCPHYS HCPhys, size_t cb, const char *pszDesc, PRTGCPTR pGCPtr);
 VMMR3DECL(int)      MMR3HyperMapGCPhys(PVM pVM, RTGCPHYS GCPhys, size_t cb, const char *pszDesc, PRTGCPTR pGCPtr);
-VMMR3DECL(int)      MMR3HyperMapMMIO2(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDev, uint32_t iRegion, RTGCPHYS off, RTGCPHYS cb, const char *pszDesc, PRTRCPTR pRCPtr);
-VMMR3DECL(int)      MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPages, PCSUPPAGE paPages, const char *pszDesc, PRTGCPTR pGCPtr);
 VMMR3DECL(int)      MMR3HyperReserve(PVM pVM, unsigned cb, const char *pszDesc, PRTGCPTR pGCPtr);
+#endif
+VMMR3DECL(int)      MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPages, PCSUPPAGE paPages, const char *pszDesc, PRTGCPTR pGCPtr);
+VMMR3DECL(int)      MMR3HyperReserveFence(PVM pVM);
 VMMR3DECL(RTHCPHYS) MMR3HyperHCVirt2HCPhys(PVM pVM, void *pvHC);
 VMMR3DECL(int)      MMR3HyperHCVirt2HCPhysEx(PVM pVM, void *pvHC, PRTHCPHYS pHCPhys);
-VMMR3DECL(void *)   MMR3HyperHCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys);
-VMMR3DECL(int)      MMR3HyperHCPhys2HCVirtEx(PVM pVM, RTHCPHYS HCPhys, void **ppv);
+#ifndef PGM_WITHOUT_MAPPINGS
 VMMR3_INT_DECL(int) MMR3HyperQueryInfoFromHCPhys(PVM pVM, RTHCPHYS HCPhys, char *pszWhat, size_t cbWhat, uint32_t *pcbAlloc);
 VMMR3DECL(int)      MMR3HyperReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, size_t cb);
+#endif
 /** @} */
 
 
@@ -304,14 +287,8 @@ VMMR3DECL(uint32_t) MMR3PhysGet4GBRamHoleSize(PVM pVM);
 /** @} */
 
 
-/** @defgroup grp_mm_page   Physical Page Pool
+/** @defgroup grp_mm_page   Physical Page Pool (what's left of it)
  * @{ */
-VMMR3DECL(void *)   MMR3PageAlloc(PVM pVM);
-VMMR3DECL(RTHCPHYS) MMR3PageAllocPhys(PVM pVM);
-VMMR3DECL(void)     MMR3PageFree(PVM pVM, void *pvPage);
-VMMR3DECL(void *)   MMR3PageAllocLow(PVM pVM);
-VMMR3DECL(void)     MMR3PageFreeLow(PVM pVM, void *pvPage);
-VMMR3DECL(void)     MMR3PageFreeByPhys(PVM pVM, RTHCPHYS HCPhysPage);
 VMMR3DECL(void *)   MMR3PageDummyHCPtr(PVM pVM);
 VMMR3DECL(RTHCPHYS) MMR3PageDummyHCPhys(PVM pVM);
 /** @} */
@@ -352,25 +329,6 @@ VMMR3DECL(void)     MMR3UkHeapFree(PVM pVM, void *pv, MMTAG enmTag);
 /** @} */
 #endif /* IN_RING3 || DOXYGEN_RUNNING */
 
-
-
-#if defined(IN_RC) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_mm_rc    The MM Raw-mode Context API
- * @{
- */
-
-VMMRCDECL(void)     MMGCRamRegisterTrapHandler(PVM pVM);
-VMMRCDECL(void)     MMGCRamDeregisterTrapHandler(PVM pVM);
-VMMRCDECL(int)      MMGCRamReadNoTrapHandler(void *pDst, void *pSrc, size_t cb);
-/**
- * @deprecated Don't use this as it doesn't check the page state.
- */
-VMMRCDECL(int)      MMGCRamWriteNoTrapHandler(void *pDst, void *pSrc, size_t cb);
-VMMRCDECL(int)      MMGCRamRead(PVM pVM, void *pDst, void *pSrc, size_t cb);
-VMMRCDECL(int)      MMGCRamWrite(PVM pVM, void *pDst, void *pSrc, size_t cb);
-
-/** @} */
-#endif /* IN_RC || DOXYGEN_RUNNING */
 
 /** @} */
 RT_C_DECLS_END

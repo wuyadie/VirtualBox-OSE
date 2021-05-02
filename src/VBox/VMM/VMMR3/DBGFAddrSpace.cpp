@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,9 +42,6 @@
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/mm.h>
-#ifdef VBOX_WITH_RAW_MODE
-# include <VBox/vmm/patm.h>
-#endif
 #include "DBGFInternal.h"
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/vm.h>
@@ -158,7 +155,7 @@ int dbgfR3AsInit(PUVM pUVM)
      * Create the debugging config instance and set it up, defaulting to
      * deferred loading in order to keep things fast.
      */
-    rc = RTDbgCfgCreate(&pUVM->dbgf.s.hDbgCfg, NULL, true /*fNativePaths*/);
+    rc = RTDbgCfgCreate(&pUVM->dbgf.s.hDbgCfg, "VBOXDBG_", true /*fNativePaths*/);
     AssertRCReturn(rc, rc);
     rc = RTDbgCfgChangeUInt(pUVM->dbgf.s.hDbgCfg, RTDBGCFGPROP_FLAGS, RTDBGCFGOP_PREPEND,
                             RTDBGCFG_FLAGS_DEFERRED);
@@ -642,9 +639,6 @@ static void dbgfR3AsLazyPopulate(PUVM pUVM, RTDBGAS hAlias)
         {
             LogRel(("DBGF: Lazy init of RC address space\n"));
             PDMR3LdrEnumModules(pUVM->pVM, dbgfR3AsLazyPopulateRCCallback, hDbgAs);
-#ifdef VBOX_WITH_RAW_MODE
-            PATMR3DbgPopulateAddrSpace(pUVM->pVM, hDbgAs);
-#endif
         }
         else if (hAlias == DBGF_AS_PHYS && pUVM->pVM)
         {

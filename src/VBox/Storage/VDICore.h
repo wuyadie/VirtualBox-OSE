@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -553,6 +553,8 @@ typedef struct VDIIMAGEDESC
     unsigned                offStartBlockData;
     /** Total size of image block (including the extra data). */
     unsigned                cbTotalBlockData;
+    /** Allocation Block Size */
+    unsigned                cbAllocationBlock;
     /** Container filename. (UTF-8) */
     const char             *pszFilename;
     /** Physical geometry of this image (never actually stored). */

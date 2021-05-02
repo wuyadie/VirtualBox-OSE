@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,8 +71,8 @@ SHADERDECL(int) ShaderDestroyLib(void);
 SHADERDECL(int) ShaderContextCreate(void **ppShaderContext);
 SHADERDECL(int) ShaderContextDestroy(void *pShaderContext);
 
-SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *pShaderData, void **pShaderObj);
-SHADERDECL(int) ShaderCreatePixelShader(void *pShaderContext, const uint32_t *pShaderData, void **pShaderObj);
+SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *pShaderData, uint32_t cbShaderData, void **pShaderObj);
+SHADERDECL(int) ShaderCreatePixelShader(void *pShaderContext, const uint32_t *pShaderData, uint32_t cbShaderData, void **pShaderObj);
 
 SHADERDECL(int) ShaderDestroyVertexShader(void *pShaderContext, void *pShaderObj);
 SHADERDECL(int) ShaderDestroyPixelShader(void *pShaderContext, void *pShaderObj);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,9 +45,34 @@ int XFree(void *data)
 #define TEST_DISPLAY ((Display *)0xffff)
 #define TEST_ROOT ((Window)1)
 
-extern void vbclFatalError(char *psz)
+void VBClLogError(const char *pszFormat, ...)
 {
-    RTPrintf("Fatal error: %s\n", psz);
+    va_list args;
+    va_start(args, pszFormat);
+    char *psz = NULL;
+    RTStrAPrintfV(&psz, pszFormat, args);
+    va_end(args);
+
+    AssertPtr(psz);
+    RTPrintf("Error: %s", psz);
+
+    RTStrFree(psz);
+}
+
+/** Exit with a fatal error. */
+void VBClLogFatalError(const char *pszFormat, ...)
+{
+    va_list args;
+    va_start(args, pszFormat);
+    char *psz = NULL;
+    RTStrAPrintfV(&psz, pszFormat, args);
+    va_end(args);
+
+    AssertPtr(psz);
+    RTPrintf("Fatal error: %s", psz);
+
+    RTStrFree(psz);
+
     exit(1);
 }
 

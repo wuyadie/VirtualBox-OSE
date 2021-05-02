@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -344,7 +344,7 @@ RTDECL(int) RTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry
     pDirEntry->Info.ChangeTime  = pDirEntry->Info.ModificationTime;
 
     pDirEntry->Info.Attr.fMode  = rtFsModeFromDos((pDir->Data.dwFileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT,
-                                                   pszName, cchName, pDir->Data.dwReserved0);
+                                                   pszName, cchName, pDir->Data.dwReserved0, 0);
 
     /*
      * Requested attributes (we cannot provide anything actually).

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@
 DECLHIDDEN(size_t) rtStrFormatKernelAddress(char *pszBuf, size_t cbBuf, RTR0INTPTR uPtr, signed int cchWidth,
                                             signed int cchPrecision, unsigned int fFlags)
 {
-#if !defined(DEBUG) && LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+#if !defined(DEBUG) && RTLNX_VER_MIN(2,6,38)
     RT_NOREF(cchWidth, cchPrecision);
     /* use the Linux kernel function which is able to handle "%pK" */
     static const char s_szFmt[] = "0x%pK";

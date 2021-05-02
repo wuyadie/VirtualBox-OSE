@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,8 +74,8 @@ struct EEPROM93C46
 
 
     /** @todo save and load methods */
-    void save(PSSMHANDLE pSSM);
-    int  load(PSSMHANDLE pSSM);
+    void save(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM);
+    int  load(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM);
 
     /** Actual content of EEPROM */
     uint16_t m_au16Data[SIZE];

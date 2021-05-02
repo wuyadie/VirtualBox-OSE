@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -225,7 +225,12 @@ SHADERDECL(int) ShaderContextCreate(void **ppShaderContext)
     pContext->pDeviceContext->shader_backend = &glsl_shader_backend;
     pContext->pDeviceContext->ps_selected_mode = SHADER_GLSL;
     pContext->pDeviceContext->vs_selected_mode = SHADER_GLSL;
+#ifndef VBOX_WITH_VMSVGA
     pContext->render_offscreen = false;
+#else
+    /* VMSVGA always renders offscreen. */
+    pContext->render_offscreen = true;
+#endif
 
     list_init(&pContext->pDeviceContext->shaders);
 
@@ -308,7 +313,7 @@ SHADERDECL(int) ShaderContextDestroy(void *pShaderContext)
     return VINF_SUCCESS;
 }
 
-SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *pShaderData, void **pShaderObj)
+SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *pShaderData, uint32_t cbShaderData, void **pShaderObj)
 {
     IWineD3DDeviceImpl *This;
     IWineD3DVertexShaderImpl *object;
@@ -323,6 +328,8 @@ SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *p
         Log(("Failed to allocate shader memory.\n"));
         return VERR_NO_MEMORY;
     }
+
+    object->baseShader.functionLength = cbShaderData;
 
     hr = vertexshader_init(object, This, (DWORD const *)pShaderData, NULL, NULL, NULL);
     if (FAILED(hr))
@@ -350,7 +357,7 @@ SHADERDECL(int) ShaderCreateVertexShader(void *pShaderContext, const uint32_t *p
     return VINF_SUCCESS;
 }
 
-SHADERDECL(int) ShaderCreatePixelShader(void *pShaderContext, const uint32_t *pShaderData, void **pShaderObj)
+SHADERDECL(int) ShaderCreatePixelShader(void *pShaderContext, const uint32_t *pShaderData, uint32_t cbShaderData, void **pShaderObj)
 {
     IWineD3DDeviceImpl *This;
     IWineD3DPixelShaderImpl *object;
@@ -365,6 +372,8 @@ SHADERDECL(int) ShaderCreatePixelShader(void *pShaderContext, const uint32_t *pS
         Log(("Failed to allocate shader memory.\n"));
         return VERR_NO_MEMORY;
     }
+
+    object->baseShader.functionLength = cbShaderData;
 
     hr = pixelshader_init(object, This, (DWORD const *)pShaderData, NULL, NULL, NULL);
     if (FAILED(hr))

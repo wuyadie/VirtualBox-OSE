@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -431,20 +431,22 @@ static DECLCALLBACK(int) dbgcHlpMemRead(PDBGCCMDHLP pCmdHlp, void *pvBuffer, siz
                 break;
 
             case DBGCVAR_TYPE_HC_PHYS:
-            case DBGCVAR_TYPE_HC_FLAT:
             {
                 DBGCVAR Var2;
                 rc = dbgcOpAddrFlat(pDbgc, &Var, DBGCVAR_CAT_ANY, &Var2);
                 if (RT_SUCCESS(rc))
                 {
-                    /** @todo protect this!!! */
                     memcpy(pvBuffer, Var2.u.pvHCFlat, cb);
-                    rc = 0;
+                    rc = VINF_SUCCESS;
                 }
                 else
                     rc = VERR_INVALID_POINTER;
                 break;
             }
+
+            case DBGCVAR_TYPE_HC_FLAT:
+                rc = VERR_NOT_SUPPORTED;
+                break;
 
             default:
                 rc = VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
@@ -571,7 +573,6 @@ static DECLCALLBACK(int) dbgcHlpMemWrite(PDBGCCMDHLP pCmdHlp, const void *pvBuff
                 *pcbWritten = cbWrite;
             return rc;
 
-        case DBGCVAR_TYPE_HC_FLAT:
         case DBGCVAR_TYPE_HC_PHYS:
         {
             /*
@@ -597,7 +598,6 @@ static DECLCALLBACK(int) dbgcHlpMemWrite(PDBGCCMDHLP pCmdHlp, const void *pvBuff
                 if (cbChunk > cbWrite)
                     cbChunk = cbWrite;
 
-                /** @todo protect this!!! */
                 memcpy(Var2.u.pvHCFlat, pvBuffer, cbChunk);
 
                 /* advance */
@@ -613,6 +613,9 @@ static DECLCALLBACK(int) dbgcHlpMemWrite(PDBGCCMDHLP pCmdHlp, const void *pvBuff
 
             return VINF_SUCCESS;
         }
+
+        case DBGCVAR_TYPE_HC_FLAT:
+            return VERR_NOT_SUPPORTED;
 
         default:
             return VERR_NOT_IMPLEMENTED;
@@ -1304,8 +1307,9 @@ static DECLCALLBACK(PCDBGFINFOHLP) dbgcHlpGetDbgfOutputHlp(PDBGCCMDHLP pCmdHlp)
     /* Lazy init */
     if (!pDbgc->DbgfOutputHlp.pfnPrintf)
     {
-        pDbgc->DbgfOutputHlp.pfnPrintf  = dbgcHlpGetDbgfOutputHlp_Printf;
-        pDbgc->DbgfOutputHlp.pfnPrintfV = dbgcHlpGetDbgfOutputHlp_PrintfV;
+        pDbgc->DbgfOutputHlp.pfnPrintf      = dbgcHlpGetDbgfOutputHlp_Printf;
+        pDbgc->DbgfOutputHlp.pfnPrintfV     = dbgcHlpGetDbgfOutputHlp_PrintfV;
+        pDbgc->DbgfOutputHlp.pfnGetOptError = DBGFR3InfoGenricGetOptError;
     }
 
     return &pDbgc->DbgfOutputHlp;
@@ -1329,19 +1333,14 @@ static DECLCALLBACK(CPUMMODE) dbgcHlpGetCpuMode(PDBGCCMDHLP pCmdHlp)
 {
     PDBGC    pDbgc   = DBGC_CMDHLP2DBGC(pCmdHlp);
     CPUMMODE enmMode = CPUMMODE_INVALID;
-    if (pDbgc->fRegCtxGuest)
-    {
-        if (pDbgc->pUVM)
-            enmMode = DBGFR3CpuGetMode(pDbgc->pUVM, DBGCCmdHlpGetCurrentCpu(pCmdHlp));
-        if (enmMode == CPUMMODE_INVALID)
+    if (pDbgc->pUVM)
+        enmMode = DBGFR3CpuGetMode(pDbgc->pUVM, DBGCCmdHlpGetCurrentCpu(pCmdHlp));
+    if (enmMode == CPUMMODE_INVALID)
 #if HC_ARCH_BITS == 64
-            enmMode = CPUMMODE_LONG;
+        enmMode = CPUMMODE_LONG;
 #else
-            enmMode = CPUMMODE_PROTECTED;
-#endif
-    }
-    else
         enmMode = CPUMMODE_PROTECTED;
+#endif
     return enmMode;
 }
 

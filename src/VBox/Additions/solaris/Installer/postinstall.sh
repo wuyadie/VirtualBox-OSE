@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2008-2019 Oracle Corporation
+# Copyright (C) 2008-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -387,10 +387,6 @@ if test "$currentzone" = "global"; then
         echo "## $BOOTADMBIN not found/executable. Skipped explicit boot-archive update."
     fi
 fi
-
-# Set up our OpenGL pass-through library.
-ln -sf $vboxadditions_path/vbox_vendor_select /lib/opengl/ogl_select
-test "$currentzone" = "global" && /lib/svc/method/ogl-select start
 
 echo "Done."
 if test $retval -eq 0; then

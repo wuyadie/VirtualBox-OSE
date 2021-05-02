@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,9 @@
 /** @page pg_mm     MM - The Memory Manager
  *
  * The memory manager is in charge of the following memory:
- *      - Hypervisor Memory Area (HMA) - Address space management.
+ *      - Hypervisor Memory Area (HMA) - Address space management (obsolete in 6.1).
  *      - Hypervisor Heap - A memory heap that lives in all contexts.
+ *      - User-Kernel Heap - A memory heap lives in both host context.
  *      - Tagged ring-3 heap.
  *      - Page pools - Primarily used by PGM for shadow page tables.
  *      - Locked process memory - Guest RAM and other. (reduce/obsolete this)
@@ -33,7 +34,7 @@
  * @see grp_mm
  *
  *
- * @section sec_mm_hma  Hypervisor Memory Area
+ * @section sec_mm_hma  Hypervisor Memory Area - Obsolete in 6.1
  *
  * The HMA is used when executing in raw-mode. We borrow, with the help of
  * PGMMap, some unused space (one or more page directory entries to be precise)
@@ -246,40 +247,33 @@ VMMR3DECL(int) MMR3Init(PVM pVM)
     pVM->mm.s.offLookupHyper = NIL_OFFSET;
 
     /*
-     * Init the page pool.
+     * Init the hypervisor related stuff.
      */
-    int rc = mmR3PagePoolInit(pVM);
+    int rc = mmR3HyperInit(pVM);
     if (RT_SUCCESS(rc))
     {
         /*
-         * Init the hypervisor related stuff.
+         * Register the saved state data unit.
          */
-        rc = mmR3HyperInit(pVM);
+        rc = SSMR3RegisterInternal(pVM, "mm", 1, MM_SAVED_STATE_VERSION, sizeof(uint32_t) * 2,
+                                   NULL, NULL, NULL,
+                                   NULL, mmR3Save, NULL,
+                                   NULL, mmR3Load, NULL);
         if (RT_SUCCESS(rc))
         {
             /*
-             * Register the saved state data unit.
+             * Statistics.
              */
-            rc = SSMR3RegisterInternal(pVM, "mm", 1, MM_SAVED_STATE_VERSION, sizeof(uint32_t) * 2,
-                                       NULL, NULL, NULL,
-                                       NULL, mmR3Save, NULL,
-                                       NULL, mmR3Load, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                /*
-                 * Statistics.
-                 */
-                STAM_REG(pVM, &pVM->mm.s.cBasePages,   STAMTYPE_U64, "/MM/Reserved/cBasePages",   STAMUNIT_PAGES, "Reserved number of base pages, ROM and Shadow ROM included.");
-                STAM_REG(pVM, &pVM->mm.s.cHandyPages,  STAMTYPE_U32, "/MM/Reserved/cHandyPages",  STAMUNIT_PAGES, "Reserved number of handy pages.");
-                STAM_REG(pVM, &pVM->mm.s.cShadowPages, STAMTYPE_U32, "/MM/Reserved/cShadowPages", STAMUNIT_PAGES, "Reserved number of shadow paging pages.");
-                STAM_REG(pVM, &pVM->mm.s.cFixedPages,  STAMTYPE_U32, "/MM/Reserved/cFixedPages",  STAMUNIT_PAGES, "Reserved number of fixed pages (MMIO2).");
-                STAM_REG(pVM, &pVM->mm.s.cbRamBase,    STAMTYPE_U64, "/MM/cbRamBase",             STAMUNIT_BYTES, "Size of the base RAM.");
+            STAM_REG(pVM, &pVM->mm.s.cBasePages,   STAMTYPE_U64, "/MM/Reserved/cBasePages",   STAMUNIT_PAGES, "Reserved number of base pages, ROM and Shadow ROM included.");
+            STAM_REG(pVM, &pVM->mm.s.cHandyPages,  STAMTYPE_U32, "/MM/Reserved/cHandyPages",  STAMUNIT_PAGES, "Reserved number of handy pages.");
+            STAM_REG(pVM, &pVM->mm.s.cShadowPages, STAMTYPE_U32, "/MM/Reserved/cShadowPages", STAMUNIT_PAGES, "Reserved number of shadow paging pages.");
+            STAM_REG(pVM, &pVM->mm.s.cFixedPages,  STAMTYPE_U32, "/MM/Reserved/cFixedPages",  STAMUNIT_PAGES, "Reserved number of fixed pages (MMIO2).");
+            STAM_REG(pVM, &pVM->mm.s.cbRamBase,    STAMTYPE_U64, "/MM/cbRamBase",             STAMUNIT_BYTES, "Size of the base RAM.");
 
-                return rc;
-            }
-
-            /* .... failure .... */
+            return rc;
         }
+
+        /* .... failure .... */
     }
     MMR3Term(pVM);
     return rc;
@@ -459,11 +453,8 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
 VMMR3DECL(int) MMR3Term(PVM pVM)
 {
     /*
-     * Destroy the page pool. (first as it used the hyper heap)
+     * Clean up the hypervisor heap.
      */
-    mmR3PagePoolTerm(pVM);
-
-    /* Clean up the hypervisor heap. */
     mmR3HyperTerm(pVM);
 
     /*
@@ -738,12 +729,14 @@ VMMR3DECL(int) MMR3UpdateShadowReservation(PVM pVM, uint32_t cShadowPages)
  */
 VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
 {
+#if 0
     /*
      * Try page tables.
      */
     int rc = MMPagePhys2PageTry(pVM, HCPhys, ppv);
     if (RT_SUCCESS(rc))
         return rc;
+#endif
 
     /*
      * Iterate thru the lookup records for HMA.

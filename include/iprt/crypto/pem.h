@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,7 @@ typedef struct RTCRPEMFIELD
     /** The field name length. */
     size_t              cchName;
     /** The field name. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char                szName[RT_FLEXIBLE_ARRAY];
 } RTCRPEMFIELD;
 /** Pointer to a PEM field. */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -917,8 +917,7 @@ static errno_t vboxNetFltDarwinIffInputOutputWorker(PVBOXNETFLTINS pThis, mbuf_t
      * TCP/IP checksums as long as possible.
      * ASSUMES this only applies to outbound IP packets.
      */
-    if (    (fSrc == INTNETTRUNKDIR_HOST)
-        &&  eProtocol == PF_INET)
+    if (fSrc == INTNETTRUNKDIR_HOST)
     {
         Assert(!pvFrame);
         mbuf_outbound_finalize(pMBuf, eProtocol, sizeof(RTNETETHERHDR));

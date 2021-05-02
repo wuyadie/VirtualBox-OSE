@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -128,7 +128,7 @@ void UIMachineViewSeamless::prepareConsoleConnections()
     UIMachineView::prepareConsoleConnections();
 
     /* Guest additions state-change updater: */
-    connect(uisession(), SIGNAL(sigAdditionsStateActualChange()), this, SLOT(sltAdditionsStateChanged()));
+    connect(uisession(), &UISession::sigAdditionsStateActualChange, this, &UIMachineViewSeamless::sltAdditionsStateChanged);
 }
 
 void UIMachineViewSeamless::prepareSeamless()
@@ -218,4 +218,3 @@ QSize UIMachineViewSeamless::calculateMaxGuestSize() const
 {
     return workingArea().size();
 }
-

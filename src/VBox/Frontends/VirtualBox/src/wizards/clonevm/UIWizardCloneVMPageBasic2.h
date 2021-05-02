@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@ protected:
     UIWizardCloneVMPage2(bool fAdditionalInfo);
 
     /* Stuff for 'linkedClone' field: */
-    bool isLinkedClone() const;
+    bool linkedClone() const;
 
     /* Variables: */
     bool m_fAdditionalInfo;
@@ -53,7 +53,7 @@ protected:
 class UIWizardCloneVMPageBasic2 : public UIWizardPage, public UIWizardCloneVMPage2
 {
     Q_OBJECT;
-    Q_PROPERTY(bool linkedClone READ isLinkedClone);
+    Q_PROPERTY(bool linkedClone READ linkedClone);
 
 public:
 

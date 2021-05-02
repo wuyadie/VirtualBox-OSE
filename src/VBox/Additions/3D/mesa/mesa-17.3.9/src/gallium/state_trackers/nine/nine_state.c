@@ -2525,6 +2525,7 @@ CSMT_ITEM_NO_WAIT(nine_context_clear_fb,
 
         zsbuf = NineSurface9_GetSurface(zsbuf_surf, 0);
         assert(zsbuf);
+
         pipe->clear_depth_stencil(pipe, zsbuf, bufs, Z, Stencil,
                                   x1, y1, x2 - x1, y2 - y1, false);
     }

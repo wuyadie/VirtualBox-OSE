@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,7 +64,7 @@ HRESULT BaseTextScript::readFromHandle(RTVFSFILE hVfsFile, const char *pszFilena
      */
     HRESULT  hrc;
     uint64_t cbFile = 0;
-    int vrc = RTVfsFileGetSize(hVfsFile, &cbFile);
+    int vrc = RTVfsFileQuerySize(hVfsFile, &cbFile);
     if (   RT_SUCCESS(vrc)
         && cbFile < _16M)
     {
@@ -107,7 +107,7 @@ HRESULT BaseTextScript::readFromHandle(RTVFSFILE hVfsFile, const char *pszFilena
         hrc = mpSetError->setErrorVrc(VERR_FILE_TOO_BIG,
                                       mpSetError->tr("'%s' is too big (max 16MB): %'RU64"), pszFilename, cbFile);
     else
-        hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("RTVfsFileGetSize failed (%Rrc)"), vrc);
+        hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("RTVfsFileQuerySize failed (%Rrc)"), vrc);
     return hrc;
 }
 

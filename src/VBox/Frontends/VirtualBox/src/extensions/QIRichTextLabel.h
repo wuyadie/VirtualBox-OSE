@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,13 +22,13 @@
 #endif
 
 /* Qt includes: */
-#include <QTextEdit>
+#include <QTextBrowser>
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
 
 /** QLabel analog to reflect rich-text,
- ** based on private QTextEdit functionality. */
+ ** based on private QTextBrowser functionality. */
 class SHARED_LIBRARY_STUFF QIRichTextLabel : public QWidget
 {
     Q_OBJECT;
@@ -63,8 +63,8 @@ public slots:
 
 private:
 
-    /** Holds the text-editor instance. */
-    QTextEdit *m_pTextEdit;
+    /** Holds the text-browser instance. */
+    QTextBrowser *m_pTextBrowser;
 
     /** Holds the minimum text-width. */
     int m_iMinimumTextWidth;

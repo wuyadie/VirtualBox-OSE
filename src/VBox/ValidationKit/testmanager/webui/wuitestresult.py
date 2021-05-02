@@ -7,7 +7,7 @@ Test Manager WUI - Test Results.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 # Python imports.
 import datetime;
@@ -61,6 +61,39 @@ class WuiTestSetLink(WuiTmLink):
                              TestSetData.ksParam_idTestSet: idTestSet, }, fBracketed = fBracketed);
         self.idTestSet = idTestSet;
 
+class WuiTestResultsForSomethingLink(WuiTmLink):
+    """  Test results link for a grouping. """
+
+    def __init__(self, sGroupedBy, idGroupMember, sName = WuiContentBase.ksShortTestResultsLink,
+                 dExtraParams = None, fBracketed = False):
+        dParams = dict(dExtraParams) if dExtraParams else dict();
+        dParams[WuiMain.ksParamAction] = sGroupedBy;
+        dParams[WuiMain.ksParamGroupMemberId] = idGroupMember;
+        WuiTmLink.__init__(self, sName, WuiMain.ksScriptName, dParams, fBracketed = fBracketed);
+
+
+class WuiTestResultsForTestBoxLink(WuiTestResultsForSomethingLink):
+    """  Test results link for a given testbox. """
+
+    def __init__(self, idTestBox, sName = WuiContentBase.ksShortTestResultsLink, dExtraParams = None, fBracketed = False):
+        WuiTestResultsForSomethingLink.__init__(self, WuiMain.ksActionResultsGroupedByTestBox, idTestBox,
+                                                sName = sName, dExtraParams = dExtraParams, fBracketed = fBracketed);
+
+
+class WuiTestResultsForTestCaseLink(WuiTestResultsForSomethingLink):
+    """  Test results link for a given testcase. """
+
+    def __init__(self, idTestCase, sName = WuiContentBase.ksShortTestResultsLink, dExtraParams = None, fBracketed = False):
+        WuiTestResultsForSomethingLink.__init__(self, WuiMain.ksActionResultsGroupedByTestCase, idTestCase,
+                                                sName = sName, dExtraParams = dExtraParams, fBracketed = fBracketed);
+
+
+class WuiTestResultsForBuildRevLink(WuiTestResultsForSomethingLink):
+    """  Test results link for a given build revision. """
+
+    def __init__(self, iRevision, sName = WuiContentBase.ksShortTestResultsLink, dExtraParams = None, fBracketed = False):
+        WuiTestResultsForSomethingLink.__init__(self, WuiMain.ksActionResultsGroupedByBuildRev, iRevision,
+                                                sName = sName, dExtraParams = dExtraParams, fBracketed = fBracketed);
 
 
 class WuiTestResult(WuiContentBase):
@@ -153,7 +186,7 @@ class WuiTestResult(WuiContentBase):
                          sFragmentId = sFragment, sTitle = sTitle, fBracketed = False, ).toHtml();
 
     def _recursivelyGenerateEvents(self, oTestResult, sParentName, sLineage, iRow,
-                                   iFailure, oTestSet, iDepth):     # pylint: disable=R0914
+                                   iFailure, oTestSet, iDepth):     # pylint: disable=too-many-locals
         """
         Recursively generate event table rows for the result set.
 
@@ -441,7 +474,7 @@ class WuiTestResult(WuiContentBase):
         return sHtml;
 
 
-    def showTestCaseResultDetails(self,             # pylint: disable=R0914,R0915
+    def showTestCaseResultDetails(self,             # pylint: disable=too-many-locals,too-many-statements
                                   oTestResultTree,
                                   oTestSet,
                                   oBuildEx,
@@ -490,6 +523,7 @@ class WuiTestResult(WuiContentBase):
                                         TestCaseData.ksParam_idTestCase:      oTestCaseEx.idTestCase,
                                         self.oWuiAdmin.ksParamEffectiveDate:  oTestSet.tsConfig, },
                                       fBracketed = False),
+                            WuiTestResultsForTestCaseLink(oTestCaseEx.idTestCase),
                             WuiReportSummaryLink(ReportModelBase.ksSubTestCase, oTestCaseEx.idTestCase,
                                                  tsNow = tsReportEffectiveDate, fBracketed = False),
                           ]),
@@ -561,6 +595,7 @@ class WuiTestResult(WuiContentBase):
                                             BuildData.ksParam_idBuild:            oBuildEx.idBuild,
                                             self.oWuiAdmin.ksParamEffectiveDate:  oTestSet.tsCreated, },
                                           fBracketed = False),
+                                WuiTestResultsForBuildRevLink(oBuildEx.iRevision),
                                 WuiReportSummaryLink(ReportModelBase.ksSubBuild, oBuildEx.idBuild,
                                                      tsNow = tsReportEffectiveDate, fBracketed = False), ]),
             ];
@@ -612,8 +647,10 @@ class WuiTestResult(WuiContentBase):
                                       { self.oWuiAdmin.ksParamAction:     self.oWuiAdmin.ksActionTestBoxDetails,
                                         TestBoxData.ksParam_idGenTestBox: oTestSet.idGenTestBox, },
                                       fBracketed = False),
+                            WuiTestResultsForTestBoxLink(oTestBox.idTestBox),
                             WuiReportSummaryLink(ReportModelBase.ksSubTestBox, oTestSet.idTestBox,
-                                                 tsNow = tsReportEffectiveDate, fBracketed = False), ]),
+                                                 tsNow = tsReportEffectiveDate, fBracketed = False),
+                            ]),
         ];
         if oTestBox.sDescription:
             aoTestBoxRows.append([oTestBox.sDescription, ]);

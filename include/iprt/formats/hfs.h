@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,7 +215,8 @@
 
 /** @} */
 
-/** @name B-tree compare types (BTHeaderRec::keyCompareType) */
+/** @name B-tree compare types (BTHeaderRec::keyCompareType)
+ * @{ */
 #define kHFSCaseFolding                 UINT8_C(0xcf)
 #define kHFSBinaryCompare               UINT8_C(0xbc)
 /** @} */

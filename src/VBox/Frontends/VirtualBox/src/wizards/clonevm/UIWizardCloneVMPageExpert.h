@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@ class UIWizardCloneVMPageExpert : public UIWizardPage,
     Q_OBJECT;
     Q_PROPERTY(QString cloneName READ cloneName WRITE setCloneName);
     Q_PROPERTY(QString cloneFilePath READ cloneFilePath WRITE setCloneFilePath);
-    Q_PROPERTY(bool linkedClone READ isLinkedClone);
+    Q_PROPERTY(bool linkedClone READ linkedClone);
     Q_PROPERTY(KCloneMode cloneMode READ cloneMode WRITE setCloneMode);
     Q_PROPERTY(MACAddressClonePolicy macAddressClonePolicy READ macAddressClonePolicy WRITE setMACAddressClonePolicy);
     Q_PROPERTY(bool keepDiskNames READ keepDiskNames WRITE setKeepDiskNames);

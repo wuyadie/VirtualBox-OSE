@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3805,6 +3805,7 @@ typedef struct OMFDETAILSALLOC
     /** Pointer to the next allocation. */
     struct OMFDETAILSALLOC *pNext;
     /** The allocated bytes. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     uint8_t                 abData[RT_FLEXIBLE_ARRAY];
 } OMFDETAILSALLOC;
 typedef OMFDETAILSALLOC *POMFDETAILSALLOC;
@@ -5491,7 +5492,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 129721 $");
+                        printf("%s\n", "$Revision: 142330 $");
                         return 0;
 
                     case '?':

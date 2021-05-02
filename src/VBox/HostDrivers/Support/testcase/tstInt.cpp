@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,9 +29,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <VBox/sup.h>
-#include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/gvmm.h>
+#include <VBox/vmm/vm.h>
 #include <iprt/errcore.h>
 #include <VBox/param.h>
 #include <iprt/asm-amd64-x86.h>
@@ -76,7 +76,8 @@ int main(int argc, char **argv)
         /*
          * Load VMM code.
          */
-        rc = SUPR3LoadVMM(szAbsFile);
+        RTERRINFOSTATIC ErrInfo;
+        rc = SUPR3LoadVMM(szAbsFile, RTErrInfoInitStatic(&ErrInfo));
         if (RT_SUCCESS(rc))
         {
             /*
@@ -94,14 +95,13 @@ int main(int argc, char **argv)
             {
                 PVM pVM = CreateVMReq.pVMR3;
                 AssertRelease(VALID_PTR(pVM));
-                AssertRelease(pVM->pVMR0 == CreateVMReq.pVMR0);
+                AssertRelease(pVM->pVMR0ForCall == CreateVMReq.pVMR0);
                 AssertRelease(pVM->pSession == pSession);
                 AssertRelease(pVM->cCpus == 1);
-                AssertRelease(pVM->offVMCPU == RT_UOFFSETOF(VM, aCpus));
                 pVM->enmVMState = VMSTATE_CREATED;
-                PVMR0 const pVMR0 = pVM->pVMR0;
+                PVMR0 const pVMR0 = CreateVMReq.pVMR0;
 
-                rc = SUPR3SetVMForFastIOCtl(pVM->pVMR0);
+                rc = SUPR3SetVMForFastIOCtl(pVMR0);
                 if (!rc)
                 {
                     /*
@@ -184,7 +184,7 @@ int main(int argc, char **argv)
                     rcRet++;
                 }
 
-                rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
+                rc = SUPR3CallVMMR0Ex(pVMR0, 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
                 if (RT_FAILURE(rc))
                 {
                     RTPrintf("tstInt: VMMR0_DO_GVMM_DESTROY_VM failed: %Rrc\n", rc);
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            RTPrintf("tstInt: SUPR3LoadVMM failed with rc=%Rrc\n", rc);
+            RTPrintf("tstInt: SUPR3LoadVMM failed with rc=%Rrc%#RTeim\n", rc, &ErrInfo.Core);
             rcRet++;
         }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,8 @@
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include "CPUMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
+#include <VBox/vmm/gvm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/vmm/hm.h>
@@ -100,7 +101,7 @@ const g_aCpuidUnifyBits[] =
 static int  cpumR0MapLocalApics(void);
 static void cpumR0UnmapLocalApics(void);
 #endif
-static int  cpumR0SaveHostDebugState(PVMCPU pVCpu);
+static int  cpumR0SaveHostDebugState(PVMCPUCC pVCpu);
 
 
 /**
@@ -143,7 +144,7 @@ VMMR0_INT_DECL(int) CPUMR0ModuleTerm(void)
  */
 static DECLCALLBACK(void) cpumR0CheckCpuid(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
-    PVM     pVM   = (PVM)pvUser1;
+    PVMCC     pVM   = (PVMCC)pvUser1;
 
     NOREF(idCpu); NOREF(pvUser2);
     for (uint32_t i = 0; i < RT_ELEMENTS(g_aCpuidUnifyBits); i++)
@@ -181,7 +182,7 @@ static DECLCALLBACK(void) cpumR0CheckCpuid(RTCPUID idCpu, void *pvUser1, void *p
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  */
-VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
+VMMR0_INT_DECL(int) CPUMR0InitVM(PVMCC pVM)
 {
     LogFlow(("CPUMR0Init: %p\n", pVM));
 
@@ -268,6 +269,7 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
         /*
          * Copy MSR_IA32_ARCH_CAPABILITIES bits over into the host and guest feature
          * structure and as well as the guest MSR.
+         * Note! we assume this happens after the CPUMR3Init is done, so CPUID bits are settled.
          */
         pVM->cpum.s.HostFeatures.fArchRdclNo             = 0;
         pVM->cpum.s.HostFeatures.fArchIbrsAll            = 0;
@@ -282,21 +284,25 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
             if (   (fEdxFeatures & X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP)
                 && (fFeatures & X86_CPUID_FEATURE_EDX_MSR))
             {
-                uint64_t const fArchVal = ASMRdMsr(MSR_IA32_ARCH_CAPABILITIES);
-                pVM->cpum.s.GuestFeatures.fArchRdclNo
-                    = pVM->cpum.s.HostFeatures.fArchRdclNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RDCL_NO);
-                pVM->cpum.s.GuestFeatures.fArchIbrsAll
-                    = pVM->cpum.s.HostFeatures.fArchIbrsAll            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IBRS_ALL);
-                pVM->cpum.s.GuestFeatures.fArchRsbOverride
-                    = pVM->cpum.s.HostFeatures.fArchRsbOverride        = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RSBO);
-                pVM->cpum.s.GuestFeatures.fArchVmmNeedNotFlushL1d
-                    = pVM->cpum.s.HostFeatures.fArchVmmNeedNotFlushL1d = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D);
-                pVM->cpum.s.GuestFeatures.fArchMdsNo
-                    = pVM->cpum.s.HostFeatures.fArchMdsNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MDS_NO);
+                /* Host: */
+                uint64_t fArchVal = ASMRdMsr(MSR_IA32_ARCH_CAPABILITIES);
+                pVM->cpum.s.HostFeatures.fArchRdclNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RDCL_NO);
+                pVM->cpum.s.HostFeatures.fArchIbrsAll            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IBRS_ALL);
+                pVM->cpum.s.HostFeatures.fArchRsbOverride        = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RSBO);
+                pVM->cpum.s.HostFeatures.fArchVmmNeedNotFlushL1d = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D);
+                pVM->cpum.s.HostFeatures.fArchMdsNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MDS_NO);
 
-                if (pVM->cpum.s.GuestFeatures.fArchCap)
-                    for (VMCPUID i = 0; i < pVM->cCpus; i++)
-                        pVM->aCpus[i].cpum.s.GuestMsrs.msr.ArchCaps = fArchVal;
+                /* guest: */
+                if (!pVM->cpum.s.GuestFeatures.fArchCap)
+                    fArchVal = 0;
+                else if (!pVM->cpum.s.GuestFeatures.fIbrs)
+                    fArchVal &= ~MSR_IA32_ARCH_CAP_F_IBRS_ALL;
+                VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->cpum.s.GuestMsrs.msr.ArchCaps = fArchVal);
+                pVM->cpum.s.GuestFeatures.fArchRdclNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RDCL_NO);
+                pVM->cpum.s.GuestFeatures.fArchIbrsAll            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IBRS_ALL);
+                pVM->cpum.s.GuestFeatures.fArchRsbOverride        = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RSBO);
+                pVM->cpum.s.GuestFeatures.fArchVmmNeedNotFlushL1d = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D);
+                pVM->cpum.s.GuestFeatures.fArchMdsNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MDS_NO);
             }
             else
                 pVM->cpum.s.HostFeatures.fArchCap = 0;
@@ -345,8 +351,7 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
     uint32_t u32DR7 = ASMGetDR7();
     if (u32DR7 & X86_DR7_ENABLED_MASK)
     {
-        for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            pVM->aCpus[i].cpum.s.fUseFlags |= CPUM_USE_DEBUG_REGS_HOST;
+        VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->cpum.s.fUseFlags |= CPUM_USE_DEBUG_REGS_HOST);
         Log(("CPUMR0Init: host uses debug registers (dr7=%x)\n", u32DR7));
     }
 
@@ -366,7 +371,7 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVMCC pVM, PVMCPUCC pVCpu)
 {
     Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
     Assert(ASMGetCR4() & X86_CR4_OSFXSR);
@@ -428,58 +433,39 @@ VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu)
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
  */
-VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    int rc = VINF_SUCCESS;
+    int rc;
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST));
     Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE));
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-    if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
+    if (!pVM->cpum.s.HostFeatures.fLeakyFxSR)
     {
         Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
-
-        /* Save the host state if necessary. */
-        if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST))
-            rc = cpumRZSaveHostFPUState(&pVCpu->cpum.s);
-
-        /* Restore the state on entry as we need to be in 64-bit mode to access the full state. */
-        pVCpu->cpum.s.fUseFlags |= CPUM_SYNC_FPU_STATE;
-
-        Assert(   (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM))
-               ==                            (CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM));
+        rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
     }
     else
-#endif
     {
-        if (!pVM->cpum.s.HostFeatures.fLeakyFxSR)
-        {
-            Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
+        Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE) || (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST));
+        /** @todo r=ramshankar: Can't we used a cached value here
+         *        instead of reading the MSR? host EFER doesn't usually
+         *        change. */
+        uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
+        if (!(uHostEfer & MSR_K6_EFER_FFXSR))
             rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
-        }
         else
         {
-            Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE) || (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST));
-            /** @todo r=ramshankar: Can't we used a cached value here
-             *        instead of reading the MSR? host EFER doesn't usually
-             *        change. */
-            uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
-            if (!(uHostEfer & MSR_K6_EFER_FFXSR))
-                rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
-            else
-            {
-                RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
-                pVCpu->cpum.s.fUseFlags |= CPUM_USED_MANUAL_XMM_RESTORE;
-                ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
-                rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
-                ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
-                ASMSetFlags(uSavedFlags);
-            }
+            RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
+            pVCpu->cpum.s.fUseFlags |= CPUM_USED_MANUAL_XMM_RESTORE;
+            ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
+            rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
+            ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
+            ASMSetFlags(uSavedFlags);
         }
-        Assert(   (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM))
-               ==                            (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM));
     }
+    Assert(   (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM))
+           ==                            (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM));
     return rc;
 }
 
@@ -491,7 +477,7 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu)
  * @returns true if we saved the guest state.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu)
+VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPUCC pVCpu)
 {
     bool fSavedGuest;
     Assert(pVCpu->CTX_SUFF(pVM)->cpum.s.HostFeatures.fFxSaveRstor);
@@ -499,40 +485,24 @@ VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu)
     if (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST))
     {
         fSavedGuest = RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-        if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
-        {
-            if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
-            {
-                Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE));
-                HMR0SaveFPUState(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.s.Guest);
-            }
-            else
-                pVCpu->cpum.s.fUseFlags &= ~CPUM_SYNC_FPU_STATE;
-            cpumR0RestoreHostFPUState(&pVCpu->cpum.s);
-        }
+        if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE))
+            cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
         else
-#endif
         {
-            if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE))
-                cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
-            else
+            /* Temporarily clear MSR_K6_EFER_FFXSR or else we'll be unable to
+               save/restore the XMM state with fxsave/fxrstor. */
+            uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
+            if (uHostEfer & MSR_K6_EFER_FFXSR)
             {
-                /* Temporarily clear MSR_K6_EFER_FFXSR or else we'll be unable to
-                   save/restore the XMM state with fxsave/fxrstor. */
-                uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
-                if (uHostEfer & MSR_K6_EFER_FFXSR)
-                {
-                    RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
-                    ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
-                    cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
-                    ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
-                    ASMSetFlags(uSavedFlags);
-                }
-                else
-                    cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
-                pVCpu->cpum.s.fUseFlags &= ~CPUM_USED_MANUAL_XMM_RESTORE;
+                RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
+                ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
+                cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
+                ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
+                ASMSetFlags(uSavedFlags);
             }
+            else
+                cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
+            pVCpu->cpum.s.fUseFlags &= ~CPUM_USED_MANUAL_XMM_RESTORE;
         }
     }
     else
@@ -550,7 +520,7 @@ VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu)
  * @returns VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-static int cpumR0SaveHostDebugState(PVMCPU pVCpu)
+static int cpumR0SaveHostDebugState(PVMCPUCC pVCpu)
 {
     /*
      * Save the host state.
@@ -591,7 +561,7 @@ static int cpumR0SaveHostDebugState(PVMCPU pVCpu)
  * @param   fDr6        Whether to include DR6 or not.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu, bool fDr6)
+VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPUCC pVCpu, bool fDr6)
 {
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     bool const fDrXLoaded = RT_BOOL(pVCpu->cpum.s.fUseFlags & (CPUM_USED_DEBUG_REGS_GUEST | CPUM_USED_DEBUG_REGS_HYPER));
@@ -602,24 +572,12 @@ VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu, 
      */
     if (pVCpu->cpum.s.fUseFlags & CPUM_USED_DEBUG_REGS_GUEST)
     {
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-        if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
-        {
-            uint64_t uDr6 = pVCpu->cpum.s.Guest.dr[6];
-            HMR0SaveDebugState(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.s.Guest);
-            if (!fDr6)
-                pVCpu->cpum.s.Guest.dr[6] = uDr6;
-        }
-        else
-#endif
-        {
-            pVCpu->cpum.s.Guest.dr[0] = ASMGetDR0();
-            pVCpu->cpum.s.Guest.dr[1] = ASMGetDR1();
-            pVCpu->cpum.s.Guest.dr[2] = ASMGetDR2();
-            pVCpu->cpum.s.Guest.dr[3] = ASMGetDR3();
-            if (fDr6)
-                pVCpu->cpum.s.Guest.dr[6] = ASMGetDR6();
-        }
+        pVCpu->cpum.s.Guest.dr[0] = ASMGetDR0();
+        pVCpu->cpum.s.Guest.dr[1] = ASMGetDR1();
+        pVCpu->cpum.s.Guest.dr[2] = ASMGetDR2();
+        pVCpu->cpum.s.Guest.dr[3] = ASMGetDR3();
+        if (fDr6)
+            pVCpu->cpum.s.Guest.dr[6] = ASMGetDR6();
     }
     ASMAtomicAndU32(&pVCpu->cpum.s.fUseFlags, ~(  CPUM_USED_DEBUG_REGS_GUEST | CPUM_USED_DEBUG_REGS_HYPER
                                                 | CPUM_SYNC_DEBUG_REGS_GUEST | CPUM_SYNC_DEBUG_REGS_HYPER));
@@ -662,7 +620,7 @@ VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu, 
  * @param   fDr6        Whether to include DR6 or not.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuest(PVMCPU pVCpu, bool fDr6)
+VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuest(PVMCPUCC pVCpu, bool fDr6)
 {
     /*
      * Do we need to save the guest DRx registered loaded into host registers?
@@ -670,24 +628,12 @@ VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuest(PVMCPU pVCpu, bool fDr6)
      */
     if (pVCpu->cpum.s.fUseFlags & CPUM_USED_DEBUG_REGS_GUEST)
     {
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-        if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
-        {
-            uint64_t uDr6 = pVCpu->cpum.s.Guest.dr[6];
-            HMR0SaveDebugState(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.s.Guest);
-            if (!fDr6)
-                pVCpu->cpum.s.Guest.dr[6] = uDr6;
-        }
-        else
-#endif
-        {
-            pVCpu->cpum.s.Guest.dr[0] = ASMGetDR0();
-            pVCpu->cpum.s.Guest.dr[1] = ASMGetDR1();
-            pVCpu->cpum.s.Guest.dr[2] = ASMGetDR2();
-            pVCpu->cpum.s.Guest.dr[3] = ASMGetDR3();
-            if (fDr6)
-                pVCpu->cpum.s.Guest.dr[6] = ASMGetDR6();
-        }
+        pVCpu->cpum.s.Guest.dr[0] = ASMGetDR0();
+        pVCpu->cpum.s.Guest.dr[1] = ASMGetDR1();
+        pVCpu->cpum.s.Guest.dr[2] = ASMGetDR2();
+        pVCpu->cpum.s.Guest.dr[3] = ASMGetDR3();
+        if (fDr6)
+            pVCpu->cpum.s.Guest.dr[6] = ASMGetDR6();
         return true;
     }
     return false;
@@ -701,7 +647,7 @@ VMMR0_INT_DECL(bool) CPUMR0DebugStateMaybeSaveGuest(PVMCPU pVCpu, bool fDr6)
  * @param   fDr6        Whether to include DR6 or not.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(void) CPUMR0LoadGuestDebugState(PVMCPU pVCpu, bool fDr6)
+VMMR0_INT_DECL(void) CPUMR0LoadGuestDebugState(PVMCPUCC pVCpu, bool fDr6)
 {
     /*
      * Save the host state and disarm all host BPs.
@@ -713,21 +659,14 @@ VMMR0_INT_DECL(void) CPUMR0LoadGuestDebugState(PVMCPU pVCpu, bool fDr6)
      * Activate the guest state DR0-3.
      * DR7 and DR6 (if fDr6 is true) are left to the caller.
      */
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-    if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
-        ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_SYNC_DEBUG_REGS_GUEST); /* Postpone it to the world switch. */
-    else
-#endif
-    {
-        ASMSetDR0(pVCpu->cpum.s.Guest.dr[0]);
-        ASMSetDR1(pVCpu->cpum.s.Guest.dr[1]);
-        ASMSetDR2(pVCpu->cpum.s.Guest.dr[2]);
-        ASMSetDR3(pVCpu->cpum.s.Guest.dr[3]);
-        if (fDr6)
-            ASMSetDR6(pVCpu->cpum.s.Guest.dr[6]);
+    ASMSetDR0(pVCpu->cpum.s.Guest.dr[0]);
+    ASMSetDR1(pVCpu->cpum.s.Guest.dr[1]);
+    ASMSetDR2(pVCpu->cpum.s.Guest.dr[2]);
+    ASMSetDR3(pVCpu->cpum.s.Guest.dr[3]);
+    if (fDr6)
+        ASMSetDR6(pVCpu->cpum.s.Guest.dr[6]);
 
-        ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_USED_DEBUG_REGS_GUEST);
-    }
+    ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_USED_DEBUG_REGS_GUEST);
 }
 
 
@@ -739,7 +678,7 @@ VMMR0_INT_DECL(void) CPUMR0LoadGuestDebugState(PVMCPU pVCpu, bool fDr6)
  * @param   fDr6        Whether to include DR6 or not.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(void) CPUMR0LoadHyperDebugState(PVMCPU pVCpu, bool fDr6)
+VMMR0_INT_DECL(void) CPUMR0LoadHyperDebugState(PVMCPUCC pVCpu, bool fDr6)
 {
     /*
      * Save the host state and disarm all host BPs.
@@ -756,21 +695,14 @@ VMMR0_INT_DECL(void) CPUMR0LoadHyperDebugState(PVMCPU pVCpu, bool fDr6)
      * Activate the guest state DR0-3.
      * DR7 and DR6 (if fDr6 is true) are left to the caller.
      */
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-    if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
-        ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_SYNC_DEBUG_REGS_HYPER); /* Postpone it. */
-    else
-#endif
-    {
-        ASMSetDR0(pVCpu->cpum.s.Hyper.dr[0]);
-        ASMSetDR1(pVCpu->cpum.s.Hyper.dr[1]);
-        ASMSetDR2(pVCpu->cpum.s.Hyper.dr[2]);
-        ASMSetDR3(pVCpu->cpum.s.Hyper.dr[3]);
-        if (fDr6)
-            ASMSetDR6(X86_DR6_INIT_VAL);
+    ASMSetDR0(pVCpu->cpum.s.Hyper.dr[0]);
+    ASMSetDR1(pVCpu->cpum.s.Hyper.dr[1]);
+    ASMSetDR2(pVCpu->cpum.s.Hyper.dr[2]);
+    ASMSetDR3(pVCpu->cpum.s.Hyper.dr[3]);
+    if (fDr6)
+        ASMSetDR6(X86_DR6_INIT_VAL);
 
-        ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_USED_DEBUG_REGS_HYPER);
-    }
+    ASMAtomicOrU32(&pVCpu->cpum.s.fUseFlags, CPUM_USED_DEBUG_REGS_HYPER);
 }
 
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
@@ -796,7 +728,8 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuProber(RTCPUID idCpu, void *pvUse
     if (   (   ASMIsIntelCpuEx(u32EBX, u32ECX, u32EDX)
             || ASMIsAmdCpuEx(u32EBX, u32ECX, u32EDX)
             || ASMIsViaCentaurCpuEx(u32EBX, u32ECX, u32EDX)
-            || ASMIsShanghaiCpuEx(u32EBX, u32ECX, u32EDX))
+            || ASMIsShanghaiCpuEx(u32EBX, u32ECX, u32EDX)
+            || ASMIsHygonCpuEx(u32EBX, u32ECX, u32EDX))
         && ASMIsValidStdRange(uMaxLeaf))
     {
         uint32_t uDummy;
@@ -863,7 +796,7 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuChecker(RTCPUID idCpu, void *pvUs
     {
         g_aLApics[iCpu].uVersion    = uApicVersion;
 
-#if 0 /* enable if you need it. */
+# if 0 /* enable if you need it. */
         if (g_aLApics[iCpu].fX2Apic)
             SUPR0Printf("CPUM: X2APIC %02u - ver %#010x, lint0=%#07x lint1=%#07x pc=%#07x thmr=%#07x cmci=%#07x\n",
                         iCpu, uApicVersion,
@@ -890,7 +823,7 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuChecker(RTCPUID idCpu, void *pvUs
                             cEiLvt >= 4 ? ApicRegRead(g_aLApics[iCpu].pv, 0x530) : 0);
             }
         }
-#endif
+# endif
     }
     else
     {
@@ -954,7 +887,7 @@ static int cpumR0MapLocalApics(void)
         return rc;
     }
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     /*
      * Log the result (pretty useless, requires enabling CPUM in VBoxDrv
      * and !VBOX_WITH_R0_LOGGING).
@@ -971,7 +904,7 @@ static int cpumR0MapLocalApics(void)
             }
         Log(("CPUM: %u APICs, %u X2APICs\n", cEnabled, cX2Apics));
     }
-#endif
+# endif
 
     return VINF_SUCCESS;
 }
@@ -1009,7 +942,7 @@ static void cpumR0UnmapLocalApics(void)
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   iHostCpuSet The CPU set index of the current host CPU.
  */
-VMMR0_INT_DECL(void) CPUMR0SetLApic(PVMCPU pVCpu, uint32_t iHostCpuSet)
+VMMR0_INT_DECL(void) CPUMR0SetLApic(PVMCPUCC pVCpu, uint32_t iHostCpuSet)
 {
     Assert(iHostCpuSet <= RT_ELEMENTS(g_aLApics));
     pVCpu->cpum.s.pvApicBase = g_aLApics[iHostCpuSet].pv;

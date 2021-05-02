@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -438,30 +438,34 @@ static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
 #endif
             uint8_t const  *pbFrame = (uint8_t const *)pSgBuf->aSegs[0].pvSeg;
             PCPDMNETWORKGSO pGso    = (PCPDMNETWORKGSO)pSgBuf->pvUser;
-            uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, pSgBuf->cbUsed);  Assert(cSegs > 1);
-            for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+            /* Do not attempt to segment frames with invalid GSO parameters. */
+            if (PDMNetGsoIsValid(pGso, sizeof(*pGso), pSgBuf->cbUsed))
             {
-                size_t cbSeg;
-                void  *pvSeg;
-                m = slirp_ext_m_get(pThis->pNATState, pGso->cbHdrsTotal + pGso->cbMaxSeg, &pvSeg, &cbSeg);
-                if (!m)
-                    break;
+                uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, pSgBuf->cbUsed);  Assert(cSegs > 1);
+                for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+                {
+                    size_t cbSeg;
+                    void  *pvSeg;
+                    m = slirp_ext_m_get(pThis->pNATState, pGso->cbHdrsTotal + pGso->cbMaxSeg, &pvSeg, &cbSeg);
+                    if (!m)
+                        break;
 
 #if 1
-                uint32_t cbPayload, cbHdrs;
-                uint32_t offPayload = PDMNetGsoCarveSegment(pGso, pbFrame, pSgBuf->cbUsed,
-                                                            iSeg, cSegs, (uint8_t *)pvSeg, &cbHdrs, &cbPayload);
-                memcpy((uint8_t *)pvSeg + cbHdrs, pbFrame + offPayload, cbPayload);
+                    uint32_t cbPayload, cbHdrs;
+                    uint32_t offPayload = PDMNetGsoCarveSegment(pGso, pbFrame, pSgBuf->cbUsed,
+                                                                iSeg, cSegs, (uint8_t *)pvSeg, &cbHdrs, &cbPayload);
+                    memcpy((uint8_t *)pvSeg + cbHdrs, pbFrame + offPayload, cbPayload);
 
-                slirp_input(pThis->pNATState, m, cbPayload + cbHdrs);
+                    slirp_input(pThis->pNATState, m, cbPayload + cbHdrs);
 #else
-                uint32_t cbSegFrame;
-                void *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)pbFrame, pSgBuf->cbUsed, abHdrScratch,
-                                                           iSeg, cSegs, &cbSegFrame);
-                memcpy((uint8_t *)pvSeg, pvSegFrame, cbSegFrame);
+                    uint32_t cbSegFrame;
+                    void *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)pbFrame, pSgBuf->cbUsed, abHdrScratch,
+                                                            iSeg, cSegs, &cbSegFrame);
+                    memcpy((uint8_t *)pvSeg, pvSegFrame, cbSegFrame);
 
-                slirp_input(pThis->pNATState, m, cbSegFrame);
+                    slirp_input(pThis->pNATState, m, cbSegFrame);
 #endif
+                }
             }
         }
     }
@@ -597,9 +601,6 @@ static DECLCALLBACK(int) drvNATNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     int rc;
     if (pThis->pSlirpThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        /* Set an FTM checkpoint as this operation changes the state permanently. */
-        PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
-
         rc = RTReqQueueCallEx(pThis->hSlirpReqQueue, NULL /*ppReq*/, 0 /*cMillies*/,
                               RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
                               (PFNRT)drvNATSendWorker, 2, pThis, pSgBuf);
@@ -1216,7 +1217,7 @@ static DECLCALLBACK(void) drvNATPowerOn(PPDMDRVINS pDrvIns)
 
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnResume}
+ * @interface_method_impl{PDMDRVREG,pfnResume}
  */
 static DECLCALLBACK(void) drvNATResume(PPDMDRVINS pDrvIns)
 {
@@ -1817,8 +1818,6 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                 LogRel(("NAT#%d: Failed to install DNS change notifier. The guest might loose DNS access when switching networks on the host\n",
                          pDrvIns->iInstance));
 #endif
-
-            /* might return VINF_NAT_DNS */
             return rc;
         }
 

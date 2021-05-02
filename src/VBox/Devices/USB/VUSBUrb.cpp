@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -702,6 +702,10 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
      */
     if (pExtra->cbMax < cbBuf + pSetupIn->wLength + sizeof(VUSBURBVUSBINT))
     {
+#if 1
+        LogRelMax(10, ("VUSB: Control URB too large (wLength=%u)!\n", pSetupIn->wLength));
+        return false;
+#else
         uint32_t cbReq = RT_ALIGN_32(cbBuf + pSetupIn->wLength + sizeof(VUSBURBVUSBINT), 1024);
         PVUSBCTRLEXTRA pNew = (PVUSBCTRLEXTRA)RTMemRealloc(pExtra, RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbReq]));
         if (!pNew)
@@ -716,9 +720,16 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
             pExtra = pNew;
             pPipe->pCtrl = pExtra;
         }
+
+        PVUSBURBVUSB pOldVUsb = (PVUSBURBVUSB)&pExtra->Urb.abData[pExtra->cbMax - sizeof(VUSBURBVUSBINT)];
         pExtra->Urb.pVUsb = (PVUSBURBVUSB)&pExtra->Urb.abData[cbBuf + pSetupIn->wLength];
+        memmove(pExtra->Urb.pVUsb, pOldVUsb, sizeof(VUSBURBVUSBINT));
+        memset(pOldVUsb, 0, (uint8_t *)pExtra->Urb.pVUsb - (uint8_t *)pOldVUsb);
         pExtra->Urb.pVUsb->pUrb = &pExtra->Urb;
+        pExtra->Urb.pVUsb->pvFreeCtx = &pExtra->Urb;
         pExtra->cbMax = cbReq;
+
+#endif
     }
     Assert(pExtra->Urb.enmState == VUSBURBSTATE_ALLOCATED);
 
@@ -936,12 +947,14 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
              * will be no status stage.
              */
             uint8_t *pbData = (uint8_t *)(pExtra->pMsg + 1);
-            if (&pExtra->pbCur[pUrb->cbData] > &pbData[pSetup->wLength])
+            if ((uintptr_t)&pExtra->pbCur[pUrb->cbData] > (uintptr_t)&pbData[pSetup->wLength])
             {
+                /** @todo r=bird: This code stinks, esp. the iPhone carp.  @bugref{9899} */
                 if (!pSetup->wLength) /* happens during iPhone detection with iTunes (correct?) */
                 {
-                    Log(("%s: vusbUrbSubmitCtrl: pSetup->wLength == 0!! (iPhone)\n", pUrb->pszDesc));
-                    pSetup->wLength = pUrb->cbData;
+                    Log(("%s: vusbUrbSubmitCtrl: pSetup->wLength == 0!! Changing it to RT_MIN(cbData=%u, cbMax=%u) (iPhone hack)\n",
+                         pUrb->pszDesc, pUrb->cbData, pExtra->cbMax));
+                    pSetup->wLength = RT_MIN(pUrb->cbData, pExtra->cbMax); /** @todo resize? */
                 }
 
                 /* Variable length data transfers */
@@ -949,10 +962,9 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
                     ||  pSetup->wLength == 0
                     ||  (pUrb->cbData % pSetup->wLength) == 0)  /* magic which need explaining... */
                 {
-                    uint8_t *pbEnd = pbData + pSetup->wLength;
-                    int cbLeft = pbEnd - pExtra->pbCur;
+                    ssize_t const cbLeft = &pbData[pSetup->wLength] - pExtra->pbCur;
                     LogFlow(("%s: vusbUrbSubmitCtrl: Var DATA, pUrb->cbData %d -> %d\n", pUrb->pszDesc, pUrb->cbData, cbLeft));
-                    pUrb->cbData = cbLeft;
+                    pUrb->cbData = cbLeft >= 0 ? (uint32_t)cbLeft : 0;
                 }
                 else
                 {
@@ -984,6 +996,8 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             else
             {
                 /* get data for sending when completed. */
+                AssertStmt((ssize_t)pUrb->cbData <= pExtra->cbMax - (pExtra->pbCur - pbData), /* paranoia: checked above */
+                           pUrb->cbData = pExtra->cbMax - (uint32_t)RT_MIN(pExtra->pbCur - pbData, pExtra->cbMax));
                 memcpy(pExtra->pbCur, pUrb->abData, pUrb->cbData);
 
                 /* advance */
@@ -1267,8 +1281,8 @@ void vusbUrbDoReapAsync(PRTLISTANCHOR pUrbLst, RTMSINTERVAL cMillies)
                    && ((pRipe = pDev->pUsbIns->pReg->pfnUrbReap(pDev->pUsbIns, cMillies)) != NULL))
             {
                 vusbUrbAssert(pRipe);
-                if (pRipe == pVUsbUrbNext->pUrb)
-                    pVUsbUrbNext = RTListGetNext(pUrbLst, pVUsbUrb, VUSBURBVUSBINT, NdLst);
+                if (pVUsbUrbNext && pRipe == pVUsbUrbNext->pUrb)
+                    pVUsbUrbNext = RTListGetNext(pUrbLst, pVUsbUrbNext, VUSBURBVUSBINT, NdLst);
                 vusbUrbRipe(pRipe);
             }
         }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 #include "UIMachineSettingsUSBFilterDetails.h"
 #include "UIErrorString.h"
 #include "UIToolBar.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CConsole.h"
@@ -160,7 +160,7 @@ public:
     /* Constructor: */
     VBoxUSBMenu(QWidget *)
     {
-        connect(this, SIGNAL(aboutToShow()), this, SLOT(processAboutToShow()));
+        connect(this, &VBoxUSBMenu::aboutToShow, this, &VBoxUSBMenu::processAboutToShow);
     }
 
     /* Returns USB device related to passed action: */
@@ -183,7 +183,7 @@ private slots:
         clear();
         m_usbDeviceMap.clear();
 
-        CHost host = vboxGlobal().host();
+        CHost host = uiCommon().host();
 
         bool fIsUSBEmpty = host.GetUSBDevices().size() == 0;
         if (fIsUSBEmpty)
@@ -199,7 +199,7 @@ private slots:
             {
                 CHostUSBDevice dev = devvec[i];
                 CUSBDevice usb(dev);
-                QAction *pAction = addAction(vboxGlobal().details(usb));
+                QAction *pAction = addAction(uiCommon().details(usb));
                 pAction->setCheckable(true);
                 m_usbDeviceMap[pAction] = usb;
                 /* Check if created item was already attached to this session: */
@@ -228,7 +228,7 @@ private:
                 CUSBDevice usb = m_usbDeviceMap[pAction];
                 if (!usb.isNull())
                 {
-                    QToolTip::showText(pHelpEvent->globalPos(), vboxGlobal().toolTip(usb));
+                    QToolTip::showText(pHelpEvent->globalPos(), uiCommon().toolTip(usb));
                     return true;
                 }
             }
@@ -415,6 +415,18 @@ void UIMachineSettingsUSB::getFromCache()
     /* Get old USB data from the cache: */
     const UIDataSettingsMachineUSB &oldUsbData = m_pCache->base();
 
+    /* Load currently supported USB controllers: */
+    CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+    QVector<KUSBControllerType> supportedTypes = comProperties.GetSupportedUSBControllerTypes();
+    /* Take currently requested type into account if it's sane: */
+    if (!supportedTypes.contains(oldUsbData.m_USBControllerType) && oldUsbData.m_USBControllerType != KUSBControllerType_Null)
+        supportedTypes.prepend(oldUsbData.m_USBControllerType);
+
+    /* Adjust radio-button visibility: */
+    mRbUSB1->setVisible(supportedTypes.contains(KUSBControllerType_OHCI));
+    mRbUSB2->setVisible(supportedTypes.contains(KUSBControllerType_EHCI));
+    mRbUSB3->setVisible(supportedTypes.contains(KUSBControllerType_XHCI));
+
     /* Load old USB data from the cache: */
     mGbUSB->setChecked(oldUsbData.m_fUSBEnabled);
     switch (oldUsbData.m_USBControllerType)
@@ -493,7 +505,7 @@ bool UIMachineSettingsUSB::validate(QList<UIValidationMessage> &messages)
 
 #ifdef VBOX_WITH_EXTPACK
     /* USB 2.0/3.0 Extension Pack presence test: */
-    const CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+    const CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
     if (   mGbUSB->isChecked()
         && (mRbUSB2->isChecked() || mRbUSB3->isChecked())
         && (extPack.isNull() || !extPack.GetUsable()))
@@ -678,7 +690,7 @@ void UIMachineSettingsUSB::sltAddFilterConfirmed(QAction *pAction)
     /* Prepare new USB filter data: */
     UIDataSettingsMachineUSBFilter filterData;
     filterData.m_fActive = true;
-    filterData.m_strName = vboxGlobal().details(usb);
+    filterData.m_strName = uiCommon().details(usb);
     filterData.m_fHostUSBDevice = false;
     filterData.m_strVendorId = QString().sprintf("%04hX", usb.GetVendorId());
     filterData.m_strProductId = QString().sprintf("%04hX", usb.GetProductId());
@@ -802,6 +814,11 @@ void UIMachineSettingsUSB::prepare()
     /* Apply UI decorations: */
     Ui::UIMachineSettingsUSB::setupUi(this);
 
+    /* Hide radio-button initially: */
+    mRbUSB1->setVisible(false);
+    mRbUSB2->setVisible(false);
+    mRbUSB3->setVisible(false);
+
     /* Prepare cache: */
     m_pCache = new UISettingsCacheMachineUSB;
     AssertPtrReturnVoid(m_pCache);
@@ -909,26 +926,26 @@ void UIMachineSettingsUSB::prepareFiltersToolbar()
 void UIMachineSettingsUSB::prepareConnections()
 {
     /* Configure validation connections: */
-    connect(mGbUSB, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
-    connect(mRbUSB1, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
-    connect(mRbUSB2, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
-    connect(mRbUSB3, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
+    connect(mGbUSB, &QCheckBox::stateChanged, this, &UIMachineSettingsUSB::revalidate);
+    connect(mRbUSB1, &QRadioButton::toggled, this, &UIMachineSettingsUSB::revalidate);
+    connect(mRbUSB2, &QRadioButton::toggled, this, &UIMachineSettingsUSB::revalidate);
+    connect(mRbUSB3, &QRadioButton::toggled, this, &UIMachineSettingsUSB::revalidate);
 
     /* Configure widget connections: */
-    connect(mGbUSB, SIGNAL(toggled(bool)),
-            this, SLOT(sltHandleUsbAdapterToggle(bool)));
-    connect(mTwFilters, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
-            this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem*)));
-    connect(mTwFilters, SIGNAL(customContextMenuRequested(const QPoint &)),
-            this, SLOT(sltHandleContextMenuRequest(const QPoint &)));
-    connect(mTwFilters, SIGNAL(itemDoubleClicked(QTreeWidgetItem *, int)),
-            this, SLOT(sltEditFilter()));
-    connect(mTwFilters, SIGNAL(itemChanged(QTreeWidgetItem *, int)),
-            this, SLOT(sltHandleActivityStateChange(QTreeWidgetItem *)));
+    connect(mGbUSB, &QCheckBox::toggled,
+            this, &UIMachineSettingsUSB::sltHandleUsbAdapterToggle);
+    connect(mTwFilters, &QITreeWidget::currentItemChanged,
+            this, &UIMachineSettingsUSB::sltHandleCurrentItemChange);
+    connect(mTwFilters, &QITreeWidget::customContextMenuRequested,
+            this, &UIMachineSettingsUSB::sltHandleContextMenuRequest);
+    connect(mTwFilters, &QITreeWidget::itemDoubleClicked,
+            this, &UIMachineSettingsUSB::sltEditFilter);
+    connect(mTwFilters, &QITreeWidget::itemChanged,
+            this, &UIMachineSettingsUSB::sltHandleActivityStateChange);
 
     /* Configure USB device menu connections: */
-    connect(m_pMenuUSBDevices, SIGNAL(triggered(QAction*)),
-            this, SLOT(sltAddFilterConfirmed(QAction *)));
+    connect(m_pMenuUSBDevices, &VBoxUSBMenu::triggered,
+            this, &UIMachineSettingsUSB::sltAddFilterConfirmed);
 }
 
 void UIMachineSettingsUSB::cleanup()

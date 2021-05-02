@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,12 +21,13 @@
 #include <QStyleOptionGraphicsItem>
 
 /* GUI includes: */
+#include "UICommon.h"
 #include "UIDetailsElements.h"
 #include "UIDetailsModel.h"
 #include "UIDetailsSet.h"
+#include "UIMedium.h"
 #include "UIVirtualBoxEventHandler.h"
-#include "UIVirtualMachineItem.h"
-#include "VBoxGlobal.h"
+#include "UIVirtualMachineItemLocal.h"
 
 /* COM includes: */
 #include "CUSBController.h"
@@ -65,7 +66,7 @@ void UIDetailsSet::buildSet(UIVirtualMachineItem *pMachineItem, bool fFullSet, c
 {
     /* Remember passed arguments: */
     m_pMachineItem = pMachineItem;
-    m_machine = m_pMachineItem->machine();
+    m_machine = m_pMachineItem->toLocal()->machine();
     m_fHasDetails = m_pMachineItem->hasDetails();
     m_fFullSet = fFullSet;
     m_settings = settings;
@@ -554,8 +555,14 @@ void UIDetailsSet::sltMachineAttributesChange(const QUuid &uId)
     rebuildSet();
 }
 
-void UIDetailsSet::sltUpdateAppearance()
+void UIDetailsSet::sltMediumEnumerated(const QUuid &uId)
 {
+    /* Is this our medium changed? */
+    const UIMedium guiMedium = uiCommon().medium(uId);
+    if (   guiMedium.isNull()
+        || !guiMedium.machineIds().contains(m_machine.GetId()))
+        return;
+
     /* Update appearance: */
     rebuildSet();
 }
@@ -569,17 +576,16 @@ void UIDetailsSet::prepareSet()
 void UIDetailsSet::prepareConnections()
 {
     /* Global-events connections: */
-    connect(gVBoxEvents, SIGNAL(sigMachineStateChange(QUuid, KMachineState)), this, SLOT(sltMachineStateChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigMachineDataChange(QUuid)), this, SLOT(sltMachineAttributesChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSessionStateChange(QUuid, KSessionState)), this, SLOT(sltMachineAttributesChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotTake(QUuid, QUuid)), this, SLOT(sltMachineAttributesChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotDelete(QUuid, QUuid)), this, SLOT(sltMachineAttributesChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QUuid, QUuid)), this, SLOT(sltMachineAttributesChange(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QUuid, QUuid)), this, SLOT(sltMachineAttributesChange(QUuid)));
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineStateChange, this, &UIDetailsSet::sltMachineStateChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineDataChange, this, &UIDetailsSet::sltMachineAttributesChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigSessionStateChange, this, &UIDetailsSet::sltMachineAttributesChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigSnapshotTake, this, &UIDetailsSet::sltMachineAttributesChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigSnapshotDelete, this, &UIDetailsSet::sltMachineAttributesChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigSnapshotChange, this, &UIDetailsSet::sltMachineAttributesChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigSnapshotRestore, this, &UIDetailsSet::sltMachineAttributesChange);
 
     /* Meidum-enumeration connections: */
-    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationStarted()), this, SLOT(sltUpdateAppearance()));
-    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(sltUpdateAppearance()));
+    connect(&uiCommon(), &UICommon::sigMediumEnumerated, this, &UIDetailsSet::sltMediumEnumerated);
 }
 
 QVariant UIDetailsSet::data(int iKey) const

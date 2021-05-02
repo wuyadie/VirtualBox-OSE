@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -5617,7 +5617,7 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     /*
      * Get stuff that may fail.
      */
-    int rc = RTVfsFileGetSize(hVfsBacking, &pThis->cbBacking);
+    int rc = RTVfsFileQuerySize(hVfsBacking, &pThis->cbBacking);
     if (RT_SUCCESS(rc))
         pThis->cBackingSectors = pThis->cbBacking / pThis->cbSector;
     else
@@ -5704,9 +5704,12 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
 #ifdef LOG_ENABLED
                 rtFsIsoVolLogPrimarySupplementaryVolDesc(&Buf.SupVolDesc);
 #endif
-                if (cPrimaryVolDescs > 1)
+                if (cPrimaryVolDescs == 1)
+                    rc = rtFsIsoVolHandlePrimaryVolDesc(pThis, &Buf.PrimaryVolDesc, offVolDesc, &RootDir, &offRootDirRec, pErrInfo);
+                else if (cPrimaryVolDescs == 2)
+                    Log(("ISO9660: ignoring 2nd primary descriptor\n")); /* so we can read the w2k3 ifs kit */
+                else
                     return RTERRINFO_LOG_SET(pErrInfo, VERR_VFS_UNSUPPORTED_FORMAT, "More than one primary volume descriptor");
-                rc = rtFsIsoVolHandlePrimaryVolDesc(pThis, &Buf.PrimaryVolDesc, offVolDesc, &RootDir, &offRootDirRec, pErrInfo);
             }
             else if (Buf.VolDescHdr.bDescType == ISO9660VOLDESC_TYPE_SUPPLEMENTARY)
             {

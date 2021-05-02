@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,9 @@ class QMimeData;
 class UIDnDMIMEData;
 class UISession;
 
+/**
+ * Main class for implementing Drag'n'Drop in the frontend.
+ */
 class UIDnDHandler: public QObject
 {
     Q_OBJECT;

@@ -608,20 +608,27 @@ try_blit(struct svga_context *svga, const struct pipe_blit_info *blit_info)
 
    svga_toggle_render_condition(svga, blit.render_condition_enable, FALSE);
 
-#ifdef VBOX_WITH_MESA3D_SVGA_HALFZ
-   if (svga->curr.rast && svga->curr.rast->templ.clip_halfz)
-   {
-       /* Flip Y because the state tracker uses D3D texture coords:
-        * top,left=0,0; bottom,right = 1,1.
-        * While the blit draws a quad using the source as texture and sets
-        * texcoords for destination vertices using OpenGL coordinates:
-        * bottom,left = 0,0; top,right = 1,1.
-        */
-       blit.dst.box.y = dst->height0 - blit.dst.box.y;
-       blit.dst.box.height = -blit.dst.box.height;
-   }
-#endif
+#ifdef VBOX_WITH_MESA3D_NINE_SVGA
+   debug_printf("svga: blit src lvl %d %dx%d %d,%d %dx%d -> dst lvl %d %dx%d %d,%d %dx%d\n",
+                blit.src.level, src->width0, src->height0,
+                blit.src.box.x, blit.src.box.y, blit.src.box.width, blit.src.box.height,
+                blit.dst.level, dst->width0, dst->height0,
+                blit.dst.box.x, blit.dst.box.y, blit.dst.box.width, blit.dst.box.height);
+   /* Flip Y.
+    *
+    * util_blitter draws a textured quad using the source as the texture and sets
+    * the texcoords for the destination quad vertices using OpenGL texture coordinates:
+    * bottom,left = 0,0; top,right = 1,1.
+    *
+    * But the VMSVGA device uses the uses D3D texture coords:
+    * top,left=0,0; bottom,right = 1,1.
+    */
+   blit.dst.box.y = u_minify(dst->height0, blit.dst.level) - blit.dst.box.y - blit.dst.box.height;
 
+   /* The source image must be flipped vertically too. */
+   blit.src.box.y = blit.src.box.y + blit.src.box.height;
+   blit.src.box.height = -blit.src.box.height;
+#endif
    util_blitter_blit(svga->blitter, &blit);
 
    svga_toggle_render_condition(svga, blit.render_condition_enable, TRUE);

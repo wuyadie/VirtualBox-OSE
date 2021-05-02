@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,6 +79,7 @@ template<class X> X fromInternalInteger(const int & /* iData */) { AssertFailed(
 /* Declare global canConvert specializations: */
 template<> SHARED_LIBRARY_STUFF bool canConvert<SizeSuffix>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<StorageSlot>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DialogType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuHelpActionType>();
@@ -157,6 +158,8 @@ template<> SHARED_LIBRARY_STUFF QString toString(const SizeSuffix &sizeSuffix);
 template<> SHARED_LIBRARY_STUFF SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix);
 template<> SHARED_LIBRARY_STUFF QString toString(const StorageSlot &storageSlot);
 template<> SHARED_LIBRARY_STUFF StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DialogType &enmDialogType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DialogType fromInternalString<UIExtraDataMetaDefs::DialogType>(const QString &strDialogType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuType &menuType);
 template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::MenuType fromInternalString<UIExtraDataMetaDefs::MenuType>(const QString &strMenuType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuApplicationActionType &menuApplicationActionType);
@@ -295,6 +298,7 @@ template<> SHARED_LIBRARY_STUFF KAudioControllerType fromString<KAudioController
 template<> SHARED_LIBRARY_STUFF QString toString(const KAuthType &type);
 template<> SHARED_LIBRARY_STUFF KAuthType fromString<KAuthType>(const QString &strType);
 template<> SHARED_LIBRARY_STUFF QString toString(const KStorageBus &bus);
+template<> SHARED_LIBRARY_STUFF KStorageBus fromString<KStorageBus>(const QString &strType);
 template<> SHARED_LIBRARY_STUFF QString toString(const KStorageControllerType &type);
 template<> SHARED_LIBRARY_STUFF KStorageControllerType fromString<KStorageControllerType>(const QString &strType);
 template<> SHARED_LIBRARY_STUFF QString toString(const KChipsetType &type);

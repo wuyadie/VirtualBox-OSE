@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 #include <QPixmapCache>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIImageTools.h"
 #include "UIMenuBar.h"
 
@@ -31,7 +31,7 @@ UIMenuBar::UIMenuBar(QWidget *pParent /* = 0 */)
     , m_fShowBetaLabel(false)
 {
     /* Check for beta versions: */
-    if (vboxGlobal().isBeta())
+    if (uiCommon().isBeta())
         m_fShowBetaLabel = true;
 }
 

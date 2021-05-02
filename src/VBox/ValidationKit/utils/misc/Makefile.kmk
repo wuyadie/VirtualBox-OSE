@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2019 Oracle Corporation
+# Copyright (C) 2010-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@ PROGRAMS += LoadGenerator
 LoadGenerator_TEMPLATE = VBoxValidationKitR3Host
 LoadGenerator_SOURCES  = loadgenerator.cpp
 
-SYSMODS += loadgeneratorR0
+$(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += loadgeneratorR0
 loadgeneratorR0_TEMPLATE = VBoxValidationKitR0
 loadgeneratorR0_SOURCES = loadgeneratorR0.cpp
 

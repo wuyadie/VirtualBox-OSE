@@ -29,14 +29,14 @@ SEPARATE_MEMBER_PAGES  = NO
 TAB_SIZE               = 4
 ALIASES                = \
     "note=@remark" \
-    "thread=@par Thread Context:\n" \
-    "vmstate=@par VM State In:\n" \
-    "vmstateto=@par VM State Out:\n"
+    "thread=@par Thread Context:^^" \
+    "vmstate=@par VM State In:^^" \
+    "vmstateto=@par VM State Out:^^"
 
 # Input / output paragraphs.
 ALIASES                += \
-    "output=@par Output:\n" \
-    "input=@par Input:\n"
+    "output=@par Output:^^" \
+    "input=@par Input:^^"
 
 # Interface method implementation macros.
 ALIASES                += \
@@ -130,39 +130,39 @@ ALIASES                += \
 
 # The following is for device configuration options.
 ALIASES                += \
-	devcfgm{6}="\xrefitem lst_cfgm \"Device Config: \1\" \"VM Configuration Values\" \
-<b>Name:</b> [Device Instance]/\1 <br> \
-<b>Type:</b> \2 <br> \
-<b>Unit:</b> \6 <br> \
-<b>Min:</b> \3 <br> \
-<b>Max:</b> \4 <br> \
-<b>Default:</b> \5 <br> \
+	devcfgm{7}="\xrefitem lst_cfgm \"Device Config: \1/\2\" \"VM Configuration Values\" \
+<b>Name:</b> /Devices/\1/#/Config/\2 <br> \
+<b>Type:</b> \3 <br> \
+<b>Unit:</b> \7 <br> \
+<b>Min:</b> \4 <br> \
+<b>Max:</b> \5 <br> \
+<b>Default:</b> \6 <br> \
 "
 ALIASES                += \
-	devcfgm{5}="\xrefitem lst_cfgm \"Device Config: \1\" \"VM Configuration Values\" \
-<b>Name:</b> [Device Instance]/\1 <br> \
-<b>Type:</b> \2 <br> \
-<b>Min:</b> \3 <br> \
-<b>Max:</b> \4 <br> \
-<b>Default:</b> \5 <br> \
+	devcfgm{6}="\xrefitem lst_cfgm \"Device Config: \1/\2\" \"VM Configuration Values\" \
+<b>Name:</b> /Devices/\1/#1/Config/\2 <br> \
+<b>Type:</b> \3 <br> \
+<b>Min:</b> \4 <br> \
+<b>Max:</b> \5 <br> \
+<b>Default:</b> \6 <br> \
 "
 ALIASES                += \
-	devcfgm{4}="\xrefitem lst_cfgm \"Device Config: \1\" \"VM Configuration Values\" \
-<b>Name:</b> [Device Instance]/\1 <br> \
-<b>Type:</b> \2 <br> \
-<b>Min:</b> \3 <br> \
-<b>Max:</b> \4 <br> \
+	devcfgm{5}="\xrefitem lst_cfgm \"Device Config: \1/\2\" \"VM Configuration Values\" \
+<b>Name:</b> /Devices\1/#1/Config/\2 <br> \
+<b>Type:</b> \3 <br> \
+<b>Min:</b> \4 <br> \
+<b>Max:</b> \5 <br> \
 "
 ALIASES                += \
-	devcfgm{3}="\xrefitem lst_cfgm \"Device Config: \1\" \"VM Configuration Values\" \
-<b>Name:</b> [Device Instance]/\1 <br> \
-<b>Type:</b> \2 <br> \
-<b>Default:</b> \3 <br> \
+	devcfgm{4}="\xrefitem lst_cfgm \"Device Config: \1/\2\" \"VM Configuration Values\" \
+<b>Name:</b> /Devices\1/#1/Config/\2 <br> \
+<b>Type:</b> \3 <br> \
+<b>Default:</b> \4 <br> \
 "
 ALIASES                += \
-	devcfgm{2}="\xrefitem lst_cfgm \"Device Config: \1\" \"VM Configuration Values\" \
-<b>Name:</b> [Device Instance]/\1 <br> \
-<b>Type:</b> \2 <br> \
+	devcfgm{3}="\xrefitem lst_cfgm \"Device Config: \1/\2\" \"VM Configuration Values\" \
+<b>Name:</b> /Devices\1/#1/Config/\2 <br> \
+<b>Type:</b> \3 <br> \
 "
 
 # The following is for driver configuration options.
@@ -244,7 +244,7 @@ ALIASES += udf260{2}="<a href=\"http://www.osta.org/specs/pdf/udf260.pdf#page=\2
 # Generic ECMA spec reference - 1=spec-number 2=section, 3=page
 ALIASES += ecma{3}="<a href=\"https://www.ecma-international.org/publications/files/ECMA-ST/Ecma-\1.pdf#page=\3\">ECMA-\1:\2</a>"
 # ECMA-167 spec reference - 1=part 2=section, 3=page
-ALIASES += ecma167{3}=\ecma{167,Part\1/\2,\3}
+ALIASES += ecma167{3}="\ecma{167,Part\1/\2,\3}"
 
 # For IEM opcode specs.
 ALIASES += opbrief=""
@@ -563,8 +563,8 @@ PREDEFINED             =  \
     "RT_SRC_POS_DECL=int SRC_POS" \
     "RTLOG_COMMA_SRC_POS_DECL=, int SRC_POS" \
     \
-    RT_IPRT_FORMAT_ATTR(a,b)= \
-    RT_IPRT_FORMAT_ATTR_MAYBE_NULL(a,b)= \
+    "RT_IPRT_FORMAT_ATTR(a,b)=" \
+    "RT_IPRT_FORMAT_ATTR_MAYBE_NULL(a,b)=" \
     RT_NO_THROW_PROTO= \
     RTASN1CONTEXTTAG_IMPL_CURSOR_INLINES(a)= 
 
@@ -575,6 +575,12 @@ PREDEFINED += \
     DECL_FORCE_INLINE(type)=DECLINLINE(type) \
     DECL_NO_INLINE(type)=type \
     DECLCALLBACK(type)=type \
+    "DECLCALLBACKPTR(type,name)=type (* name) " \
+    "DECLCALLBACKMEMBER(type,name)=type (* name) " \
+    "DECLRCCALLBACKMEMBER(type,name,args)=type (* name) args" \
+    "DECLR3CALLBACKMEMBER(type,name,args)=type (* name) args" \
+    "DECLR0CALLBACKMEMBER(type,name,args)=type (* name) args" \
+    "DECLRGCALLBACKMEMBER(type,name,args)=type (* name) args" \
     DECLEXPORT(type)=type \
     DECLIMPORT(type)=type \
     DECLHIDDEN(type)=type \
@@ -660,19 +666,19 @@ PREDEFINED += \
 
 # Compile assertion hacks.
 PREDEFINED            += \
-    AssertCompileNS(expr) \
-    AssertCompile(expr) \
-    AssertCompileSize(type, size) \
-    AssertCompileSizeAlignment(type, align) \
-    AssertCompileMemberAlignment(type, member, align) \
-    AssertCompileMemberOffset(type, member, off) \
-    AssertCompile2MemberOffsets(type, member1, member2) \
-    AssertCompileAdjacentMembers(type, member1, member2) \
-    AssertCompileMembersAtSameOffset(type1, member1, type2, member2) \
-    AssertCompileMemberSize(type, member, size) \
-    AssertCompileMemberSizeAlignment(type, member, align) \
-    AssertCompileMembersSameSize(type1, member1, type2, member2) \
-    AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2)
+    "AssertCompileNS(expr)" \
+    "AssertCompile(expr)" \
+    "AssertCompileSize(type, size)" \
+    "AssertCompileSizeAlignment(type, align)" \
+    "AssertCompileMemberAlignment(type, member, align)" \
+    "AssertCompileMemberOffset(type, member, off)" \
+    "AssertCompile2MemberOffsets(type, member1, member2)" \
+    "AssertCompileAdjacentMembers(type, member1, member2)" \
+    "AssertCompileMembersAtSameOffset(type1, member1, type2, member2)" \
+    "AssertCompileMemberSize(type, member, size)" \
+    "AssertCompileMemberSizeAlignment(type, member, align)" \
+    "AssertCompileMembersSameSize(type1, member1, type2, member2)" \
+    "AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2)"
 
 # COM/XPCOM hacks.
 PREDEFINED            += \
@@ -687,7 +693,7 @@ PREDEFINED            += \
     DECLARE_NOT_AGGREGATABLE(a)= \
     DECLARE_CLASSFACTORY()= \
     DECLARE_CLASSFACTORY_SINGLETON(a)= \
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(a,b)= \
+    "VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(a,b)=" \
     "DECLARE_EMPTY_CTOR_DTOR(a):=a(); virtual ~a();"
 
 # COM hacks from From http://www.stack.nl/~dimitri/doxygen/preprocessing.html
@@ -757,32 +763,13 @@ PREDEFINED          += \
     VBOX_WITH_HGCM
 
 EXPAND_AS_DEFINED      = \
-    RCPTRTYPE \
-    R3PTRTYPE \
-    R0PTRTYPE \
-    HCPTRTYPE \
-    R3R0PTRTYPE \
-    \
     ARCH_BITS \
     R3_ARCH_BITS \
     R0_ARCH_BITS \
     GC_ARCH_BITS \
     HC_ARCH_BITS \
     \
-    DECLEXPORT \
-    DECLIMPORT \
-    DECLASM \
     DECLASMTYPE \
-    DECLCALLBACK \
-    DECLCALLBACKMEMBER \
-    DECLCALLBACKPTR \
-    DECLHCCALLBACKMEMBER \
-    DECLRCCALLBACKMEMBER \
-    DECLR3CALLBACKMEMBER \
-    DECLR0CALLBACKMEMBER \
-    DECLINLINE \
-    DECL_FORCE_INLINE \
-    DECLHIDDEN \
     CTXSUFF \
     OTHERCTXSUFF \
     CTXMID \
@@ -828,10 +815,15 @@ EXPAND_AS_DEFINED      = \
     VMMR0DECL \
     VMMR3DECL \
     VMM_INT_DECL \
+    \
     VD_BACKEND_CALLBACK_GET_COMMENT_DEF_NOT_SUPPORTED \
     VD_BACKEND_CALLBACK_SET_COMMENT_DEF_NOT_SUPPORTED \
     VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED \
-    VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED
+    VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED \
+    \
+    IOM_MMIO_STATS_COMMA_DECL \
+    IOM_MMIO_STATS_COMMA_ARG \
+    SUP_HARDENED_SUID
 
 SKIP_FUNCTION_MACROS   = NO
 #---------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,8 @@ VBOX_COMMON_VBOXMANAGE_DEFS = \
  	$(if $(VBOX_WITH_HGCM), VBOX_WITH_HGCM) \
  	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API) \
  	$(if $(VBOX_WITH_NETFLT), VBOX_WITH_NETFLT) \
+ 	$(if $(VBOX_WITH_CLOUD_NET), VBOX_WITH_CLOUD_NET) \
+ 	$(if $(VBOX_WITH_LIBCURL), VBOX_WITH_PROXY_INFO) \
 	$(if $(VBOX_WITH_AUDIO_OSS), VBOX_WITH_AUDIO_OSS) \
 	$(if $(VBOX_WITH_AUDIO_ALSA), VBOX_WITH_AUDIO_ALSA) \
  	$(if $(VBOX_WITH_AUDIO_PULSE),VBOX_WITH_AUDIO_PULSE) \
@@ -43,6 +45,8 @@ VBOX_COMMON_VBOXMANAGE_DEFS = \
  	$(if $(VBOX_WITH_RECORDING),VBOX_WITH_RECORDING) \
 	$(if $(VBOX_WITH_AUDIO_RECORDING),VBOX_WITH_AUDIO_RECORDING) \
  	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE) \
+ 	$(if $(VBOX_WITH_SHARED_CLIPBOARD),VBOX_WITH_SHARED_CLIPBOARD) \
+ 	$(if $(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS),VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS) \
  	$(if $(VBOX_WITH_VMSVGA),VBOX_WITH_VMSVGA)
 
 
@@ -65,7 +69,8 @@ ifndef VBOX_ONLY_DOCS
  VBoxManage_DEFS      += $(VBOX_COMMON_VBOXMANAGE_DEFS)
  VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
  VBoxManage_INCS = \
- 	$(VBoxManage_0_OUTDIR)
+ 	$(VBoxManage_0_OUTDIR) \
+ 	../Common
  VBoxManage_INTERMEDIATES = \
  	$(VBoxManage_0_OUTDIR)/VBoxManageBuiltInHelp.h
  VBoxManage_SOURCES    = \
@@ -92,7 +97,9 @@ ifndef VBOX_ONLY_DOCS
  	VBoxManageStorageController.cpp \
  	VBoxManageUSB.cpp \
  	$(if $(VBOX_WITH_NAT_SERVICE),VBoxManageNATNetwork.cpp,) \
- 	$(if $(VBOX_WITH_NAT_SERVICE),../../NetworkServices/NetLib/VBoxNetPortForwardString.cpp,)
+ 	$(if $(VBOX_WITH_NAT_SERVICE),../../NetworkServices/NetLib/VBoxNetPortForwardString.cpp,) \
+ 	VBoxManageCloud.cpp \
+ 	../Common/PasswordInput.cpp
  VBoxManage_SOURCES.win = \
  	VBoxManage.rc
  VBoxManage_LIBS      += $(LIB_DDU)
@@ -131,7 +138,7 @@ VBoxManage_CLEAN += \
 
 # Preprocess the xml files, applying remarks.
 $(foreach file,$(filter man_VBoxManage-%,$(VBOX_MANUAL_XML_REFENTRY_FILES)) \
-, $(evalcall2 def_vbox_refentry_preprocess_for_manpage,$(VBoxManage_0_OUTDIR),$(file),$(VBOX_PATH_MANUAL_SRC)/en_US/$(file)))
+, $(evalcall2 def_vbox_refentry_preprocess_for_manpage,$(VBoxManage_0_OUTDIR),$(file),$(VBOX_PATH_MANUAL_SRC)/en_US/$(file),replace-xrefs))
 
 
 # Generate the .cpp file.

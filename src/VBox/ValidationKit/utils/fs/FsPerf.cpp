@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019 Oracle Corporation
+ * Copyright (C) 2019-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -249,6 +249,16 @@
 # define FSPERF_VERR_PATH_NOT_FOUND     VERR_FILE_NOT_FOUND
 #endif
 
+#ifdef RT_OS_WINDOWS
+/** @def CHECK_WINAPI
+ * Checks a windows API call, reporting the last error on failure. */
+# define CHECK_WINAPI_CALL(a_CallAndTestExpr) \
+    if (!(a_CallAndTestExpr)) { \
+        RTTestIFailed("line %u: %s failed - last error %u, last status %#x", \
+                      __LINE__, #a_CallAndTestExpr, GetLastError(), RTNtLastStatusValue()); \
+    } else do {} while (0)
+#endif
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -257,6 +267,7 @@ typedef struct FSPERFNAMEENTRY
 {
     RTLISTNODE  Entry;
     uint16_t    cchName;
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char        szName[RT_FLEXIBLE_ARRAY];
 } FSPERFNAMEENTRY;
 typedef FSPERFNAMEENTRY *PFSPERFNAMEENTRY;
@@ -375,6 +386,7 @@ static const RTGETOPTDEF g_aCmdOptions[] =
     { "--tree-depth",               kCmdOpt_ManyTreeDepth,          RTGETOPT_REQ_UINT32 },
     { "--max-buffer-size",          kCmdOpt_MaxBufferSize,          RTGETOPT_REQ_UINT32 },
     { "--mmap-placement",           kCmdOpt_MMapPlacement,          RTGETOPT_REQ_STRING },
+    /// @todo { "--timestamp-style",           kCmdOpt_TimestampStyle,          RTGETOPT_REQ_STRING },
 
     { "--open",                     kCmdOpt_Open,                   RTGETOPT_REQ_NOTHING },
     { "--no-open",                  kCmdOpt_NoOpen,                 RTGETOPT_REQ_NOTHING },
@@ -1804,7 +1816,12 @@ static int fsPrepTestArea(void)
         static char const s_szSub[] = "d" RTPATH_SLASH_STR;
         memcpy(&g_szDeepDir[g_cchDeepDir], s_szSub, sizeof(s_szSub));
         g_cchDeepDir += sizeof(s_szSub) - 1;
-        RTTESTI_CHECK_RC_RET( RTDirCreate(g_szDeepDir, 0755, 0), VINF_SUCCESS, rcCheck);
+        int rc = RTDirCreate(g_szDeepDir, 0755, 0);
+        if (RT_FAILURE(rc))
+        {
+            RTTestIFailed("RTDirCreate(g_szDeepDir=%s) -> %Rrc\n", g_szDeepDir, rc);
+            return rc;
+        }
     } while (g_cchDeepDir < 176);
     RTTestIPrintf(RTTESTLVL_ALWAYS, "Deep  dir: %s\n", g_szDeepDir);
 
@@ -2384,7 +2401,9 @@ void fsPerfNtQueryInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
         {
             if (!g_aNtQueryInfoFileClasses[i].fQuery)
             {
-                if (rcNt != STATUS_INVALID_INFO_CLASS)
+                if (   rcNt != STATUS_INVALID_INFO_CLASS
+                    && (   rcNt != STATUS_INVALID_PARAMETER /* w7rtm-32 result */
+                        || enmClass != FileUnusedInformation))
                     RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_INVALID_INFO_CLASS", pszClass, cbBuf, chType, rcNt);
             }
             else if (   rcNt != STATUS_INVALID_INFO_CLASS
@@ -2414,8 +2433,9 @@ void fsPerfNtQueryInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
                     )
                 RTTestIFailed("%s/%#x/%c: %#x", pszClass, cbBuf, chType, rcNt);
             if (   (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
-                && !(   fType == RTFS_TYPE_DIRECTORY /* NTFS/W10-17763 */
-                    && Ios.Status == rcNt && Ios.Information == 0) )
+                && !(fType == RTFS_TYPE_DIRECTORY && Ios.Status == rcNt && Ios.Information == 0) /* NTFS/W10-17763 */
+                && !(   enmClass == FileUnusedInformation
+                     && Ios.Status == rcNt && Ios.Information == sizeof(uBuf)) /* NTFS/VBoxSF/w7rtm */ )
                 RTTestIFailed("%s/%#x/%c: I/O status block was modified: %#x %#zx",
                               pszClass, cbBuf, chType, Ios.Status, Ios.Information);
             if (!ASMMemIsAllU8(&uBuf, sizeof(uBuf), 0xff))
@@ -3305,7 +3325,7 @@ void fsPerfRm(void)
 #if defined(RT_OS_WINDOWS)
     RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR ))), VERR_INVALID_NAME);
 #else
-    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_NOT_A_FILE); //??
+    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_PATH_NOT_FOUND);
 #endif
 
     /* Directories: */
@@ -3404,7 +3424,7 @@ void fsPerfChSize(void)
     RTTESTI_CHECK_RC_RETV(RTFileOpen(&hFile1, InDir(RT_STR_TUPLE("file20")),
                                      RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_READWRITE), VINF_SUCCESS);
     uint64_t cbFile = UINT64_MAX;
-    RTTESTI_CHECK_RC(RTFileGetSize(hFile1, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileQuerySize(hFile1, &cbFile), VINF_SUCCESS);
     RTTESTI_CHECK(cbFile == 0);
 
     uint8_t abBuf[4096];
@@ -3421,7 +3441,7 @@ void fsPerfChSize(void)
             continue;
 
         RTTESTI_CHECK_RC(RTFileSetSize(hFile1, cbNew), VINF_SUCCESS);
-        RTTESTI_CHECK_RC(RTFileGetSize(hFile1, &cbFile), VINF_SUCCESS);
+        RTTESTI_CHECK_RC(RTFileQuerySize(hFile1, &cbFile), VINF_SUCCESS);
         RTTESTI_CHECK_MSG(cbFile == cbNew, ("cbFile=%#RX64 cbNew=%#RX64\n", cbFile, cbNew));
 
         if (cbNew > cbOld)
@@ -5363,7 +5383,7 @@ DECL_FORCE_INLINE(int) fsPerfMSyncWorker(uint8_t *pbMapping, size_t offMapping, 
     for (size_t offFlush = 0; offFlush < cbFlush; offFlush += PAGE_SIZE)
         *(size_t volatile *)&pbCur[offFlush + 8] = cbFlush;
 # ifdef RT_OS_WINDOWS
-    RTTESTI_CHECK(FlushViewOfFile(pbCur, cbFlush));
+    CHECK_WINAPI_CALL(FlushViewOfFile(pbCur, cbFlush) == TRUE);
 # else
     RTTESTI_CHECK(msync(pbCur, cbFlush, MS_SYNC) == 0);
 # endif
@@ -5411,7 +5431,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
                 if (pbMapping)
                     break;
                 dwErr2 = GetLastError();
-                CloseHandle(hSection);
+                CHECK_WINAPI_CALL(CloseHandle(hSection) == TRUE);
             }
             if (cbMapping <= _2M)
             {
@@ -5469,7 +5489,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
                     fsPerfCheckReadBuf(__LINE__, off, abBuf, sizeof(abBuf), 0xf7);
                 }
 # ifdef RT_OS_WINDOWS
-                RTTESTI_CHECK(FlushViewOfFile(pbMapping, _2M));
+                CHECK_WINAPI_CALL(FlushViewOfFile(pbMapping, _2M) == TRUE);
 # else
                 RTTESTI_CHECK(msync(pbMapping, _2M, MS_SYNC) == 0);
 # endif
@@ -5540,7 +5560,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
                 RTTestIPrintf(RTTESTLVL_ALWAYS, "Restoring content...\n");
                 fsPerfFillWriteBuf(0, pbMapping, cbMapping, 0xf6);
 #  ifdef RT_OS_WINDOWS
-                RTTESTI_CHECK(FlushViewOfFile(pbMapping, cbMapping));
+                CHECK_WINAPI_CALL(FlushViewOfFile(pbMapping, cbMapping) == TRUE);
 #  else
                 RTTESTI_CHECK(msync(pbMapping, cbMapping, MS_SYNC) == 0);
 #  endif
@@ -5601,8 +5621,8 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
          * Unmap it.
          */
 # ifdef RT_OS_WINDOWS
-        RTTESTI_CHECK(UnmapViewOfFile(pbMapping));
-        RTTESTI_CHECK(CloseHandle(hSection));
+        CHECK_WINAPI_CALL(UnmapViewOfFile(pbMapping) == TRUE);
+        CHECK_WINAPI_CALL(CloseHandle(hSection) == TRUE);
 # else
         RTTESTI_CHECK(munmap(pbMapping, cbMapping) == 0);
 # endif
@@ -5649,10 +5669,10 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
             /* Memory map it read-write (no COW). */
 #ifdef RT_OS_WINDOWS
             HANDLE hSection = CreateFileMapping((HANDLE)RTFileToNative(hFile2), NULL, PAGE_READWRITE, 0, cbContent, NULL);
-            RTTESTI_CHECK_MSG(hSection  != NULL, ("last error %u\n", GetLastError));
+            CHECK_WINAPI_CALL(hSection != NULL);
             uint8_t *pbMapping = (uint8_t *)MapViewOfFile(hSection, FILE_MAP_WRITE, 0, 0, cbContent);
-            RTTESTI_CHECK_MSG(pbMapping != NULL, ("last error %u\n", GetLastError));
-            RTTESTI_CHECK_MSG(CloseHandle(hSection), ("last error %u\n", GetLastError));
+            CHECK_WINAPI_CALL(pbMapping != NULL);
+            CHECK_WINAPI_CALL(CloseHandle(hSection) == TRUE);
 # else
             uint8_t *pbMapping = (uint8_t *)mmap(NULL, cbContent, PROT_READ | PROT_WRITE, MAP_SHARED,
                                                  (int)RTFileToNative(hFile2), 0);
@@ -5691,14 +5711,18 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
 
                 /* Sync it all. */
 #  ifdef RT_OS_WINDOWS
-                RTTESTI_CHECK(FlushViewOfFile(pbMapping, cbContent));
+                //CHECK_WINAPI_CALL(FlushViewOfFile(pbMapping, cbContent) == TRUE);
+                SetLastError(0);
+                if (FlushViewOfFile(pbMapping, cbContent) != TRUE)
+                    RTTestIFailed("line %u, i=%u: FlushViewOfFile(%p, %#zx) failed: %u / %#x", __LINE__, i,
+                                  pbMapping, cbContent, GetLastError(), RTNtLastStatusValue());
 #  else
                 RTTESTI_CHECK(msync(pbMapping, cbContent, MS_SYNC) == 0);
 #  endif
 
                 /* Unmap it. */
 # ifdef RT_OS_WINDOWS
-                RTTESTI_CHECK(UnmapViewOfFile(pbMapping));
+                CHECK_WINAPI_CALL(UnmapViewOfFile(pbMapping) == TRUE);
 # else
                 RTTESTI_CHECK(munmap(pbMapping, cbContent) == 0);
 # endif
@@ -6186,7 +6210,7 @@ static void fsPerfRemote(void)
     RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 8000 0 1000" FSPERF_EOF_STR), VINF_SUCCESS);
     RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 8000), VINF_SUCCESS);
     uint64_t cbFile = 0;
-    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileQuerySize(hFile0, &cbFile), VINF_SUCCESS);
     RTTESTI_CHECK_MSG(cbFile == 8000, ("cbFile=%u\n", cbFile));
     RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
 
@@ -6197,7 +6221,7 @@ static void fsPerfRemote(void)
     RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 5000 0 1000" FSPERF_EOF_STR), VINF_SUCCESS);
     RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 5000), VINF_SUCCESS);
     RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
-    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileQuerySize(hFile0, &cbFile), VINF_SUCCESS);
     RTTESTI_CHECK_MSG(cbFile == 5000, ("cbFile=%u\n", cbFile));
 
     /* Same, but host truncates rather than adding stuff. */
@@ -6205,7 +6229,7 @@ static void fsPerfRemote(void)
     RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 16384, NULL), VINF_SUCCESS);
     RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 10000), VINF_SUCCESS);
     RTTESTI_CHECK_RC(FsPerfCommsSend("truncate 0 4000" FSPERF_EOF_STR), VINF_SUCCESS);
-    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileQuerySize(hFile0, &cbFile), VINF_SUCCESS);
     RTTESTI_CHECK_MSG(cbFile == 4000, ("cbFile=%u\n", cbFile));
     RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
 
@@ -6649,7 +6673,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 130769 $";
+                char szRev[] = "$Revision: 142330 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;

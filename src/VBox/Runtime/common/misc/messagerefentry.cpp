@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -244,7 +244,7 @@ RTDECL(int) RTMsgRefEntryPrintStringTable(PRTSTREAM pStrm, PCRTMSGREFENTRYSTRTAB
 {
     uint32_t cPendingBlankLines = pcPendingBlankLines ? *pcPendingBlankLines : 0;
     uint32_t cLinesWritten      = 0;
-    uint32_t cchWidth           = getScreenWidth(pStrm);
+    uint32_t cchWidth           = getScreenWidth(pStrm) - 1; /* (Seems a -1 here is prudent, at least on windows.) */
     uint64_t fPrevScope         = fScope;
     int      rc                 = VINF_SUCCESS;
     for (uint32_t i = 0; i < pStrTab->cStrings; i++)

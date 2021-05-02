@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,11 @@ typedef struct GVMMPERVCPU
     uint64_t volatile   u64HaltExpire;
     /** The event semaphore the EMT thread is blocking on. */
     RTSEMEVENTMULTI     HaltEventMulti;
-    /** The APIC ID of the CPU that EMT was scheduled on the last time we checked. */
+    /** The ring-3 mapping of the VMCPU structure. */
+    RTR0MEMOBJ          VMCpuMapObj;
+    /** The APIC ID of the CPU that EMT was scheduled on the last time we checked.
+     * @todo Extend to 32-bit and use most suitable APIC ID function when we
+     *       start using this for something sensible... */
     uint8_t             iCpuEmt;
 } GVMMPERVCPU;
 /** Pointer to the GVMM per VCPU data. */

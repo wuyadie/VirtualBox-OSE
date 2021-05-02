@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -299,6 +299,16 @@ extern int testRTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEn
         /*else RTPrintf("%s: iDir=%d\n", pRealDir->iDir);*/
     }
     return VERR_NO_MORE_FILES;
+}
+
+static uint64_t testRTDirSetFMode;
+
+extern int testRTDirSetMode(RTDIR hDir, RTFMODE fMode)
+{
+    RT_NOREF1(hDir);
+ /* RTPrintf("%s: fMode=%llu\n", __PRETTY_FUNCTION__, LLUIFY(fMode)); */
+    testRTDirSetFMode = fMode;
+    return VINF_SUCCESS;
 }
 
 static RTTIMESPEC testRTDirSetTimesATime;

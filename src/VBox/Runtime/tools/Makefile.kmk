@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -30,20 +30,34 @@ include $(KBUILD_PATH)/subheader.kmk
 
 if !defined(VBOX_ONLY_EXTPACKS) && !defined(VBOX_ONLY_DOCS)
  # RTIsoMaker - ISO image maker - build version.
- BLDPROGS += bldRTIsoMaker
+ ifeq ($(KBUILD_TARGET), win) # Needed for repacking guest additions.
+  PROGRAMS += bldRTIsoMaker
+  bldRTIsoMaker_INSTTYPE = stage
+ else
+  BLDPROGS += bldRTIsoMaker
+ endif
  bldRTIsoMaker_TEMPLATE = VBoxAdvBldProg
  bldRTIsoMaker_SOURCES = \
  	RTIsoMaker.cpp \
         ../common/misc/buildconfig.cpp
  bldRTIsoMaker_DEFS = \
  	IPRT_BLDCFG_SCM_REV=$(if $(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV)) \
- 	IPRT_BLDCFG_VERSION_STRING=\"$(VBOX_VERSION_STRING)\" \
  	IPRT_BLDCFG_VERSION_MAJOR=$(VBOX_VERSION_MAJOR) \
  	IPRT_BLDCFG_VERSION_MINOR=$(VBOX_VERSION_MINOR) \
- 	IPRT_BLDCFG_VERSION_BUILD=$(VBOX_VERSION_BUILD) \
+ 	IPRT_BLDCFG_VERSION_BUILD=$(VBOX_VERSION_BUILD)
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  bldRTIsoMaker_DEFS += \
+ 	IPRT_BLDCFG_VERSION_STRING="$(VBOX_VERSION_STRING)" \
+ 	IPRT_BLDCFG_TARGET="$(KBUILD_TARGET)" \
+ 	IPRT_BLDCFG_TARGET_ARCH="$(KBUILD_TARGET_ARCH)" \
+ 	IPRT_BLDCFG_TYPE="$(KBUILD_TYPE)"
+ else
+  bldRTIsoMaker_DEFS += \
+ 	IPRT_BLDCFG_VERSION_STRING=\"$(VBOX_VERSION_STRING)\" \
  	IPRT_BLDCFG_TARGET=\"$(KBUILD_TARGET)\" \
  	IPRT_BLDCFG_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\" \
  	IPRT_BLDCFG_TYPE=\"$(KBUILD_TYPE)\"
+ endif
  bldRTIsoMaker_INCS = ../include
 endif
 
@@ -125,6 +139,11 @@ if !defined(VBOX_ONLY_BUILD)
  RTLdrFlt_TEMPLATE = VBoxR3Tool
  RTLdrFlt_SOURCES = RTLdrFlt.cpp
 
+ # RTFTPServer implements a simple FTP server.
+ PROGRAMS += RTFTPServer
+ RTFTPServer_TEMPLATE = VBoxR3Tool
+ RTFTPServer_SOURCES = RTFTPServer.cpp
+
  # RTGzip - our gzip clone (for testing the gzip/gunzip streaming code)
  PROGRAMS += RTGzip
  RTGzip_TEMPLATE = VBoxR3Tool
@@ -196,6 +215,16 @@ if !defined(VBOX_ONLY_BUILD)
  PROGRAMS += RTFuzzMaster
  RTFuzzMaster_TEMPLATE = VBoxR3Tool
  RTFuzzMaster_SOURCES = RTFuzzMaster.cpp
+
+ # RTFuzzClient - Fuzzing client tool.
+ PROGRAMS += RTFuzzClient
+ RTFuzzClient_TEMPLATE = VBoxR3Tool
+ RTFuzzClient_SOURCES = RTFuzzClient.cpp
+
+ # RTEfiFatExtract - Extracting single files from a fat EFI binary.
+ PROGRAMS += RTEfiFatExtract
+ RTEfiFatExtract_TEMPLATE = VBoxR3Tool
+ RTEfiFatExtract_SOURCES = RTEfiFatExtract.cpp
 
  if1of ($(KBUILD_TARGET), darwin linux solaris win)
   # RTKrnlModInfo - our lsmod/kextstat clone (for testing the RTKrnlMod code).

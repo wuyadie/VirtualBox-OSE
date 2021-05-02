@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,6 +109,13 @@ RTDECL(void)    RTMemTmpFree(void *pv) RT_NO_THROW_DEF
     return RTMemFree(pv);
 }
 RT_EXPORT_SYMBOL(RTMemTmpFree);
+
+
+RTDECL(void)    RTMemTmpFreeZ(void *pv, size_t cb) RT_NO_THROW_DEF
+{
+    return RTMemFreeZ(pv, cb);
+}
+RT_EXPORT_SYMBOL(RTMemTmpFreeZ);
 
 
 
@@ -273,6 +280,37 @@ RTDECL(void) RTMemFree(void *pv) RT_NO_THROW_DEF
         AssertMsgFailed(("pHdr->u32Magic=%RX32 pv=%p\n", pHdr->u32Magic, pv));
 }
 RT_EXPORT_SYMBOL(RTMemFree);
+
+
+RTDECL(void) RTMemFreeZ(void *pv, size_t cb) RT_NO_THROW_DEF
+{
+    PRTMEMHDR pHdr;
+    RT_ASSERT_INTS_ON();
+
+    if (!pv)
+        return;
+    pHdr = (PRTMEMHDR)pv - 1;
+    if (pHdr->u32Magic == RTMEMHDR_MAGIC)
+    {
+        Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_ALLOC_EX));
+        Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_EXEC));
+#ifdef RTR0MEM_STRICT
+        AssertReleaseMsg(!memcmp((uint8_t *)(pHdr + 1) + pHdr->cbReq, &g_abFence[0], RTR0MEM_FENCE_EXTRA),
+                         ("pHdr=%p pv=%p cbReq=%u cb=%u fFlags=%#x\n"
+                          "fence:    %.*Rhxs\n"
+                          "expected: %.*Rhxs\n",
+                          pHdr, pv, pHdr->cbReq, pHdr->cb, pHdr->fFlags,
+                          RTR0MEM_FENCE_EXTRA, (uint8_t *)(pHdr + 1) + pHdr->cbReq,
+                          RTR0MEM_FENCE_EXTRA, &g_abFence[0]));
+#endif
+        AssertMsgStmt(cb == pHdr->cbReq, ("cb=%#zx cbReq=%#x\n", cb, pHdr->cbReq), cb = pHdr->cbReq);
+        RT_BZERO(pv, cb);
+        rtR0MemFree(pHdr);
+    }
+    else
+        AssertMsgFailed(("pHdr->u32Magic=%RX32 pv=%p\n", pHdr->u32Magic, pv));
+}
+RT_EXPORT_SYMBOL(RTMemFreeZ);
 
 
 

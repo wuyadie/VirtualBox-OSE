@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@
 # include <paths.h>
 #endif
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
@@ -388,7 +388,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     inet_aton("127.0.0.1", &loopback_addr);
 
     rc = slirpTftpInit(pData);
-    AssertRCReturn(rc, VINF_NAT_DNS);
+    AssertRCReturn(rc, rc);
 
     if (i32AliasMode & ~(PKT_ALIAS_LOG|PKT_ALIAS_SAME_PORTS|PKT_ALIAS_PROXY_ONLY))
     {
@@ -1253,10 +1253,13 @@ done:
 struct arphdr
 {
     unsigned short  ar_hrd;             /* format of hardware address   */
+#define ARPHRD_ETHER    1               /* ethernet hardware format     */
     unsigned short  ar_pro;             /* format of protocol address   */
     unsigned char   ar_hln;             /* length of hardware address   */
     unsigned char   ar_pln;             /* length of protocol address   */
     unsigned short  ar_op;              /* ARP opcode (command)         */
+#define ARPOP_REQUEST   1               /* ARP request                  */
+#define ARPOP_REPLY     2               /* ARP reply                    */
 
     /*
      *      Ethernet looks like this : This bit is variable sized however...
@@ -1322,11 +1325,22 @@ static void arp_input(PNATState pData, struct mbuf *m)
 {
     struct ethhdr *pEtherHeader;
     struct arphdr *pARPHeader;
+    int ar_op;
     uint32_t ip4TargetAddress;
 
-    int ar_op;
+    /* drivers never return runt packets, so this should never happen */
+    if (RT_UNLIKELY((size_t)m->m_len
+                    < sizeof(struct ethhdr) + sizeof(struct arphdr)))
+        goto done;
+
     pEtherHeader = mtod(m, struct ethhdr *);
     pARPHeader = (struct arphdr *)&pEtherHeader[1];
+
+    if (RT_UNLIKELY(   pARPHeader->ar_hrd != RT_H2N_U16_C(ARPHRD_ETHER)
+                    || pARPHeader->ar_pro != RT_H2N_U16_C(ETH_P_IP)
+                    || pARPHeader->ar_hln != ETH_ALEN
+                    || pARPHeader->ar_pln != sizeof(RTNETADDRIPV4)))
+        goto done;
 
     ar_op = RT_N2H_U16(pARPHeader->ar_op);
     ip4TargetAddress = *(uint32_t*)pARPHeader->ar_tip;
@@ -1364,6 +1378,7 @@ static void arp_input(PNATState pData, struct mbuf *m)
             break;
     }
 
+  done:
     m_freem(pData, m);
 }
 

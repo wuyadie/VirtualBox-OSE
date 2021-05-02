@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -451,7 +451,10 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
     DWORD fInfo;
     if (!GetNamedPipeInfo(hNative, &fInfo, NULL, NULL, &cMaxInstances))
         return RTErrConvertFromWin32(GetLastError());
-    AssertReturn(!(fInfo & PIPE_TYPE_MESSAGE), VERR_INVALID_HANDLE);
+    /* Doesn't seem to matter to much if the pipe is message or byte type. Cygwin
+       seems to hand us such pipes when capturing output (@bugref{9397}), so just
+       ignore skip this check:
+    AssertReturn(!(fInfo & PIPE_TYPE_MESSAGE), VERR_INVALID_HANDLE); */
     AssertReturn(cMaxInstances == 1, VERR_INVALID_HANDLE);
 
     DWORD cInstances;

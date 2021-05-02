@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -516,16 +516,16 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
         return VERR_NO_MEMORY;
     }
 
-    for (uint32_t iCpu = 0; iCpu < pVM->cCpus; iCpu++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[iCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         RT_BZERO(pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
         dbgfR3GetCoreCpu(pVCpu, pDbgfCoreCpu);
 
         rc = Elf64WriteNoteHdr(hFile, NT_VBOXCPU, g_pcszCoreVBoxCpu, pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
         if (RT_FAILURE(rc))
         {
-            LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr failed for vCPU[%u] rc=%Rrc\n", iCpu, rc));
+            LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr failed for vCPU[%u] rc=%Rrc\n", idCpu, rc));
             RTMemFree(pDbgfCoreCpu);
             return rc;
         }

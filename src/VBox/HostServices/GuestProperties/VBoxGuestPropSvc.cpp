@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1290,7 +1290,7 @@ int Service::doNotifications(const char *pszProperty, uint64_t nsTimestamp)
     CallList::iterator it = mGuestWaiters.begin();
     if (it != mGuestWaiters.end())
     {
-        const char *pszPatterns;
+        const char *pszPatterns = NULL;
         uint32_t    cchPatterns;
         HGCMSvcGetCStr(&it->mParms[0], &pszPatterns, &cchPatterns);
 

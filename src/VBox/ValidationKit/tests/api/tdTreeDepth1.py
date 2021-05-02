@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Medium and Snapshot Tree Depth Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2019 Oracle Corporation
+Copyright (C) 2010-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard Python imports.
@@ -52,7 +52,7 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
     """
 
     def __init__(self, oTstDrv):
-        base.SubTestDriverBase.__init__(self, 'tree-depth', oTstDrv)
+        base.SubTestDriverBase.__init__(self, oTstDrv, 'tree-depth', 'Media and Snapshot tree depths');
 
     def testIt(self):
         """
@@ -80,7 +80,7 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
             oSession = self.oTstDrv.openSession(oVM)
             for i in range(1, 301):
                 sHddPath = os.path.join(self.oTstDrv.sScratchPath, 'Test' + str(i) + '.vdi')
-                if i is 1:
+                if i == 1:
                     oHd = oSession.createBaseHd(sHddPath, cb=1024*1024)
                 else:
                     oHd = oSession.createDiffHd(oHd, sHddPath)

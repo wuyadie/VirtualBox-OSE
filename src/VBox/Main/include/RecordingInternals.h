@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,9 +21,10 @@
 # pragma once
 #endif
 
+#include <list>
+
 #include <iprt/assert.h>
 #include <iprt/types.h> /* drag in stdint.h before vpx does it. */
-#include <list>
 
 #ifdef VBOX_WITH_LIBVPX
 # define VPX_CODEC_DISABLE_COMPAT 1

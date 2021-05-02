@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  * This file is based on qxl_irq.c
  * Copyright 2013 Red Hat Inc.
  *
@@ -33,10 +33,13 @@
  */
 #include "vbox_drv.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-#include <drm/drm_crtc_helper.h>
+#if RTLNX_VER_MAX(5,1,0)
+# include <drm/drm_crtc_helper.h>
+# if RTLNX_RHEL_MAJ_PREREQ(8,1)
+#  include <drm/drm_probe_helper.h>
+# endif
 #else
-#include <drm/drm_probe_helper.h>
+# include <drm/drm_probe_helper.h>
 #endif
 #include <VBoxVideo.h>
 
@@ -148,7 +151,7 @@ static void vbox_update_mode_hints(struct vbox_private *vbox)
 	}
 
 	validate_or_set_position_hints(vbox);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if RTLNX_VER_MIN(3,9,0)
 	drm_modeset_lock_all(dev);
 #else
 	mutex_lock(&dev->mode_config.mutex);
@@ -162,8 +165,8 @@ static void vbox_update_mode_hints(struct vbox_private *vbox)
 
 		disconnected = !(hints->fEnabled);
 		crtc_id = vbox_conn->vbox_crtc->crtc_id;
-		vbox_conn->mode_hint.width = hints->cx & 0x8fff;
-		vbox_conn->mode_hint.height = hints->cy & 0x8fff;
+		vbox_conn->mode_hint.width = hints->cx;
+		vbox_conn->mode_hint.height = hints->cy;
 		vbox_conn->vbox_crtc->x_hint = hints->dx;
 		vbox_conn->vbox_crtc->y_hint = hints->dy;
 		vbox_conn->mode_hint.disconnected = disconnected;
@@ -182,7 +185,7 @@ static void vbox_update_mode_hints(struct vbox_private *vbox)
 
 		vbox_conn->vbox_crtc->disconnected = disconnected;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if RTLNX_VER_MIN(3,9,0)
 	drm_modeset_unlock_all(dev);
 #else
 	mutex_unlock(&dev->mode_config.mutex);
@@ -202,7 +205,7 @@ int vbox_irq_init(struct vbox_private *vbox)
 {
 	INIT_WORK(&vbox->hotplug_work, vbox_hotplug_worker);
 	vbox_update_mode_hints(vbox);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) || defined(RHEL_71)
+#if RTLNX_VER_MIN(3,16,0) || RTLNX_RHEL_MAJ_PREREQ(7,1)
 	return drm_irq_install(vbox->dev, vbox->dev->pdev->irq);
 #else
 	return drm_irq_install(vbox->dev);

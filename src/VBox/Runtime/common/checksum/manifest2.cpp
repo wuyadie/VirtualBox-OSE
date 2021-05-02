@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,7 @@ typedef struct RTMANIFESTATTR
     /** Whether it was visited by the equals operation or not. */
     bool                fVisited;
     /** The normalized property name that StrCore::pszString points at. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char                szName[RT_FLEXIBLE_ARRAY];
 } RTMANIFESTATTR;
 /** Pointer to a manifest attribute. */

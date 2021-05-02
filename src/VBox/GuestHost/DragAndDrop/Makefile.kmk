@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2014-2019 Oracle Corporation
+# Copyright (C) 2014-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,12 +18,16 @@
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
+ifdef VBOX_WITH_TESTCASES
+ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+endif
+
 VBOX_DND_GUESTHOST_FILES := \
 	DnDDroppedFiles.cpp \
 	DnDMIME.cpp \
 	DnDPath.cpp \
-	DnDURIList.cpp \
-	DnDURIObject.cpp
+	DnDTransferObject.cpp \
+	DnDTransferList.cpp
 
 #
 # DnDGuestR3Lib - For tools on the guest side,

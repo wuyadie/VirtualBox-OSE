@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -581,7 +581,7 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
-        const char *getUnit() { return "mB"; };
+        const char *getUnit() { return "MB"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return INT32_MAX; };
         ULONG getScale() { return 1; }
@@ -602,7 +602,7 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
-        const char *getUnit() { return "mB"; };
+        const char *getUnit() { return "MB"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return INT32_MAX; };
         ULONG getScale() { return 1; }
@@ -733,7 +733,7 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
-        const char *getUnit() { return "mB"; };
+        const char *getUnit() { return "MB"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return INT32_MAX; };
         ULONG getScale() { return 1; }

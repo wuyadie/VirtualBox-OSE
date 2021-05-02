@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -319,6 +319,7 @@ typedef struct RTFSFATCLUSTERMAPCACHE
     /** The cache name. */
     const char             *pszName;
     /** Cache entries. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     RTFSFATCLUSTERMAPENTRY  aEntries[RT_FLEXIBLE_ARRAY];
 } RTFSFATCLUSTERMAPCACHE;
 /** Pointer to a FAT linear metadata cache. */
@@ -1950,7 +1951,7 @@ static void rtFsFatObj_InitFromDirEntry(PRTFSFATOBJ pObj, PCFATDIRENTRY pDirEntr
     pObj->pVol              = pVol;
     pObj->offEntryInDir     = offEntryInDir;
     pObj->fAttrib           = ((RTFMODE)pDirEntry->fAttrib << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_OS2;
-    pObj->fAttrib           = rtFsModeFromDos(pObj->fAttrib, (char *)&pDirEntry->achName[0], sizeof(pDirEntry->achName), 0);
+    pObj->fAttrib           = rtFsModeFromDos(pObj->fAttrib, (char *)&pDirEntry->achName[0], sizeof(pDirEntry->achName), 0, 0);
     pObj->cbObject          = pDirEntry->cbFile;
     pObj->fMaybeDirtyFat    = false;
     pObj->fMaybeDirtyDirEnt = false;
@@ -5619,7 +5620,7 @@ static int rtFsFatVolTryInit(PRTFSFATVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     /*
      * Get stuff that may fail.
      */
-    int rc = RTVfsFileGetSize(hVfsBacking, &pThis->cbBacking);
+    int rc = RTVfsFileQuerySize(hVfsBacking, &pThis->cbBacking);
     if (RT_FAILURE(rc))
         return rc;
     pThis->cbTotalSize = pThis->cbBacking - pThis->offBootSector;
@@ -5815,7 +5816,7 @@ RTDECL(int) RTFsFatVolFormat(RTVFSFILE hVfsFile, uint64_t offVol, uint64_t cbVol
     if (!cbVol)
     {
         uint64_t cbFile;
-        rc = RTVfsFileGetSize(hVfsFile, &cbFile);
+        rc = RTVfsFileQuerySize(hVfsFile, &cbFile);
         AssertRCReturn(rc, rc);
         AssertMsgReturn(cbFile > offVol, ("cbFile=%#RX64 offVol=%#RX64\n", cbFile, offVol), VERR_INVALID_PARAMETER);
         cbVol = cbFile - offVol;

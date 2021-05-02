@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,9 @@ DECLINLINE(void) rtMemPagePosixApplyFlags(void *pv, size_t cb, uint32_t fFlags)
     if (fFlags & RTMEMPAGEALLOC_F_ADVISE_LOCKED)
     {
         int rc = mlock(pv, cb);
+# ifndef RT_OS_SOLARIS /* mlock(3C) on Solaris requires the priv_lock_memory privilege */
         AssertMsg(rc == 0, ("mlock %p LB %#zx -> %d errno=%d\n", pv, cb, rc, errno));
+# endif
         NOREF(rc);
     }
 

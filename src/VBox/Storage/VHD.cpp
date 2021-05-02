@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1295,9 +1295,9 @@ static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
 
 /** @interface_method_impl{VDIMAGEBACKEND,pfnProbe} */
 static DECLCALLBACK(int) vhdProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                  PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                  PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
-    RT_NOREF1(pVDIfsDisk);
+    RT_NOREF(pVDIfsDisk, enmDesiredType);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
     PVDIOSTORAGE pStorage;
     PVDINTERFACEIOINT pIfIo = VDIfIoIntGet(pVDIfsImage);
@@ -2724,7 +2724,7 @@ static DECLCALLBACK(int) vhdRepair(const char *pszFilename, PVDINTERFACE pVDIfsD
     int rc;
     PVDINTERFACEERROR pIfError;
     PVDINTERFACEIOINT pIfIo;
-    PVDIOSTORAGE pStorage;
+    PVDIOSTORAGE pStorage = NULL;
     uint64_t cbFile;
     VHDFooter vhdFooter;
     VHDDynamicDiskHeader dynamicDiskHeader;

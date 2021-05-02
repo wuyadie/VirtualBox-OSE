@@ -1,10 +1,10 @@
-/* $Id: DevVGA-SVGA3d-shared.cpp 127855 2019-01-01 01:45:53Z bird $ */
+/* $Id: DevVGA-SVGA3d-shared.cpp $ */
 /** @file
  * DevVMWare - VMWare SVGA device
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -394,10 +394,15 @@ uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format,
         *pcyBlock = 1;
         return 1;
 
-    case SVGA3D_NV12:
-        *pcxBlock = 1;
+    case SVGA3D_UYVY:
+        *pcxBlock = 2;
         *pcyBlock = 1;
-        return 1;
+        return 4;
+
+    case SVGA3D_YUY2:
+        *pcxBlock = 2;
+        *pcyBlock = 1;
+        return 4;
 
     case SVGA3D_V16U16:
         *pcxBlock = 1;

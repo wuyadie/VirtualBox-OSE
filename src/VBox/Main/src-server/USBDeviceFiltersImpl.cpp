@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2019 Oracle Corporation
+ * Copyright (C) 2005-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -515,6 +515,8 @@ HRESULT USBDeviceFilters::i_loadSettings(const settings::USB &data)
         m->llDeviceFilters->push_back(pFilter);
         pFilter->mInList = true;
     }
+#else
+    RT_NOREF(data);
 #endif /* VBOX_WITH_USB */
 
     return S_OK;
@@ -568,6 +570,8 @@ HRESULT USBDeviceFilters::i_saveSettings(settings::USB &data)
 
         data.llDeviceFilters.push_back(f);
     }
+#else
+    RT_NOREF(data);
 #endif /* VBOX_WITH_USB */
 
     return S_OK;

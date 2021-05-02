@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ endif
 
 ## DEFS variable that is picked up by all three VMM targets (R0, R3, RC).
 # Can be prepended to by setting it in LocalConfig.kmk
-VMM_COMMON_DEFS += VBOX_IN_VMM
+VMM_COMMON_DEFS := USING_VMM_COMMON_DEFS
 ifdef VBOX_WITH_3RD_IEM_STEP
  VMM_COMMON_DEFS += VBOX_WITH_3RD_IEM_STEP
 endif
@@ -45,9 +45,6 @@ endif
 # VMM_COMMON_DEFS += VBOX_WITH_IEM
 #endif
 # part of global DEFS
-#ifdef VBOX_WITH_REM
-# VMM_COMMON_DEFS += VBOX_WITH_REM
-#endif
 ifdef VBOX_WITH_MULTI_CORE
  VMM_COMMON_DEFS += VBOX_WITH_MULTI_CORE
 endif
@@ -66,9 +63,6 @@ endif
 ifdef VBOX_WITH_SAFE_STR
  VMM_COMMON_DEFS += VBOX_WITH_SAFE_STR
 endif
-ifdef VBOX_WITH_RAW_RING1
- VMM_COMMON_DEFS += VBOX_WITH_RAW_RING1
-endif
 ifdef VBOX_WITH_64ON32_IDT
  VMM_COMMON_DEFS += VBOX_WITH_64ON32_IDT
 endif
@@ -80,6 +74,17 @@ ifdef VBOXSTRICTRC_STRICT_ENABLED
 endif
 ifeq ($(KBUILD_TARGET),amd64)
  VMM_COMMON_DEFS += VBOX_WITH_MORE_RING0_MEM_MAPPINGS
+endif
+ifdef VBOX_WITH_NATIVE_NEM
+ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.amd64)
+  VMM_COMMON_DEFS += VBOX_WITH_NATIVE_NEM VBOX_WITH_NEM_R0
+ endif
+endif
+ifdef VBOX_WITH_RAM_IN_KERNEL
+ VMM_COMMON_DEFS += VBOX_WITH_RAM_IN_KERNEL
+ if1of ($(KBUILD_TARGET), linux solaris) # Hosts that implements SUPR0HCPhysToVirt.
+  VMM_COMMON_DEFS += VBOX_WITH_LINEAR_HOST_PHYS_MEM
+ endif
 endif
 
 # VMM_COMMON_DEFS += VBOX_WITH_NS_ACCOUNTING_STATS

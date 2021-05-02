@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -366,6 +366,10 @@ int VBoxInstallDriver(const BOOL fInstall, const _TCHAR *pszDriverPath, BOOL fSi
                         _tprintf(_T("ERROR: The driver package type is not supported of INF %ws!\n"), szDriverInf);
                         break;
 
+                    case ERROR_NO_SUCH_DEVINST:
+                        _tprintf(_T("INFO: The driver package was installed but no matching devices found in the device tree (ERROR_NO_SUCH_DEVINST).\n"));
+                    break;
+
                     default:
                     {
                         /* Try error lookup with GetErrorMsg(). */
@@ -375,7 +379,14 @@ int VBoxInstallDriver(const BOOL fInstall, const _TCHAR *pszDriverPath, BOOL fSi
                         break;
                     }
                 }
-                hr = HRESULT_FROM_WIN32(dwRet);
+
+                if (dwRet == ERROR_NO_SUCH_DEVINST)
+                {
+                    /* GA installer should ignore this error code and continue */
+                    hr = S_OK;
+                }
+                else
+                    hr = HRESULT_FROM_WIN32(dwRet);
             }
             g_pfnDIFXAPISetLogCallback(NULL, NULL);
             if (phFile)

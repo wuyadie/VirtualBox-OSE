@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -133,11 +133,13 @@ VMMR3_INT_DECL(int) PDMR3CritSectBothTerm(PVM pVM)
  * @param   pCritSect       The critical section.
  * @param   pvKey           The owner key.
  * @param   SRC_POS         The source position.
+ * @param   fUniqueClass    Whether to create a unique lock validator class for
+ *                          it or not.
  * @param   pszNameFmt      Format string for naming the critical section.  For
  *                          statistics and lock validation.
  * @param   va              Arguments for the format string.
  */
-static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, RT_SRC_POS_DECL,
+static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, RT_SRC_POS_DECL, bool fUniqueClass,
                                 const char *pszNameFmt, va_list va)
 {
     VM_ASSERT_EMT(pVM);
@@ -154,13 +156,15 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
         char *pszName = RTStrAPrintf2V(pszNameFmt, va); /** @todo plug the "leak"... */
         if (pszName)
         {
-            RT_SRC_POS_NOREF();
+            RT_SRC_POS_NOREF(); RT_NOREF(fUniqueClass);
 #ifndef PDMCRITSECT_STRICT
             pCritSect->Core.pValidatorRec = NULL;
 #else
             rc = RTLockValidatorRecExclCreate(&pCritSect->Core.pValidatorRec,
 # ifdef RT_LOCK_STRICT_ORDER
-                                              RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, "%s", pszName),
+                                              fUniqueClass
+                                              ? RTLockValidatorClassCreateUnique(RT_SRC_POS_ARGS, "%s", pszName)
+                                              : RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, "%s", pszName),
 # else
                                               NIL_RTLOCKVALCLASS,
 # endif
@@ -178,7 +182,7 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
                 pCritSect->Core.cLockers             = -1;
                 pCritSect->Core.NativeThreadOwner    = NIL_RTNATIVETHREAD;
                 pCritSect->pVMR3                     = pVM;
-                pCritSect->pVMR0                     = pVM->pVMR0;
+                pCritSect->pVMR0                     = pVM->pVMR0ForCall;
                 pCritSect->pVMRC                     = pVM->pVMRC;
                 pCritSect->pvKey                     = pvKey;
                 pCritSect->fAutomaticDefaultCritsect = false;
@@ -275,7 +279,7 @@ static int pdmR3CritSectRwInitOne(PVM pVM, PPDMCRITSECTRWINT pCritSect, void *pv
                     pCritSect->Core.HCPtrPadding         = NIL_RTHCPTR;
 #endif
                     pCritSect->pVMR3                     = pVM;
-                    pCritSect->pVMR0                     = pVM->pVMR0;
+                    pCritSect->pVMR0                     = pVM->pVMR0ForCall;
                     pCritSect->pVMRC                     = pVM->pVMRC;
                     pCritSect->pvKey                     = pvKey;
                     pCritSect->pszName                   = pszName;
@@ -338,7 +342,7 @@ VMMR3DECL(int) PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, RT_SRC_POS_DEC
     Assert(RT_ALIGN_P(pCritSect, sizeof(uintptr_t)) == pCritSect);
     va_list va;
     va_start(va, pszNameFmt);
-    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pCritSect, RT_SRC_POS_ARGS, pszNameFmt, va);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pCritSect, RT_SRC_POS_ARGS, false /*fUniqueClass*/, pszNameFmt, va);
     va_end(va);
     return rc;
 }
@@ -388,7 +392,7 @@ VMMR3DECL(int) PDMR3CritSectRwInit(PVM pVM, PPDMCRITSECTRW pCritSect, RT_SRC_POS
 int pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
                             const char *pszNameFmt, va_list va)
 {
-    return pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+    return pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, false /*fUniqueClass*/, pszNameFmt, va);
 }
 
 
@@ -428,7 +432,7 @@ int pdmR3CritSectInitDeviceAuto(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritS
 {
     va_list va;
     va_start(va, pszNameFmt);
-    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, true /*fUniqueClass*/, pszNameFmt, va);
     if (RT_SUCCESS(rc))
         pCritSect->s.fAutomaticDefaultCritsect = true;
     va_end(va);
@@ -453,7 +457,7 @@ int pdmR3CritSectInitDriver(PVM pVM, PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect,
 {
     va_list va;
     va_start(va, pszNameFmt);
-    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDrvIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDrvIns, RT_SRC_POS_ARGS, false /*fUniqueClass*/, pszNameFmt, va);
     va_end(va);
     return rc;
 }
@@ -840,14 +844,16 @@ VMMR3DECL(const char *) PDMR3CritSectRwName(PCPDMCRITSECTRW pCritSect)
  *
  * @retval  true if yielded.
  * @retval  false if not yielded.
+ * @param   pVM                 The cross context VM structure.
  * @param   pCritSect           The critical section.
  */
-VMMR3DECL(bool) PDMR3CritSectYield(PPDMCRITSECT pCritSect)
+VMMR3DECL(bool) PDMR3CritSectYield(PVM pVM, PPDMCRITSECT pCritSect)
 {
     AssertPtrReturn(pCritSect, false);
     AssertReturn(pCritSect->s.Core.u32Magic == RTCRITSECT_MAGIC, false);
     Assert(pCritSect->s.Core.NativeThreadOwner == RTThreadNativeSelf());
     Assert(!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP));
+    RT_NOREF(pVM);
 
     /* No recursion allowed here. */
     int32_t const cNestings = pCritSect->s.Core.cNestings;

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -96,22 +96,22 @@ const Global::OSType Global::sOSTypes[] =
 
     { "Windows", "Microsoft Windows", "WindowsVista",       "Windows Vista (32-bit)",
       VBOXOSTYPE_WinVista,         VBOXOSHINT_USBTABLET,
-       512,  16, 25 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+       512,  16, 25 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
     { "Windows", "Microsoft Windows", "WindowsVista_64",    "Windows Vista (64-bit)",
       VBOXOSTYPE_WinVista_x64,    VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET,
-       512,  16, 25 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+       512,  16, 25 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
     { "Windows", "Microsoft Windows", "Windows2008",        "Windows 2008 (32-bit)",
       VBOXOSTYPE_Win2k8,           VBOXOSHINT_USBTABLET,
-       1024, 16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+       1024, 16, 32 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
     { "Windows", "Microsoft Windows", "Windows2008_64",     "Windows 2008 (64-bit)",
       VBOXOSTYPE_Win2k8_x64,      VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET,
-       2048, 16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+       2048, 16, 32 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
     { "Windows", "Microsoft Windows", "Windows7",           "Windows 7 (32-bit)",
@@ -164,12 +164,10 @@ const Global::OSType Global::sOSTypes[] =
        2048,128, 50 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
-#if 0
     { "Windows", "Microsoft Windows", "Windows2019_64",     "Windows 2019 (64-bit)",
-      VBOXOSTYPE_Win2k16_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_USB3,
+      VBOXOSTYPE_Win2k19_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_USB3,
        2048,128, 50 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
-#endif
 
     { "Windows", "Microsoft Windows", "WindowsNT",          "Other Windows (32-bit)",
       VBOXOSTYPE_WinNT,           VBOXOSHINT_NONE,
@@ -360,37 +358,37 @@ const Global::OSType Global::sOSTypes[] =
 
     { "Solaris", "Solaris",           "Solaris11_64",       "Oracle Solaris 11 (64-bit)",
       VBOXOSTYPE_Solaris11_x64, VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_RTCUTC,
-      1536,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+      1536,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "FreeBSD",            "FreeBSD (32-bit)",
       VBOXOSTYPE_FreeBSD,         VBOXOSHINT_NONE,
-      1024,  16,  2 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16,  2 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "FreeBSD_64",         "FreeBSD (64-bit)",
       VBOXOSTYPE_FreeBSD_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC,
-      1024,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "OpenBSD",            "OpenBSD (32-bit)",
       VBOXOSTYPE_OpenBSD,         VBOXOSHINT_HWVIRTEX,
-      1024,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "OpenBSD_64",         "OpenBSD (64-bit)",
       VBOXOSTYPE_OpenBSD_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC,
-      1024,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "NetBSD",             "NetBSD (32-bit)",
       VBOXOSTYPE_NetBSD,          VBOXOSHINT_RTCUTC,
-      1024,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "NetBSD_64",          "NetBSD (64-bit)",
       VBOXOSTYPE_NetBSD_x64,      VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_RTCUTC,
-      1024,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "OS2",     "IBM OS/2",          "OS2Warp3",           "OS/2 Warp 3",
@@ -501,11 +499,11 @@ const Global::OSType Global::sOSTypes[] =
 
     { "Other",   "Other",             "DOS",                "DOS",
       VBOXOSTYPE_DOS,             VBOXOSHINT_FLOPPY | VBOXOSHINT_NOUSB,
-        32,   4,  500 * _1M, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+        32,   4,  500 * _1M, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 1, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_SB16, AudioCodecType_SB16  },
 
     { "Other",   "Other",             "Netware",            "Netware",
-      VBOXOSTYPE_Netware,         VBOXOSHINT_HWVIRTEX,
+      VBOXOSTYPE_Netware,         VBOXOSHINT_HWVIRTEX | VBOXOSHINT_FLOPPY | VBOXOSHINT_NOUSB,
        512,   4,  4 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
@@ -515,11 +513,7 @@ const Global::OSType Global::sOSTypes[] =
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Other",   "Other",             "QNX",                "QNX",
-#ifdef VBOX_WITH_RAW_RING1
-      VBOXOSTYPE_QNX,             VBOXOSHINT_NONE,
-#else
       VBOXOSTYPE_QNX,             VBOXOSHINT_HWVIRTEX,
-#endif
        512,   4,  4 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
       StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
@@ -603,7 +597,6 @@ Global::stringifyMachineState(MachineState_T aState)
         case MachineState_Restoring:            return "Restoring";
         case MachineState_TeleportingPausedVM:  return "TeleportingPausedVM";
         case MachineState_TeleportingIn:        return "TeleportingIn";
-        case MachineState_FaultTolerantSyncing: return "FaultTolerantSyncing";
         case MachineState_DeletingSnapshotOnline: return "DeletingSnapshotOnline";
         case MachineState_DeletingSnapshotPaused: return "DeletingSnapshotPaused";
         case MachineState_OnlineSnapshotting:   return "OnlineSnapshotting";

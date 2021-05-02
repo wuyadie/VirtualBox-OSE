@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,14 +175,7 @@ int RTCRestClientApiBase::setServerBasePath(const char *a_pszBasePath) RT_NOEXCE
 int RTCRestClientApiBase::reinitHttpInstance() RT_NOEXCEPT
 {
     if (m_hHttp != NIL_RTHTTP)
-    {
-#if 0   /** @todo XXX: disable for now as it causes the RTHTTP handle state and curl state to get out of sync. */
         return RTHttpReset(m_hHttp, 0 /*fFlags*/);
-#else
-        RTHttpDestroy(m_hHttp);
-        m_hHttp = NIL_RTHTTP;
-#endif
-    }
 
     int rc = RTHttpCreate(&m_hHttp);
     if (RT_FAILURE(rc))
@@ -280,11 +273,9 @@ int RTCRestClientApiBase::doCall(RTCRestClientRequestBase const &a_rRequest, RTH
                                  * Do response processing.
                                  */
                                 a_pResponse->receiveComplete(uHttpStatus, hHttp);
+                                a_pResponse->consumeBody((const char *)pvBody, cbBody);
                                 if (pvBody)
-                                {
-                                    a_pResponse->consumeBody((const char *)pvBody, cbBody);
                                     RTHttpFreeResponse(pvBody);
-                                }
                                 a_pResponse->receiveFinal();
 
                                 return a_pResponse->getStatus();

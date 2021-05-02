@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -530,7 +530,8 @@ static PRTVFSCHAINELEMSPEC rtVfsChainSpecAddElement(PRTVFSCHAINSPEC pSpec, uint1
             return NULL;
         }
 
-        memcpy(paNew, pSpec->paElements, iElement * sizeof(paNew[0]));
+        if (iElement)
+            memcpy(paNew, pSpec->paElements, iElement * sizeof(paNew[0]));
         RTMemTmpFree(pSpec->paElements);
         pSpec->paElements = paNew;
     }
@@ -571,7 +572,8 @@ static int rtVfsChainSpecElementAddArg(PRTVFSCHAINELEMSPEC pElement, const char 
         PRTVFSCHAINELEMENTARG paNew = (PRTVFSCHAINELEMENTARG)RTMemTmpAlloc((iArg + 32) * sizeof(paNew[0]));
         if (!paNew)
             return VERR_NO_TMP_MEMORY;
-        memcpy(paNew, pElement->paArgs, iArg * sizeof(paNew[0]));
+        if (iArg)
+            memcpy(paNew, pElement->paArgs, iArg * sizeof(paNew[0]));
         RTMemTmpFree(pElement->paArgs);
         pElement->paArgs = paNew;
     }

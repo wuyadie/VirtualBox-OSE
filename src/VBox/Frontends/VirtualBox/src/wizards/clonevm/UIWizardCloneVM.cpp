@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 #include "UIWizardCloneVMPageBasic2.h"
 #include "UIWizardCloneVMPageBasic3.h"
 #include "UIWizardCloneVMPageExpert.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIMessageCenter.h"
 
 /* COM includes: */
@@ -60,7 +60,7 @@ bool UIWizardCloneVM::cloneVM()
                            field("cloneMode").value<KCloneMode>() : KCloneMode_MachineState;
 
     /* Get VBox object: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
 
     /* Prepare machine for cloning: */
     CMachine srcMachine = m_machine;
@@ -72,7 +72,7 @@ bool UIWizardCloneVM::cloneVM()
     if (fLinked && m_snapshot.isNull())
     {
         /* Open session: */
-        CSession session = vboxGlobal().openSession(m_machine.GetId());
+        CSession session = uiCommon().openSession(m_machine.GetId());
         if (session.isNull())
             return false;
 
@@ -187,7 +187,7 @@ void UIWizardCloneVM::retranslateUi()
 
 void UIWizardCloneVM::prepare()
 {
-    QString strDefaultMachineFolder = vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
+    QString strDefaultMachineFolder = uiCommon().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
     /* Create corresponding pages: */
     switch (mode())
     {

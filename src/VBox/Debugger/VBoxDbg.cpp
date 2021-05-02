@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,6 @@
 # include <VirtualBox_XPCOM.h>
 #endif /* !RT_OS_WINDOWS */
 #include <VBox/dbggui.h>
-#include <VBox/vmm/vm.h>
 #include <iprt/errcore.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>

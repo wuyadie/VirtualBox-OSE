@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,7 +102,7 @@ static HRESULT printNATNetwork(const ComPtr<INATNetwork> &pNATNet)
         if (fVal)
         {
             CHECK_ERROR_BREAK(pNATNet, COMGETTER(IPv6Prefix)(strVal.asOutParam()));
-            RTPrintf("IPv6 Prefix: %s\n", strVal.raw());
+            RTPrintf("IPv6 Prefix: %ls\n", strVal.raw());
         }
         CHECK_ERROR_BREAK(pNATNet, COMGETTER(Enabled)(&fVal));
         RTPrintf("Enabled:     %s\n",  fVal ? "Yes" : "No");
@@ -479,7 +479,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
         }
         case OP_START:
         {
-            CHECK_ERROR(net, Start(Bstr("whatever").raw()));
+            CHECK_ERROR(net, Start());
             if (FAILED(rc))
                 return errorArgument("Failed to start network");
             break;
@@ -488,7 +488,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
         {
             CHECK_ERROR(net, Stop());
             if (FAILED(rc))
-                return errorArgument("Failed to start network");
+                return errorArgument("Failed to stop network");
             break;
         }
         default:;

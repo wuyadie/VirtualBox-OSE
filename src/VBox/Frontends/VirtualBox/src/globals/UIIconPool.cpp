@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,8 +254,8 @@ void UIIconPool::addName(QIcon &icon, const QString &strName,
     QString strSuffix = strName.section('.', -1, -1);
     /* Prepare HiDPI pixmaps: */
     const QStringList aPixmapNames = QStringList() << (strPrefix + "_x2." + strSuffix)
-                                                   /*<< (strPrefix + "_x3." + strSuffix)
-                                                   << (strPrefix + "_x4." + strSuffix)*/;
+                                                   << (strPrefix + "_x3." + strSuffix)
+                                                   << (strPrefix + "_x4." + strSuffix);
     foreach (const QString &strPixmapName, aPixmapNames)
     {
         QPixmap pixmapHiDPI(strPixmapName);
@@ -302,6 +302,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("Windows10",       ":/os_win10.png");
     m_guestOSTypeIconNames.insert("Windows10_64",    ":/os_win10_64.png");
     m_guestOSTypeIconNames.insert("Windows2016_64",  ":/os_win2k16_64.png");
+    m_guestOSTypeIconNames.insert("Windows2019_64",  ":/os_win2k19_64.png");
     m_guestOSTypeIconNames.insert("WindowsNT",       ":/os_win_other.png");
     m_guestOSTypeIconNames.insert("WindowsNT_64",    ":/os_win_other_64.png");
     m_guestOSTypeIconNames.insert("OS2Warp3",        ":/os_os2warp3.png");
@@ -364,6 +365,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("MacOS1013_64",    ":/os_macosx_64.png");
     m_guestOSTypeIconNames.insert("JRockitVE",       ":/os_jrockitve.png");
     m_guestOSTypeIconNames.insert("VBoxBS_64",       ":/os_other_64.png");
+    m_guestOSTypeIconNames.insert("Cloud",           ":/os_cloud.png");
 }
 
 QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const

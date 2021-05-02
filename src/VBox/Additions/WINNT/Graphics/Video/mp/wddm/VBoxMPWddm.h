@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 #define VBOXWDDM_CFG_LOG_UM_BACKDOOR 0x00000001
 #define VBOXWDDM_CFG_LOG_UM_DBGPRINT 0x00000002
 #define VBOXWDDM_CFG_STR_LOG_UM L"VBoxLogUm"
+#define VBOXWDDM_CFG_STR_RATE L"RefreshRate"
 
 #define VBOXWDDM_REG_DRV_FLAGS_NAME L"VBoxFlags"
 #define VBOXWDDM_REG_DRV_DISPFLAGS_PREFIX L"VBoxDispFlags"
@@ -62,6 +63,7 @@
 #define VBOXWDDM_REG_DISPLAYSETTINGS_ATTACH_DESKTOP L"Attach.ToDesktop"
 
 extern DWORD g_VBoxLogUm;
+extern DWORD g_RefreshRate;
 
 RT_C_DECLS_BEGIN
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath);
@@ -192,15 +194,6 @@ DECLINLINE(int) vboxWddmScreenInfoInit(VBVAINFOSCREEN RT_UNTRUSTED_VOLATILE_HOST
 
 bool vboxWddmGhDisplayCheckSetInfoFromSource(PVBOXMP_DEVEXT pDevExt, PVBOXWDDM_SOURCE pSource);
 
-#ifdef VBOX_WITH_CROGL
-#define VBOXWDDMENTRY_2_SWAPCHAIN(_pE) ((PVBOXWDDM_SWAPCHAIN)((uint8_t*)(_pE) - RT_UOFFSETOF(VBOXWDDM_SWAPCHAIN, DevExtListEntry)))
-
-BOOLEAN DxgkDdiInterruptRoutineNew(
-    IN CONST PVOID MiniportDeviceContext,
-    IN ULONG MessageNumber
-    );
-#endif
-
 #define VBOXWDDM_IS_DISPLAYONLY() (g_VBoxDisplayOnly)
 
 # define VBOXWDDM_IS_FB_ALLOCATION(_pDevExt, _pAlloc) ((_pAlloc)->bAssigned)
@@ -217,6 +210,12 @@ BOOLEAN DxgkDdiInterruptRoutineNew(
 #define VBOXWDDM_CTXLOCK_UNLOCK(_p) do { \
         KeReleaseSpinLock(&(_p)->ContextLock, _ctxLockOldIrql); \
     } while (0)
+
+DECLINLINE(PVBOXWDDM_ALLOCATION) vboxWddmGetAllocationFromAllocList(DXGK_ALLOCATIONLIST *pAllocList)
+{
+    PVBOXWDDM_OPENALLOCATION pOa = (PVBOXWDDM_OPENALLOCATION)pAllocList->hDeviceSpecificAllocation;
+    return pOa->pAllocation;
+}
 
 #endif /* !GA_INCLUDED_SRC_WINNT_Graphics_Video_mp_wddm_VBoxMPWddm_h */
 

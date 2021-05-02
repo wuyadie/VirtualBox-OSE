@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,10 +56,6 @@
 #ifdef VBOXVHWA_PROFILE_FPS
 # include <iprt/stream.h>
 #endif /* VBOXVHWA_PROFILE_FPS */
-
-#ifndef S_FALSE
-# define S_FALSE ((HRESULT)1L)
-#endif
 
 #ifdef DEBUG_misha
 # define VBOXVHWA_PROFILE_FPS
@@ -753,7 +749,7 @@ private:
 class VBoxVHWAHandleTable
 {
 public:
-    VBoxVHWAHandleTable(uint32_t initialSize);
+    VBoxVHWAHandleTable(uint32_t maxSize);
     ~VBoxVHWAHandleTable();
     uint32_t put(void * data);
     bool mapPut(uint32_t h, void * data);

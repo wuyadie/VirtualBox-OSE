@@ -9,7 +9,7 @@
 #
 
 #
-# Copyright (C) 2008-2019 Oracle Corporation
+# Copyright (C) 2008-2020 Oracle Corporation
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -178,10 +178,11 @@ elsif ($optMode eq "startvm")
 
     print "[$cmd] UUID: $uuid\n";
 
+    my @env = ();
     my $progress = vboxService->IMachine_launchVMProcess($machine,
                                                          $session,
                                                          "headless",
-                                                         "");
+                                                         @env);
     die "[$cmd] Cannot launch VM; stopped"
         if (!$progress);
 

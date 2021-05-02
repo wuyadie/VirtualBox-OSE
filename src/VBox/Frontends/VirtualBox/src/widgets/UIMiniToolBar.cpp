@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,8 @@
 #include <QMenu>
 #include <QMoveEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QStateMachine>
 #include <QStyle>
 #include <QTimer>
@@ -36,7 +38,7 @@
 #include "UIAnimationFramework.h"
 #include "UIIconPool.h"
 #include "UIDesktopWidgetWatchdog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #ifdef VBOX_WS_X11
 # include "UIExtraDataManager.h"
 #endif
@@ -281,7 +283,7 @@ void UIMiniToolBarPrivate::prepare()
 
     /* Left margin: */
 #ifdef VBOX_WS_X11
-    if (vboxGlobal().isCompositingManagerRunning())
+    if (uiCommon().isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
 #else /* !VBOX_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
@@ -336,7 +338,7 @@ void UIMiniToolBarPrivate::prepare()
 
     /* Right margin: */
 #ifdef VBOX_WS_X11
-    if (vboxGlobal().isCompositingManagerRunning())
+    if (uiCommon().isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
 #else /* !VBOX_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
@@ -346,7 +348,7 @@ void UIMiniToolBarPrivate::prepare()
 void UIMiniToolBarPrivate::rebuildShape()
 {
 #ifdef VBOX_WS_X11
-    if (!vboxGlobal().isCompositingManagerRunning())
+    if (!uiCommon().isCompositingManagerRunning())
         return;
 #endif /* VBOX_WS_X11 */
 
@@ -398,7 +400,7 @@ Qt::WindowFlags UIMiniToolBar::defaultWindowFlags(GeometryType geometryType)
 
 #ifdef VBOX_WS_X11
     /* Depending on current WM: */
-    switch (vboxGlobal().typeOfWindowManager())
+    switch (uiCommon().typeOfWindowManager())
     {
         // WORKAROUND:
         // By strange reason, frameless full-screen windows under certain WMs
@@ -793,12 +795,12 @@ void UIMiniToolBar::sltAdjust()
         case GeometryType_Full:
         {
             /* Determine whether we should use the native full-screen mode: */
-            const bool fUseNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
+            const bool fUseNativeFullScreen = UICommon::supportsFullScreenMonitorsProtocolX11() &&
                                               !gEDataManager->legacyFullscreenModeRequested();
             if (fUseNativeFullScreen)
             {
                 /* Tell recent window managers which host-screen this window should be mapped to: */
-                VBoxGlobal::setFullScreenMonitorX11(this, iHostScreen);
+                UICommon::setFullScreenMonitorX11(this, iHostScreen);
             }
 
             /* Set appropriate window size: */
@@ -852,7 +854,7 @@ void UIMiniToolBar::prepare()
     setAttribute(Qt::WA_TranslucentBackground);
 #elif defined(VBOX_WS_X11)
     /* Enable translucency through Qt API if supported: */
-    if (vboxGlobal().isCompositingManagerRunning())
+    if (uiCommon().isCompositingManagerRunning())
         setAttribute(Qt::WA_TranslucentBackground);
 #endif /* VBOX_WS_X11 */
 
@@ -889,11 +891,11 @@ void UIMiniToolBar::prepare()
         pal.setColor(QPalette::Window, palette().color(QPalette::Window));
         m_pToolbar->setPalette(pal);
         /* Configure child connections: */
-        connect(m_pToolbar, SIGNAL(sigResized()), this, SLOT(sltHandleToolbarResize()));
-        connect(m_pToolbar, SIGNAL(sigAutoHideToggled()), this, SLOT(sltAutoHideToggled()));
-        connect(m_pToolbar, SIGNAL(sigMinimizeAction()), this, SIGNAL(sigMinimizeAction()));
-        connect(m_pToolbar, SIGNAL(sigExitAction()), this, SIGNAL(sigExitAction()));
-        connect(m_pToolbar, SIGNAL(sigCloseAction()), this, SIGNAL(sigCloseAction()));
+        connect(m_pToolbar, &UIMiniToolBarPrivate::sigResized, this, &UIMiniToolBar::sltHandleToolbarResize);
+        connect(m_pToolbar, &UIMiniToolBarPrivate::sigAutoHideToggled, this, &UIMiniToolBar::sltAutoHideToggled);
+        connect(m_pToolbar, &UIMiniToolBarPrivate::sigMinimizeAction, this, &UIMiniToolBar::sigMinimizeAction);
+        connect(m_pToolbar, &UIMiniToolBarPrivate::sigExitAction, this, &UIMiniToolBar::sigExitAction);
+        connect(m_pToolbar, &UIMiniToolBarPrivate::sigCloseAction, this, &UIMiniToolBar::sigCloseAction);
         /* Add child to area: */
         m_pToolbar->setParent(m_pArea);
         /* Make sure we have no focus: */
@@ -905,13 +907,13 @@ void UIMiniToolBar::prepare()
     {
         m_pHoverEnterTimer->setSingleShot(true);
         m_pHoverEnterTimer->setInterval(500);
-        connect(m_pHoverEnterTimer, SIGNAL(timeout()), this, SLOT(sltHoverEnter()));
+        connect(m_pHoverEnterTimer, &QTimer::timeout, this, &UIMiniToolBar::sltHoverEnter);
     }
     m_pHoverLeaveTimer = new QTimer(this);
     {
         m_pHoverLeaveTimer->setSingleShot(true);
         m_pHoverLeaveTimer->setInterval(500);
-        connect(m_pHoverLeaveTimer, SIGNAL(timeout()), this, SLOT(sltHoverLeave()));
+        connect(m_pHoverLeaveTimer, &QTimer::timeout, this, &UIMiniToolBar::sltHoverLeave);
     }
 
     /* Install 'auto-hide' animation to 'toolbarPosition' property: */
@@ -926,8 +928,8 @@ void UIMiniToolBar::prepare()
 
 #ifdef VBOX_WS_X11
     /* Hide mini-toolbar from taskbar and pager: */
-    vboxGlobal().setSkipTaskBarFlag(this);
-    vboxGlobal().setSkipPagerFlag(this);
+    uiCommon().setSkipTaskBarFlag(this);
+    uiCommon().setSkipPagerFlag(this);
 #endif
 }
 
@@ -997,7 +999,7 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
 #if   defined(VBOX_WS_WIN)
         emit sigNotifyAboutWindowActivationStolen();
 #elif defined(VBOX_WS_X11)
-        switch (vboxGlobal().typeOfWindowManager())
+        switch (uiCommon().typeOfWindowManager())
         {
             case X11WMType_GNOMEShell:
             case X11WMType_Mutter:
@@ -1187,4 +1189,3 @@ bool UIMiniToolBar::isParentMinimized() const
 }
 
 #include "UIMiniToolBar.moc"
-

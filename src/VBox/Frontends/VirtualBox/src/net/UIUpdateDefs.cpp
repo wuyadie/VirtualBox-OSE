@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 #include <QStringList>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIUpdateDefs.h"
 
 
@@ -81,13 +81,13 @@ VBoxUpdateData::VBoxUpdateData(PeriodType enmPeriodIndex, BranchType enmBranchIn
 
 bool VBoxUpdateData::isNoNeedToCheck() const
 {
-    /* Return 'false' if Period == Never: */
+    /* No need to check if Period == Never: */
     return m_enmPeriodIndex == PeriodNever;
 }
 
 bool VBoxUpdateData::isNeedToCheck() const
 {
-    /* Return 'false' if Period == Never: */
+    /* Return 'false' if there is no need to check: */
     if (isNoNeedToCheck())
         return false;
 
@@ -96,7 +96,7 @@ bool VBoxUpdateData::isNeedToCheck() const
         return true;
 
     /* Return 'true' if saved version value is NOT valid or NOT equal to current: */
-    if (!version().isValid() || version() != UIVersion(vboxGlobal().vboxVersionStringNormalized()))
+    if (!version().isValid() || version() != UIVersion(uiCommon().vboxVersionStringNormalized()))
         return true;
 
     /* Return 'false' in all other cases: */
@@ -213,7 +213,7 @@ void VBoxUpdateData::encode()
                               m_enmBranchIndex == BranchAllRelease ? "allrelease" : "stable";
 
         /* Encode 'version' value: */
-        QString versionValue = UIVersion(vboxGlobal().vboxVersionStringNormalized()).toString();
+        QString versionValue = UIVersion(uiCommon().vboxVersionStringNormalized()).toString();
 
         /* Composite m_strData: */
         m_strData = QString("%1, %2, %3, %4").arg(remindPeriod, remindDate, branchValue, versionValue);

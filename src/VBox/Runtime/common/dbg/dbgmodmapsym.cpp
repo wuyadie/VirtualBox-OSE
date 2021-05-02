@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,7 @@ typedef struct MAPSYMHDR
     uint16_t    off16SegDef;                    /**< 0x0c: Offset of the segment defintions divided by 16. */
     uint8_t     cchMaxSym;                      /**< 0x0e: Maximum symbol-name length. */
     uint8_t     cchModule;                      /**< 0x0f: Length of the module name. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char        achModule[RT_FLEXIBLE_ARRAY];   /**< 0x10: Module name, length given by cchModule. */
 } MAPSYMHDR;
 
@@ -91,6 +92,7 @@ typedef struct MAPSYMSEGDEF
     uint16_t    offLineDef;                    /**< 0x10: Offset to the line defintions. */
     uint16_t    u16Reserved2;                  /**< 0x12: Reserved / unknown.  Often seen holding 0xff00. */
     uint8_t     cchSegName;                    /**< 0x14: Segment name length. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char        achSegName[RT_FLEXIBLE_ARRAY]; /**< 0x15: Segment name, length given by cchSegName. */
 } MAPSYMSEGDEF;
 
@@ -121,6 +123,7 @@ typedef struct MAPSYMLINEDEF
     uint16_t    offLines;                      /**< 0x04: Offset to the line number array, relative to this structure. */
     uint16_t    cLines;                        /**< 0x08: Number of line numbers in the array. */
     uint8_t     cchSrcFile;                    /**< 0x0a: Length of source filename. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char        achSrcFile[RT_FLEXIBLE_ARRAY]; /**< 0x0b: Source filename, length given by cchSrcFile. */
 } MAPSYMLINEDEF;
 
@@ -524,7 +527,7 @@ static DECLCALLBACK(int) rtDbgModMapSym_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enm
     if (RT_SUCCESS(rc))
     {
         uint64_t cbFile = 0;
-        rc = RTFileGetSize(hFile, &cbFile);
+        rc = RTFileQuerySize(hFile, &cbFile);
         if (   RT_SUCCESS(rc)
             && cbFile < _2M)
         {

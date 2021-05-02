@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -166,7 +166,6 @@ RTDECL(int) RTReqQueueProcess(RTREQQUEUE hQueue, RTMSINTERVAL cMillies)
 
             /* Process the request. */
             rc = rtReqProcessOne(pReq);
-            AssertRC(rc);
             if (rc != VINF_SUCCESS)
             {
                 /* Propagate the return code to caller.  If more requests pending, queue them for later. */

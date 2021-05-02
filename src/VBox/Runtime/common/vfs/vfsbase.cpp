@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1321,7 +1321,7 @@ RTDECL(int)         RTVfsObjSetMode(RTVFSOBJ hVfsObj, RTFMODE fMode, RTFMODE fMa
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->uMagic == RTVFSOBJ_MAGIC, VERR_INVALID_HANDLE);
 
-    fMode = rtFsModeNormalize(fMode, NULL, 0);
+    fMode = rtFsModeNormalize(fMode, NULL, 0, 0);
     if (!rtFsModeIsValid(fMode))
         return VERR_INVALID_PARAMETER;
 
@@ -2748,7 +2748,7 @@ RTDECL(int) RTVfsDirCreateDir(RTVFSDIR hVfsDir, const char *pszRelPath, RTFMODE 
     AssertPtrReturn(pszRelPath, VERR_INVALID_POINTER);
     AssertPtrNullReturn(phVfsDir, VERR_INVALID_POINTER);
     AssertReturn(!(fFlags & ~RTDIRCREATE_FLAGS_VALID_MASK), VERR_INVALID_FLAGS);
-    fMode = rtFsModeNormalize(fMode, pszRelPath, 0);
+    fMode = rtFsModeNormalize(fMode, pszRelPath, 0, RTFS_TYPE_DIRECTORY);
     AssertReturn(rtFsModeIsValidPermissions(fMode), VERR_INVALID_FMODE);
     if (!(fFlags & RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_DONT_SET))
         fMode |= RTFS_DOS_NT_NOT_CONTENT_INDEXED;
@@ -3207,6 +3207,25 @@ RTDECL(int) RTVfsDirReadEx(RTVFSDIR hVfsDir, PRTDIRENTRYEX pDirEntry, size_t *pc
 }
 
 
+RTDECL(int) RTVfsDirRewind(RTVFSDIR hVfsDir)
+{
+    /*
+     * Validate input.
+     */
+    RTVFSDIRINTERNAL *pThis = hVfsDir;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->uMagic == RTVFSDIR_MAGIC, VERR_INVALID_HANDLE);
+
+    /*
+     * Call the directory method.
+     */
+    RTVfsLockAcquireRead(pThis->Base.hLock);
+    int rc = pThis->pOps->pfnRewindDir(pThis->Base.pvThis);
+    RTVfsLockReleaseRead(pThis->Base.hLock);
+    return rc;
+}
+
+
 /*
  *
  *  S Y M B O L I C   L I N K
@@ -3301,7 +3320,7 @@ RTDECL(int)  RTVfsSymlinkSetMode(RTVFSSYMLINK hVfsSym, RTFMODE fMode, RTFMODE fM
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->uMagic == RTVFSSYMLINK_MAGIC, VERR_INVALID_HANDLE);
 
-    fMode = rtFsModeNormalize(fMode, NULL, 0);
+    fMode = rtFsModeNormalize(fMode, NULL, 0, RTFS_TYPE_SYMLINK);
     if (!rtFsModeIsValid(fMode))
         return VERR_INVALID_PARAMETER;
 
@@ -4200,7 +4219,7 @@ RTDECL(int) RTVfsFileSeek(RTVFSFILE hVfsFile, RTFOFF offSeek, uint32_t uMethod, 
 }
 
 
-RTDECL(int) RTVfsFileGetSize(RTVFSFILE hVfsFile, uint64_t *pcbSize)
+RTDECL(int) RTVfsFileQuerySize(RTVFSFILE hVfsFile, uint64_t *pcbSize)
 {
     RTVFSFILEINTERNAL *pThis = hVfsFile;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);

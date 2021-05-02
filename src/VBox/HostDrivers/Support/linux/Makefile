@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,10 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
-# Find the directory of this makefile.
-VBOXDRV_DIR := $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-
 # Linux kbuild sets this to our source directory if we are called from there
 obj ?= $(CURDIR)
 include $(obj)/Makefile-header.gmk
+VBOXDRV_DIR := $(VBOX_MODULE_SRC_DIR)
 
 VBOXMOD_NAME = vboxdrv
 VBOXMOD_OBJS = \
@@ -153,7 +151,9 @@ VBOXMOD_DEFS = \
 	RT_WITH_VBOX \
 	VBOX_WITH_HARDENING \
 	SUPDRV_WITH_RELEASE_LOGGER \
+	VBOX_WITHOUT_EFLAGS_AC_SET_IN_VBOXDRV \
 	VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV \
+	IPRT_WITHOUT_EFLAGS_AC_PRESERVING \
 	IPRT_WITH_EFLAGS_AC_PRESERVING \
 	VBOX_WITH_64_BITS_GUESTS # <-- must be consistent with Config.kmk!
 ifndef CONFIG_VBOXDRV_FIXEDMAJOR

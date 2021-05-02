@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -391,6 +391,17 @@ RTDECL(int) RTNtPathRelativeFromUtf8(struct _UNICODE_STRING *pNtName, PHANDLE ph
 RTDECL(int) RTNtPathEnsureSpace(struct _UNICODE_STRING *pNtName, size_t cwcMin);
 
 /**
+ * Gets the NT path to the object represented by the given handle.
+ *
+ * @returns IPRT status code.
+ * @param   pNtName             Where to return the NT path.  Free using
+ *                              RTUtf16Alloc.
+ * @param   hHandle             The handle.
+ * @param   cwcExtra            How much extra space is needed.
+ */
+RTDECL(int) RTNtPathFromHandle(struct _UNICODE_STRING *pNtName, HANDLE hHandle, size_t cwcExtra);
+
+/**
  * Frees the native path and root handle.
  *
  * @param   pNtName             The NT path after a successful rtNtPathToNative
@@ -586,8 +597,11 @@ typedef struct _KAFFINITY_EX
     uint16_t                Size;
     /** Reserved / aligmment padding. */
     uint32_t                Reserved;
-    /** Bitmap where one bit corresponds to a CPU. */
-    uintptr_t               Bitmap[20];
+    /** Bitmap where one bit corresponds to a CPU.
+     * @note Started at 20 entries.  W10 20H2 increased it to 32.  Must be
+     *       probed by passing a big buffer to KeInitializeAffinityEx and check
+     *       the Size afterwards. */
+    uintptr_t               Bitmap[RT_FLEXIBLE_ARRAY_IN_NESTED_UNION];
 } KAFFINITY_EX;
 typedef KAFFINITY_EX *PKAFFINITY_EX;
 typedef KAFFINITY_EX const *PCKAFFINITY_EX;
@@ -1602,6 +1616,7 @@ NTSYSAPI NTSTATUS NTAPI NtAlertThread(HANDLE hThread);
 #ifdef IPRT_NT_USE_WINTERNL
 NTSYSAPI NTSTATUS NTAPI ZwAlertThread(HANDLE hThread);
 #endif
+NTSYSAPI NTSTATUS NTAPI NtTestAlert(void);
 
 #ifdef IPRT_NT_USE_WINTERNL
 NTSYSAPI NTSTATUS NTAPI NtOpenProcessToken(HANDLE, ACCESS_MASK, PHANDLE);
@@ -2747,6 +2762,27 @@ NTSYSAPI NTSTATUS NTAPI RtlSetDaclSecurityDescriptor(PSECURITY_DESCRIPTOR, BOOLE
 NTSYSAPI PULONG   NTAPI RtlSubAuthoritySid(PSID, ULONG);
 
 #endif /* IPRT_NT_USE_WINTERNL */
+
+/** For use with ObjectBasicInformation.
+ * A watered down version of this struct appears under the name
+ * PUBLIC_OBJECT_BASIC_INFORMATION in ntifs.h.  It only defines
+ * the first four members, so don't trust the rest.  */
+typedef struct _OBJECT_BASIC_INFORMATION
+{
+    ULONG Attributes;
+    ACCESS_MASK GrantedAccess;
+    ULONG HandleCount;
+    ULONG PointerCount;
+    /* Not in ntifs.h: */
+    ULONG PagedPoolCharge;
+    ULONG NonPagedPoolCharge;
+    ULONG Reserved[3];
+    ULONG NameInfoSize;
+    ULONG TypeInfoSize;
+    ULONG SecurityDescriptorSize;
+    LARGE_INTEGER CreationTime;
+} OBJECT_BASIC_INFORMATION;
+typedef OBJECT_BASIC_INFORMATION *POBJECT_BASIC_INFORMATION;
 
 /** For use with ObjectHandleFlagInformation. */
 typedef struct _OBJECT_HANDLE_FLAG_INFORMATION

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,26 @@ NTSTATUS GaUpdate(PVBOXWDDM_EXT_GA pGaDevExt,
                   uint32_t u32Y,
                   uint32_t u32Width,
                   uint32_t u32Height);
+
+NTSTATUS GaDefineCursor(PVBOXWDDM_EXT_GA pGaDevExt,
+                        uint32_t u32HotspotX,
+                        uint32_t u32HotspotY,
+                        uint32_t u32Width,
+                        uint32_t u32Height,
+                        uint32_t u32AndMaskDepth,
+                        uint32_t u32XorMaskDepth,
+                        void const *pvAndMask,
+                        uint32_t cbAndMask,
+                        void const *pvXorMask,
+                        uint32_t cbXorMask);
+
+NTSTATUS GaDefineAlphaCursor(PVBOXWDDM_EXT_GA pGaDevExt,
+                             uint32_t u32HotspotX,
+                             uint32_t u32HotspotY,
+                             uint32_t u32Width,
+                             uint32_t u32Height,
+                             void const *pvImage,
+                             uint32_t cbImage);
 
 NTSTATUS APIENTRY GaDxgkDdiBuildPagingBuffer(const HANDLE hAdapter,
                                              DXGKARG_BUILDPAGINGBUFFER *pBuildPagingBuffer);

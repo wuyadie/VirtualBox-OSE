@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,7 @@ public:
     Utf8Str const &i_getPassword() const;
     Utf8Str const &i_getFullUserName() const;
     Utf8Str const &i_getProductKey() const;
+    Utf8Str const &i_getProxy() const;
     Utf8Str const &i_getAdditionsIsoPath() const;
     bool           i_getInstallGuestAdditions() const;
     Utf8Str const &i_getValidationKitIsoPath() const;
@@ -76,7 +77,7 @@ public:
     bool           i_isRtcUsingUtc() const;
     bool           i_isGuestOs64Bit() const;
     VBOXOSTYPE     i_getGuestOsType() const;
-
+    Utf8Str const &i_getDetectedOSVersion();
 
 private:
     ComPtr<VirtualBox> const mParent;       /**< Strong reference to the parent object (VirtualBox/IMachine). */
@@ -121,6 +122,7 @@ private:
     Utf8Str         mStrDetectedOSFlavor;
     RTCList<RTCString, RTCString *> mDetectedOSLanguages; /**< (only relevant for windows at the moment) */
     Utf8Str         mStrDetectedOSHints;
+    Utf8Str         mStrProxy;
     /** @} */
 
     // wrapped IUnattended functions:

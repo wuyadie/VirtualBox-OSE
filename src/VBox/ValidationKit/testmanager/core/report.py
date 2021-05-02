@@ -7,7 +7,7 @@ Test Manager - Report models.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard Python imports.
@@ -59,7 +59,7 @@ class ReportFilter(TestResultFilter):
 
 
 
-class ReportModelBase(ModelLogicBase): # pylint: disable=R0903
+class ReportModelBase(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Something all report logic(/miner) classes inherit from.
     """
@@ -206,11 +206,12 @@ class ReportModelBase(ModelLogicBase): # pylint: disable=R0903
         """
         if iPeriod == 0:
             return 'now' if self.tsNow is None else 'then';
+        sTerm = 'ago' if self.tsNow is None else 'earlier';
         if self.cHoursPerPeriod == 24:
-            return '%dd ago' % (iPeriod, );
+            return '%dd %s' % (iPeriod, sTerm, );
         if (iPeriod * self.cHoursPerPeriod) % 24 == 0:
-            return '%dd ago' % (iPeriod * self.cHoursPerPeriod / 24, );
-        return '%dh ago' % (iPeriod * self.cHoursPerPeriod, );
+            return '%dd %s' % (iPeriod * self.cHoursPerPeriod / 24, sTerm, );
+        return '%dh %s' % (iPeriod * self.cHoursPerPeriod, sTerm);
 
     def getStraightPeriodDesc(self, iPeriod):
         """
@@ -241,7 +242,7 @@ class ReportTransientBase(object):
 
 class ReportFailureReasonTransient(ReportTransientBase):
     """ Details on the test where a failure reason was first/last seen.  """
-    def __init__(self, idBuild, iRevision, sRepository, idTestSet, idTestResult, tsDone,  # pylint: disable=R0913
+    def __init__(self, idBuild, iRevision, sRepository, idTestSet, idTestResult, tsDone,  # pylint: disable=too-many-arguments
                  iPeriod, fEnter, oReason):
         ReportTransientBase.__init__(self, idBuild, iRevision, sRepository, idTestSet, idTestResult, tsDone, iPeriod, fEnter,
                                      oReason.idFailureReason, oReason);
@@ -465,7 +466,7 @@ class ReportPeriodSetBase(object):
     def pruneRowsWithZeroSumHits(self):
         """ Discards rows with zero sum hits across all periods.  Works around lazy selects counting both totals and hits. """
         cDeleted = 0;
-        aidKeys  = self.dcHitsPerId.keys();
+        aidKeys  = list(self.dcHitsPerId);
         for idKey in aidKeys:
             if self.dcHitsPerId[idKey] == 0:
                 self.deleteKey(idKey);
@@ -529,7 +530,7 @@ class ReportFailureReasonSet(ReportPeriodSetBase):
 
 
 
-class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
+class ReportLazyModel(ReportModelBase): # pylint: disable=too-few-public-methods
     """
     The 'lazy bird' report model class.
 
@@ -889,7 +890,7 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
 
 
 
-class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
+class ReportGraphModel(ReportModelBase): # pylint: disable=too-few-public-methods
     """
     Extended report model used when generating the more complicated graphs
     detailing results, time elapsed and values over time.
@@ -976,7 +977,7 @@ class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
             return oDataSeries;
 
 
-    def __init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, # pylint: disable=R0913
+    def __init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, # pylint: disable=too-many-arguments
                  aidTestBoxes, aidBuildCats, aidTestCases, fSepTestVars):
         assert(sSubject == self.ksSubEverything); # dummy
         ReportModelBase.__init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, oFilter = None);

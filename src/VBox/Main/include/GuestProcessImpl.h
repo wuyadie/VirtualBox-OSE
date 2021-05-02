@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,11 +76,12 @@ public:
 
     /** @name Static internal methods.
      * @{ */
-    static Utf8Str i_guestErrorToString(int guestRc);
+    static Utf8Str i_guestErrorToString(int rcGuest, const char *pcszWhat);
     static bool i_isGuestError(int guestRc);
-    static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     static ProcessWaitResult_T i_waitFlagsToResultEx(uint32_t fWaitFlags, ProcessStatus_T oldStatus, ProcessStatus_T newStatus, uint32_t uProcFlags, uint32_t uProtocol);
+#if 0 /* unused */
     static bool i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProtocol);
+#endif
     /** @}  */
 
 protected:
@@ -266,6 +267,11 @@ public:
     static int exitCodeToRc(const GuestProcessStartupInfo &startupInfo, int32_t iExitCode);
 
     static int exitCodeToRc(const char *pszTool, int32_t iExitCode);
+    /** @}  */
+
+    /** Wrapped @name Static guest error conversion methods.
+     * @{ */
+    static Utf8Str guestErrorToString(const char *pszTool, const GuestErrorInfo& guestErrorInfo);
     /** @}  */
 
 protected:

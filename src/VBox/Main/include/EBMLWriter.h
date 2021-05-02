@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,13 +21,13 @@
 # pragma once
 #endif
 
-#include <iprt/file.h>
-#include <VBox/com/string.h>
-
 #include <stack>
 
-#include <iprt/cdefs.h>
+#include <iprt/critsect.h>
 #include <iprt/file.h>
+
+#include <VBox/com/string.h>
+
 
 /** No flags set. */
 #define VBOX_EBMLWRITER_FLAG_NONE               0

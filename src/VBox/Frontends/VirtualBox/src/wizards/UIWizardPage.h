@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@ public:
 protected:
 
     /** Returns wizard this page-base belongs to. */
-    virtual UIWizard *wizardImp();
+    virtual UIWizard *wizardImp() const;
 
     /** Returns wizard page this page-base belongs to. */
     virtual UIWizardPage *thisImp();

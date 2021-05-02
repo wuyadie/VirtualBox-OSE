@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2019 Oracle Corporation
+ * Copyright (C) 2004-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -119,7 +119,7 @@ void set_esi_hi(uint16_t val);
 
 /* The APM handler has unique requirements. It must be callable from real and
  * protected mode, both 16-bit and 32-bit. In protected mode, the caller must
- * ensures that appropriate selectors are available; these only cover the BIOS
+ * ensure that appropriate selectors are available; these only cover the BIOS
  * code and data, hence the BIOS Data Area or EBDA cannot be accessed. CMOS is
  * a good place to store information which needs to be accessible from several
  * different contexts.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -288,6 +288,19 @@ public:
         ::RTUuidToUtf16(&mUuid, buf, RT_ELEMENTS(buf));
 
         return Bstr(buf);
+    }
+
+    /**
+     * Convert the GUID to a C string.
+     *
+     * @returns See RTUuidToStr.
+     * @param   pszUuid The output buffer
+     * @param   cbUuid  The size of the output buffer.  Should be at least
+     *                  RTUUID_STR_LENGTH in length.
+     */
+    int toString(char *pszUuid, size_t cbUuid) const
+    {
+        return ::RTUuidToStr(mGuidState != GUID_INVALID ? &mUuid : &Empty.mUuid, pszUuid, cbUuid);
     }
 
     bool isValid() const

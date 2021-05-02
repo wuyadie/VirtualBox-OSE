@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,9 @@ void UIDetails::prepare()
                 /* Add into layout: */
                 pMainLayout->addWidget(m_pDetailsView);
             }
+
+            /* Init model: */
+            m_pDetailsModel->init();
         }
     }
 
@@ -76,12 +79,8 @@ void UIDetails::prepare()
     /* Setup details-model connections: */
     connect(m_pDetailsModel, &UIDetailsModel::sigRootItemMinimumWidthHintChanged,
             m_pDetailsView, &UIDetailsView::sltMinimumWidthHintChanged);
-    connect(m_pDetailsModel, &UIDetailsModel::sigRootItemMinimumHeightHintChanged,
-            m_pDetailsView, &UIDetailsView::sltMinimumHeightHintChanged);
     connect(m_pDetailsModel, &UIDetailsModel::sigLinkClicked,
             this, &UIDetails::sigLinkClicked);
-    connect(this, &UIDetails::sigSlidingStarted,
-            m_pDetailsModel, &UIDetailsModel::sltHandleSlidingStarted);
     connect(this, &UIDetails::sigToggleStarted,
             m_pDetailsModel, &UIDetailsModel::sltHandleToggleStarted);
     connect(this, &UIDetails::sigToggleFinished,

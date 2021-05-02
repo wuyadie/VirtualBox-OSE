@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,9 +46,8 @@ signals:
       * @{ */
         /** Notifies listeners about selection changed. */
         void sigSelectionChanged();
-
-        /** Notifies listeners about sliding started. */
-        void sigSlidingStarted();
+        /** Notifies listeners about selection invalidated. */
+        void sigSelectionInvalidated();
 
         /** Notifies listeners about toggling started. */
         void sigToggleStarted();
@@ -57,6 +56,12 @@ signals:
 
         /** Notifies listeners about tool popup-menu request for certain tool @a enmClass and in specified @a position. */
         void sigToolMenuRequested(UIToolClass enmClass, const QPoint &position);
+    /** @} */
+
+    /** @name Cloud machine stuff.
+      * @{ */
+        /** Notifies about state change for cloud machine with certain @a strId. */
+        void sigCloudMachineStateChange(const QString &strId);
     /** @} */
 
     /** @name Group saving stuff.
@@ -86,11 +91,11 @@ public:
         UIChooserView *view() const { return m_pChooserView; }
     /** @} */
 
-    /** @name Current item stuff.
+    /** @name Current-item stuff.
       * @{ */
-        /** Returns current item. */
+        /** Returns current-item. */
         UIVirtualMachineItem *currentItem() const;
-        /** Returns a list of current items. */
+        /** Returns a list of current-items. */
         QList<UIVirtualMachineItem*> currentItems() const;
 
         /** Returns whether group item is selected. */

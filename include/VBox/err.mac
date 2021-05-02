@@ -5,7 +5,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2019 Oracle Corporation
+; Copyright (C) 2006-2020 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -586,7 +586,6 @@
 %define VERR_HGCM_INVALID_CLIENT_ID    (-2905)
 %define VINF_HGCM_SAVE_STATE    (2906)
 %define VERR_HGCM_SERVICE_EXISTS    (-2907)
-%define VINF_NAT_DNS    3000
 %define VERR_NAT_REDIR_GUEST_IP    (-3001)
 %define VERR_NAT_REDIR_SETUP    (-3002)
 %define VERR_HOSTIF_INIT_FAILED    (-3100)

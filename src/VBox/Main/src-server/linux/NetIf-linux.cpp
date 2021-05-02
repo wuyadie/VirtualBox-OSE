@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -256,7 +256,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
                     else
                         enmType = HostNetworkInterfaceType_HostOnly;
 
-                    if (SUCCEEDED(IfObj->init(Bstr(pszName), enmType, &Info)))
+                    if (SUCCEEDED(IfObj->init(pszName, enmType, &Info)))
                     {
                         if (strcmp(pszName, szDefaultIface) == 0)
                             list.push_front(IfObj);

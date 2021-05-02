@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,12 +22,13 @@
 #endif
 
 /* Qt includes: */
+#include <QMainWindow>
 #include <QUrl>
 
 /* GUI includes: */
-#include "QIMainWindow.h"
+#include "QIWithRestorableGeometry.h"
 #include "QIWithRetranslateUI.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* Forward declarations: */
 class QMenu;
@@ -38,10 +39,12 @@ class UIVirtualBoxManagerWidget;
 class UIVirtualMachineItem;
 
 /* Type definitions: */
+typedef QIWithRestorableGeometry<QMainWindow> QMainWindowWithRestorableGeometry;
+typedef QIWithRetranslateUI<QMainWindowWithRestorableGeometry> QMainWindowWithRestorableGeometryAndRetranslateUi;
 typedef QMap<QString, QIManagerDialog*> VMLogViewerMap;
 
-/** Singleton QIMainWindow extension used as VirtualBox Manager instance. */
-class UIVirtualBoxManager : public QIWithRetranslateUI<QIMainWindow>
+/** Singleton QMainWindow extension used as VirtualBox Manager instance. */
+class UIVirtualBoxManager : public QMainWindowWithRestorableGeometryAndRetranslateUi
 {
     Q_OBJECT;
 
@@ -90,10 +93,6 @@ protected:
 
         /** Handles any Qt @a pEvent. */
         virtual bool event(QEvent *pEvent) /* override */;
-        /** Handles move @a pEvent. */
-        virtual void moveEvent(QMoveEvent *pEvent) /* override */;
-        /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
         /** Handles show @a pEvent. */
         virtual void showEvent(QShowEvent *pEvent) /* override */;
         /** Handles first show @a pEvent. */
@@ -130,6 +129,9 @@ private slots:
 
         /** Handles current snapshot item change. */
         void sltCurrentSnapshotItemChange();
+
+        /** Handles state change for cloud machine with specified @a strMachineId. */
+        void sltHandleCloudMachineStateChange(const QString strMachineId);
     /** @} */
 
     /** @name CVirtualBox event handling stuff.
@@ -162,6 +164,8 @@ private slots:
         void sltOpenImportApplianceWizardDefault() { sltOpenImportApplianceWizard(); }
         /** Handles call to open Export Appliance wizard. */
         void sltOpenExportApplianceWizard();
+        /** Handles call to open New Cloud VM wizard. */
+        void sltOpenNewCloudVMWizard();
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         /** Handles call to open Extra-data Manager window. */
@@ -297,7 +301,7 @@ private:
     /** @name VM launching stuff.
       * @{ */
         /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
-        void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, VBoxGlobal::LaunchMode enmLaunchMode);
+        void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UICommon::LaunchMode enmLaunchMode);
     /** @} */
 
     /** @name Action update stuff.
@@ -311,6 +315,8 @@ private:
           * @param items used to calculate verdict about should the action be enabled. */
         bool isActionEnabled(int iActionIndex, const QList<UIVirtualMachineItem*> &items);
 
+        /** Returns whether all passed @a items are local. */
+        static bool isItemsLocal(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether all passed @a items are powered off. */
         static bool isItemsPoweredOff(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether at least one of passed @a items is able to shutdown. */
@@ -342,7 +348,7 @@ private:
 
     /** Holds whether the dialog is polished. */
     bool  m_fPolished                      : 1;
-    /** Holds whether first medium enumeration handled. */
+    /** Holds whether first medium-enumeration handled. */
     bool  m_fFirstMediumEnumerationHandled : 1;
 
     /** Holds the action-pool instance. */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 #include "../VBoxDispD3DCmn.h"
 #include "../VBoxDispD3D.h"
 
+#include "GaDxva.h"
 
 /* Copy surface data from D3DPOOL_DEFAULT to D3DPOOL_SYSTEMMEM */
 static HRESULT gaSurfaceCopyD2S(IDirect3DDevice9 *pDevice,
@@ -152,6 +153,7 @@ HRESULT APIENTRY GaDdiBlt(HANDLE hDevice, const D3DDDIARG_BLT *pData)
                     pointDst.x = pData->DstRect.left;
                     pointDst.y = pData->DstRect.top;
                     hr = pDevice9If->UpdateSurface(pSrcSurfIf, &pData->SrcRect, pDstSurfIf, &pointDst);
+                    Assert(hr == S_OK);
                 }
             }
             else
@@ -173,6 +175,7 @@ HRESULT APIENTRY GaDdiBlt(HANDLE hDevice, const D3DDDIARG_BLT *pData)
                     hr = gaSurfaceCopyD2S(pDevice9If,
                                           pSrcRc->RcDesc.enmFormat, pSrcSurfIf, &pData->SrcRect,
                                           pDstRc->RcDesc.enmFormat, pDstSurfIf, &pointDst);
+                    Assert(hr == S_OK);
                 }
                 else
                 {
@@ -200,6 +203,7 @@ HRESULT APIENTRY GaDdiBlt(HANDLE hDevice, const D3DDDIARG_BLT *pData)
                          * At the moment NineDevice9_StretchRect includes VBox hack, see "Hack. Flip src Y."
                          */
                         hr = pDevice9If->StretchRect(pSrcSurfIf, &pData->SrcRect, pDstSurfIf, &pData->DstRect, Filter);
+                        Assert(hr == S_OK);
                     }
                     else
                     {
@@ -1892,26 +1896,23 @@ HRESULT APIENTRY GaDdiCreateResource(HANDLE hDevice, D3DDDIARG_CREATERESOURCE *p
 
                 if (bSetHostID)
                 {
-                    IDirect3DSurface9 *pSurfIf = NULL;
-                    hr = VBoxD3DIfSurfGet(pRc, i, &pSurfIf);
-                    if (SUCCEEDED(hr))
+                    if (pGaD3DDevice9Ex)
                     {
-                        Assert(pGaD3DDevice9Ex);
                         hr = pGaD3DDevice9Ex->GaSurfaceId(pAllocation->pD3DIf, &pWddmAllocInfo->hostID);
-                        if (SUCCEEDED(hr))
-                        {
-                            Assert(pWddmAllocInfo->hostID);
-                        }
-                        else
-                        {
-                            WARN(("pfnVBoxWineExD3DSurf9GetHostId failed, hr 0x%x", hr));
-                            break;
-                        }
-                        pSurfIf->Release();
                     }
                     else
                     {
-                        WARN(("VBoxD3DIfSurfGet failed, hr 0x%x", hr));
+                        AssertFailed();
+                        hr = E_FAIL;
+                    }
+
+                    if (SUCCEEDED(hr))
+                    {
+                        Assert(pWddmAllocInfo->hostID);
+                    }
+                    else
+                    {
+                        WARN(("pGaD3DDevice9Ex->GaSurfaceId failed, hr 0x%x", hr));
                         break;
                     }
                 }
@@ -2046,8 +2047,14 @@ HRESULT APIENTRY GaDdiDestroyResource(HANDLE hDevice, HANDLE hResource)
             PVBOXWDDMDISP_ALLOCATION pAlloc = &pRc->aAllocations[i];
             if (pAlloc->hSharedHandle)
             {
-                if (i == 0)
+                if (pAlloc->hSharedHandle == (HANDLE)pAlloc->hostID)
                 {
+                    /* The original shared resource is being destroyed. */
+                    Assert(pRc->RcDesc.fFlags.SharedResource);
+                }
+                else if (i == 0)
+                {
+                    /* This resource has been opened and maps to a the original shared resource. */
                     /* Tell miniport to remove the sid -> shared sid mapping. */
                     IGaDirect3DDevice9Ex *pGaD3DDevice9Ex = NULL;
                     IDirect3DDevice9 *pDevice9If = VBOXDISP_D3DEV(pDevice);
@@ -2647,84 +2654,38 @@ HRESULT APIENTRY GaDdiDrawIndexedPrimitive2(HANDLE hDevice, const D3DDDIARG_DRAW
 
     if (SUCCEEDED(hr))
     {
-        /* Convert input data to appropriate DrawIndexedPrimitiveUP parameters.
-         * In particular prepare zero based vertex array becuase wine does not
-         * handle MinVertexIndex correctly.
-         */
+        hr = pDevice9If->DrawIndexedPrimitiveUP(pData->PrimitiveType,
+                                                pData->MinIndex,
+                                                pData->NumVertices,
+                                                pData->PrimitiveCount,
+                                                (uint8_t *)pIndexBuffer + pData->StartIndexOffset,
+                                                dwIndicesSize == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32,
+                                                pu8VertexBuffer + pData->BaseVertexOffset,
+                                                cbVertexStride);
 
-        /* Take the offset, which corresponds to the index == 0, into account. */
-        const uint8_t *pu8VertexStart = pu8VertexBuffer + pData->BaseVertexOffset;
-
-        /* Where the pData->MinIndex starts. */
-        pu8VertexStart += pData->MinIndex * cbVertexStride;
-
-        /* Convert indexes to zero based relative to pData->MinIndex. */
-        const uint8_t *pu8IndicesStartSrc = (uint8_t *)pIndexBuffer + pData->StartIndexOffset;
-        UINT cIndices = vboxWddmVertexCountFromPrimitive(pData->PrimitiveType, pData->PrimitiveCount);
-
-        /* Allocate memory for converted indices. */
-        uint8_t *pu8IndicesStartConv = (uint8_t *)RTMemAlloc(cIndices * dwIndicesSize);
-        if (pu8IndicesStartConv != NULL)
-        {
-            UINT i;
-            if (dwIndicesSize == 2)
-            {
-                uint16_t *pu16Src = (uint16_t *)pu8IndicesStartSrc;
-                uint16_t *pu16Dst = (uint16_t *)pu8IndicesStartConv;
-                for (i = 0; i < cIndices; ++i, ++pu16Dst, ++pu16Src)
-                {
-                    *pu16Dst = *pu16Src - pData->MinIndex;
-                }
-            }
-            else
-            {
-                uint32_t *pu32Src = (uint32_t *)pu8IndicesStartSrc;
-                uint32_t *pu32Dst = (uint32_t *)pu8IndicesStartConv;
-                for (i = 0; i < cIndices; ++i, ++pu32Dst, ++pu32Src)
-                {
-                    *pu32Dst = *pu32Src - pData->MinIndex;
-                }
-            }
-
-            hr = pDevice9If->DrawIndexedPrimitiveUP(pData->PrimitiveType,
-                                                    0,
-                                                    pData->NumVertices,
-                                                    pData->PrimitiveCount,
-                                                    pu8IndicesStartConv,
-                                                    dwIndicesSize == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32,
-                                                    pu8VertexStart,
-                                                    cbVertexStride);
-
-            if (SUCCEEDED(hr))
-                hr = S_OK;
-            else
-                WARN(("DrawIndexedPrimitiveUP failed hr = 0x%x", hr));
-
-            RTMemFree(pu8IndicesStartConv);
-
-            /* Following any IDirect3DDevice9::DrawIndexedPrimitiveUP call, the stream 0 settings,
-             * referenced by IDirect3DDevice9::GetStreamSource, are set to NULL. Also, the index
-             * buffer setting for IDirect3DDevice9::SetIndices is set to NULL.
-             */
-            if (pDevice->aStreamSource[0])
-            {
-                HRESULT tmpHr = pDevice9If->SetStreamSource(0, (IDirect3DVertexBuffer9*)pDevice->aStreamSource[0]->pD3DIf,
-                                                            pDevice->StreamSourceInfo[0].uiOffset,
-                                                            pDevice->StreamSourceInfo[0].uiStride);
-                if(!SUCCEEDED(tmpHr))
-                    WARN(("SetStreamSource failed hr = 0x%x", tmpHr));
-            }
-
-            if (pDevice->IndiciesInfo.pIndicesAlloc)
-            {
-                HRESULT tmpHr = pDevice9If->SetIndices((IDirect3DIndexBuffer9*)pDevice->IndiciesInfo.pIndicesAlloc->pD3DIf);
-                if(!SUCCEEDED(tmpHr))
-                    WARN(("SetIndices failed hr = 0x%x", tmpHr));
-            }
-        }
+        if (SUCCEEDED(hr))
+            hr = S_OK;
         else
+            WARN(("DrawIndexedPrimitiveUP failed hr = 0x%x", hr));
+
+        /* Following any IDirect3DDevice9::DrawIndexedPrimitiveUP call, the stream 0 settings,
+         * referenced by IDirect3DDevice9::GetStreamSource, are set to NULL. Also, the index
+         * buffer setting for IDirect3DDevice9::SetIndices is set to NULL.
+         */
+        if (pDevice->aStreamSource[0])
         {
-            hr = E_OUTOFMEMORY;
+            HRESULT tmpHr = pDevice9If->SetStreamSource(0, (IDirect3DVertexBuffer9*)pDevice->aStreamSource[0]->pD3DIf,
+                                                        pDevice->StreamSourceInfo[0].uiOffset,
+                                                        pDevice->StreamSourceInfo[0].uiStride);
+            if(!SUCCEEDED(tmpHr))
+                WARN(("SetStreamSource failed hr = 0x%x", tmpHr));
+        }
+
+        if (pDevice->IndiciesInfo.pIndicesAlloc)
+        {
+            HRESULT tmpHr = pDevice9If->SetIndices((IDirect3DIndexBuffer9*)pDevice->IndiciesInfo.pIndicesAlloc->pD3DIf);
+            if(!SUCCEEDED(tmpHr))
+                WARN(("SetIndices failed hr = 0x%x", tmpHr));
         }
     }
 
@@ -3169,6 +3130,7 @@ HRESULT APIENTRY GaDdiSetViewport(HANDLE hDevice, const D3DDDIARG_VIEWPORTINFO *
     pDevice->ViewPort.Y      = pData->Y;
     pDevice->ViewPort.Width  = pData->Width;
     pDevice->ViewPort.Height = pData->Height;
+    pDevice->fViewPort = true;
 
     HRESULT hr = pDevice9If->SetViewport(&pDevice->ViewPort);
     Assert(hr == S_OK);
@@ -3188,6 +3150,7 @@ HRESULT APIENTRY GaDdiSetZRange(HANDLE hDevice, const D3DDDIARG_ZRANGE *pData)
 
     pDevice->ViewPort.MinZ = pData->MinZ;
     pDevice->ViewPort.MaxZ = pData->MaxZ;
+    pDevice->fViewPort = true;
 
     HRESULT hr = pDevice9If->SetViewport(&pDevice->ViewPort);
     Assert(hr == S_OK);
@@ -3455,6 +3418,9 @@ HRESULT APIENTRY GaDdiSetScissorRect(HANDLE hDevice, const RECT *pRect)
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
     IDirect3DDevice9 *pDevice9If = VBOXDISP_D3DEV(pDevice);
+
+    pDevice->ScissorRect = *pRect;
+    pDevice->fScissorRect = true;
 
     HRESULT hr = pDevice9If->SetScissorRect(pRect);
     Assert(hr == S_OK);
@@ -3832,6 +3798,16 @@ HRESULT APIENTRY GaDdiSetRenderTarget(HANDLE hDevice, const D3DDDIARG_SETRENDERT
     if (hr == S_OK)
     {
         pDevice->apRTs[pData->RenderTargetIndex] = pAlloc;
+
+        /* IDirect3DDevice9::SetRenderTarget method resets the viewport and the scissor rectangle. */
+        if (pDevice->fViewPort)
+        {
+            pDevice9If->SetViewport(&pDevice->ViewPort);
+        }
+        if (pDevice->fScissorRect)
+        {
+            pDevice9If->SetScissorRect(&pDevice->ScissorRect);
+        }
     }
 
     if (pD3D9Surf)
@@ -4034,72 +4010,56 @@ HRESULT APIENTRY GaDdiCreateVideoProcessDevice(HANDLE hDevice, D3DDDIARG_CREATEV
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(pData);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr;
+    if (pDevice)
+        hr = VBoxDxvaCreateVideoProcessDevice(pDevice, pData);
+    else
+        hr = E_INVALIDARG;
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiDestroyVideoProcessDevice(HANDLE hDevice, HANDLE hVideoProcessor)
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(hVideoProcessor);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr = VBoxDxvaDestroyVideoProcessDevice(pDevice, hVideoProcessor);
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiVideoProcessBeginFrame(HANDLE hDevice, HANDLE hVideoProcessor)
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(hVideoProcessor);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr = VBoxDxvaVideoProcessBeginFrame(pDevice, hVideoProcessor);
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiVideoProcessEndFrame(HANDLE hDevice, D3DDDIARG_VIDEOPROCESSENDFRAME* pData)
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(pData);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr = VBoxDxvaVideoProcessEndFrame(pDevice, pData);
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiSetVideoProcessRenderTarget(HANDLE hDevice,
@@ -4107,36 +4067,26 @@ HRESULT APIENTRY GaDdiSetVideoProcessRenderTarget(HANDLE hDevice,
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(pData);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr = VBoxDxvaSetVideoProcessRenderTarget(pDevice, pData);
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiVideoProcessBlt(HANDLE hDevice, const D3DDDIARG_VIDEOPROCESSBLT *pData)
 {
     VBOXVDBG_BREAK_DDI();
 
-    RT_NOREF(pData);
-
     vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
 
     PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
-    RT_NOREF(pDevice);
-
-    /// @todo Not implemented.
-    AssertFailed();
+    HRESULT hr = VBoxDxvaVideoProcessBlt(pDevice, pData);
 
     vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
-    return E_NOTIMPL;
+    return hr;
 }
 
 HRESULT APIENTRY GaDdiCreateExtensionDevice(HANDLE hDevice, D3DDDIARG_CREATEEXTENSIONDEVICE *pData)
@@ -4545,6 +4495,139 @@ HRESULT APIENTRY GaDdiDestroyDevice(HANDLE hDevice)
     return S_OK;
 }
 
+HRESULT APIENTRY GaDdiDXVAHDCreateVideoProcessor(HANDLE hDevice,
+    D3DDDIARG_DXVAHD_CREATEVIDEOPROCESSOR *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDSetVideoProcessBltState(HANDLE hDevice,
+    CONST D3DDDIARG_DXVAHD_SETVIDEOPROCESSBLTSTATE *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDGetVideoProcessBltStatePrivate(HANDLE hDevice,
+    D3DDDIARG_DXVAHD_GETVIDEOPROCESSBLTSTATEPRIVATE *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDSetVideoProcessStreamState(HANDLE hDevice,
+    CONST D3DDDIARG_DXVAHD_SETVIDEOPROCESSSTREAMSTATE *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDGetVideoProcessStreamStatePrivate(HANDLE hDevice,
+    D3DDDIARG_DXVAHD_GETVIDEOPROCESSSTREAMSTATEPRIVATE *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDVideoProcessBltHD(HANDLE hDevice,
+    CONST D3DDDIARG_DXVAHD_VIDEOPROCESSBLTHD *pData)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(pData);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
+HRESULT APIENTRY GaDdiDXVAHDDestroyVideoProcessor(HANDLE hDevice,
+    HANDLE hProcessor)
+{
+    VBOXVDBG_BREAK_DDI();
+
+    RT_NOREF(hProcessor);
+
+    vboxVDbgPrintF(("<== "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+
+    PVBOXWDDMDISP_DEVICE pDevice = (PVBOXWDDMDISP_DEVICE)hDevice;
+    RT_NOREF(pDevice);
+
+    /// @todo Not implemented.
+    AssertFailed();
+
+    vboxVDbgPrintF(("==> "__FUNCTION__", hDevice(0x%p)\n", hDevice));
+    return E_NOTIMPL;
+}
+
 HRESULT APIENTRY GaDdiAdapterCreateDevice(HANDLE hAdapter, D3DDDIARG_CREATEDEVICE *pCreateData)
 {
     VBOXVDBG_BREAK_DDI();
@@ -4582,6 +4665,8 @@ HRESULT APIENTRY GaDdiAdapterCreateDevice(HANDLE hAdapter, D3DDDIARG_CREATEDEVIC
         pDevice->ViewPort.Height = 1;
         pDevice->ViewPort.MinZ   = 0.;
         pDevice->ViewPort.MaxZ   = 1.;
+        pDevice->fViewPort = false;
+        pDevice->fScissorRect = false;
 
         /*
          * Set data for the DX runtime.
@@ -4688,6 +4773,13 @@ HRESULT APIENTRY GaDdiAdapterCreateDevice(HANDLE hAdapter, D3DDDIARG_CREATEDEVIC
         // pCreateData->pDeviceFuncs->pfnUnlockAsync               = NULL; /* Optional. */
         // pCreateData->pDeviceFuncs->pfnRename                    = NULL; /* Optional. */
 
+        // pCreateData->pDeviceFuncs->pfnCreateVideoProcessor              = GaDdiDXVAHDCreateVideoProcessor;
+        // pCreateData->pDeviceFuncs->pfnSetVideoProcessBltState           = GaDdiDXVAHDSetVideoProcessBltState;
+        // pCreateData->pDeviceFuncs->pfnGetVideoProcessBltStatePrivate    = GaDdiDXVAHDGetVideoProcessBltStatePrivate;
+        // pCreateData->pDeviceFuncs->pfnSetVideoProcessStreamState        = GaDdiDXVAHDSetVideoProcessStreamState;
+        // pCreateData->pDeviceFuncs->pfnGetVideoProcessStreamStatePrivate = GaDdiDXVAHDGetVideoProcessStreamStatePrivate;
+        // pCreateData->pDeviceFuncs->pfnVideoProcessBltHD                 = GaDdiDXVAHDVideoProcessBltHD;
+        // pCreateData->pDeviceFuncs->pfnDestroyVideoProcessor             = GaDdiDXVAHDDestroyVideoProcessor;
     }
     else
     {
@@ -4848,12 +4940,12 @@ HRESULT APIENTRY GaDdiAdapterGetCaps(HANDLE hAdapter, const D3DDDIARG_GETCAPS *p
         }
 
         case D3DDDICAPS_GETFORMATCOUNT:
-            *((uint32_t*)pData->pData) = pAdapter->Formats.cFormstOps;
+            *((uint32_t*)pData->pData) = pAdapter->Formats.cFormatOps;
             break;
 
         case D3DDDICAPS_GETFORMATDATA:
-            Assert(pData->DataSize == pAdapter->Formats.cFormstOps * sizeof(FORMATOP));
-            memcpy(pData->pData, pAdapter->Formats.paFormstOps, pAdapter->Formats.cFormstOps * sizeof(FORMATOP));
+            Assert(pData->DataSize == pAdapter->Formats.cFormatOps * sizeof(FORMATOP));
+            memcpy(pData->pData, pAdapter->Formats.paFormatOps, pAdapter->Formats.cFormatOps * sizeof(FORMATOP));
             break;
 
         case D3DDDICAPS_GETD3DQUERYCOUNT:
@@ -4964,7 +5056,6 @@ HRESULT APIENTRY GaDdiAdapterGetCaps(HANDLE hAdapter, const D3DDDIARG_GETCAPS *p
                 }
                 else
                 {
-                    AssertFailed();
                     memset(pData->pData, 0, sizeof (D3DCAPS9));
                 }
             }
@@ -4997,11 +5088,61 @@ HRESULT APIENTRY GaDdiAdapterGetCaps(HANDLE hAdapter, const D3DDDIARG_GETCAPS *p
             *((uint32_t*)pData->pData) = 0;
             break;
 
+        case D3DDDICAPS_GETVIDEOPROCESSORDEVICEGUIDCOUNT:
+        {
+            if (pData->DataSize >= sizeof(UINT))
+            {
+                if (pAdapter->AdapterInfo.u32AdapterCaps & VBOXWDDM_QAI_CAP_DXVA)
+                    hr = VBoxDxvaGetDeviceGuidCount((UINT *)pData->pData);
+                else
+                    *(UINT *)pData->pData = 0;
+            }
+            else
+                hr = E_INVALIDARG;
+            break;
+        }
+
+        case D3DDDICAPS_GETVIDEOPROCESSORDEVICEGUIDS:
+        {
+            hr = VBoxDxvaGetDeviceGuids((GUID *)pData->pData, pData->DataSize);
+            break;
+        }
+
+        case D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATCOUNT:
+        case D3DDDICAPS_GETVIDEOPROCESSORRTFORMATCOUNT:
+        {
+            if (pData->DataSize >= sizeof(UINT))
+                if (pAdapter->AdapterInfo.u32AdapterCaps & VBOXWDDM_QAI_CAP_DXVA)
+                    hr = VBoxDxvaGetOutputFormatCount((UINT *)pData->pData, (DXVADDI_VIDEOPROCESSORINPUT *)pData->pInfo,
+                                                      pData->Type == D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATCOUNT);
+                else
+                    *(UINT *)pData->pData = 0;
+            else
+                hr = E_INVALIDARG;
+            break;
+        }
+
+        case D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATS:
+        case D3DDDICAPS_GETVIDEOPROCESSORRTFORMATS:
+        {
+            hr = VBoxDxvaGetOutputFormats((D3DDDIFORMAT *)pData->pData, pData->DataSize,
+                                          (DXVADDI_VIDEOPROCESSORINPUT *)pData->pInfo,
+                                          pData->Type == D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATS);
+            break;
+        }
+
         case D3DDDICAPS_GETVIDEOPROCESSORCAPS:
+        {
+            if (pData->DataSize >= sizeof(DXVADDI_VIDEOPROCESSORCAPS))
+                hr = VBoxDxvaGetCaps((DXVADDI_VIDEOPROCESSORCAPS *)pData->pData,
+                                     (DXVADDI_VIDEOPROCESSORINPUT *)pData->pInfo);
+            else
+                hr = E_INVALIDARG;
+            break;
+        }
+
         case D3DDDICAPS_GETEXTENSIONGUIDCOUNT:
         case D3DDDICAPS_GETDECODEGUIDCOUNT:
-        case D3DDDICAPS_GETVIDEOPROCESSORDEVICEGUIDCOUNT:
-        case D3DDDICAPS_GETVIDEOPROCESSORRTFORMATCOUNT:
         case D3DDDICAPS_GETCONTENTPROTECTIONCAPS:
             if (pData->pData && pData->DataSize)
                 memset(pData->pData, 0, pData->DataSize);
@@ -5017,10 +5158,6 @@ HRESULT APIENTRY GaDdiAdapterGetCaps(HANDLE hAdapter, const D3DDDIARG_GETCAPS *p
         case D3DDDICAPS_GETDECODECOMPRESSEDBUFFERINFO:
         case D3DDDICAPS_GETDECODECONFIGURATIONCOUNT:
         case D3DDDICAPS_GETDECODECONFIGURATIONS:
-        case D3DDDICAPS_GETVIDEOPROCESSORDEVICEGUIDS:
-        case D3DDDICAPS_GETVIDEOPROCESSORRTFORMATS:
-        case D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATCOUNT:
-        case D3DDDICAPS_GETVIDEOPROCESSORRTSUBSTREAMFORMATS:
         case D3DDDICAPS_GETPROCAMPRANGE:
         case D3DDDICAPS_FILTERPROPERTYRANGE:
         case D3DDDICAPS_GETEXTENSIONGUIDS:

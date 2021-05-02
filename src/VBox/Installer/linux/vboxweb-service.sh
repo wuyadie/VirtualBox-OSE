@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 # Default-Start:  2 3 4 5
 # Default-Stop:   0 1 6
 # Description:    VirtualBox web service API
+# X-Required-Target-Start: network-online
 ### END INIT INFO
 
 PATH=$PATH:/bin:/sbin:/usr/sbin

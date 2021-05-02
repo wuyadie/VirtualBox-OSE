@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -146,7 +146,7 @@ static int rtIniFileLoad(PRTINIFILEINT pThis)
      * Load the entire file into memory, ensuring two terminating zeros.
      */
     uint64_t cbFile;
-    int rc = RTVfsFileGetSize(pThis->hVfsFile, &cbFile);
+    int rc = RTVfsFileQuerySize(pThis->hVfsFile, &cbFile);
     AssertRCReturn(rc, rc);
 
     if (cbFile > RTINIFILE_MAX_SIZE)

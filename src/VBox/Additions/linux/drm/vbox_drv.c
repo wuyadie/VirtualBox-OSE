@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_drv.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -36,13 +36,11 @@
 #include <linux/console.h>
 #include <linux/vt_kern.h>
 
-#include <drm/drmP.h>
-#include <drm/drm_crtc_helper.h>
-
 #include "vbox_drv.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
-#include <drm/drm_probe_helper.h>
+#include <drm/drm_crtc_helper.h>
+#if RTLNX_VER_MIN(5,1,0) || RTLNX_RHEL_MAJ_PREREQ(8,1)
+# include <drm/drm_probe_helper.h>
 #endif
 
 #include "version-generated.h"
@@ -63,17 +61,52 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 
 static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
+#if RTLNX_VER_MIN(4,19,0) || RTLNX_RHEL_MIN(8,3)
+	struct drm_device *dev = NULL;
+	int ret = 0;
+
+	dev = drm_dev_alloc(&driver, &pdev->dev);
+	if (IS_ERR(dev)) {
+		ret = PTR_ERR(dev);
+		goto err_drv_alloc;
+	}
+	dev->pdev = pdev;
+	pci_set_drvdata(pdev, dev);
+
+	ret = vbox_driver_load(dev);
+	if (ret)
+		goto err_vbox_driver_load;
+
+	ret = drm_dev_register(dev, 0);
+	if (ret)
+		goto err_drv_dev_register;
+	return ret;
+
+err_drv_dev_register:
+	vbox_driver_unload(dev);
+err_vbox_driver_load:
+	drm_dev_put(dev);
+err_drv_alloc:
+	return ret;
+#else /* < 4.19.0 || RHEL < 8.3 */
 	return drm_get_pci_dev(pdev, ent, &driver);
+#endif
 }
 
 static void vbox_pci_remove(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 
+#if RTLNX_VER_MAX(4,19,0)
 	drm_put_dev(dev);
+#else
+	drm_dev_unregister(dev);
+	vbox_driver_unload(dev);
+	drm_dev_put(dev);
+#endif
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0) && !defined(RHEL_74)
+#if RTLNX_VER_MAX(4,9,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 static void drm_fb_helper_set_suspend_unlocked(struct drm_fb_helper *fb_helper,
 					bool suspend)
 {
@@ -191,7 +224,7 @@ static struct pci_driver vbox_pci_driver = {
 	.driver.pm = &vbox_pm_ops,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !defined(RHEL_74)
+#if RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 /* This works around a bug in X servers prior to 1.18.4, which sometimes
  * submit more dirty rectangles than the kernel is willing to handle and
  * then disable dirty rectangle handling altogether when they see the
@@ -207,20 +240,20 @@ long vbox_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	return rc;
 }
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !RHEL_74 */
+#endif /* RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4) */
 
 static const struct file_operations vbox_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
 	.release = drm_release,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !defined(RHEL_74)
+#if RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 	.unlocked_ioctl = vbox_ioctl,
 #else
 	.unlocked_ioctl = drm_ioctl,
 #endif
 	.mmap = vbox_mmap,
 	.poll = drm_poll,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_70)
+#if RTLNX_VER_MAX(3,12,0) && !RTLNX_RHEL_MAJ_PREREQ(7,0)
 	.fasync = drm_fasync,
 #endif
 #ifdef CONFIG_COMPAT
@@ -229,8 +262,13 @@ static const struct file_operations vbox_fops = {
 	.read = drm_read,
 };
 
-static int vbox_master_set(struct drm_device *dev,
-			   struct drm_file *file_priv, bool from_open)
+#if RTLNX_VER_MIN(5,9,0) || RTLNX_RHEL_MIN(8,4)
+static void
+#else
+static int
+#endif
+vbox_master_set(struct drm_device *dev,
+		struct drm_file *file_priv, bool from_open)
 {
 	struct vbox_private *vbox = dev->dev_private;
 
@@ -248,10 +286,12 @@ static int vbox_master_set(struct drm_device *dev,
 	schedule_delayed_work(&vbox->refresh_work, VBOX_REFRESH_PERIOD);
 	mutex_unlock(&vbox->hw_mutex);
 
+#if RTLNX_VER_MAX(5,9,0) && !RTLNX_RHEL_MAJ_PREREQ(8,4)
 	return 0;
+#endif
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) && !defined(RHEL_74)
+#if RTLNX_VER_MAX(4,8,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 static void vbox_master_drop(struct drm_device *dev,
 			     struct drm_file *file_priv, bool from_release)
 #else
@@ -270,22 +310,26 @@ static void vbox_master_drop(struct drm_device *dev, struct drm_file *file_priv)
 }
 
 static struct drm_driver driver = {
-	.driver_features =
-	    DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ |
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#if RTLNX_VER_MAX(5,4,0) && !RTLNX_RHEL_MAJ_PREREQ(8,3)
+	.driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ |
+# if RTLNX_VER_MAX(5,1,0) && !RTLNX_RHEL_MAJ_PREREQ(8,1)
 	    DRIVER_IRQ_SHARED |
-#endif
+# endif
 	    DRIVER_PRIME,
-	.dev_priv_size = 0,
+#else  /* >= 5.4.0 && RHEL >= 8.3 */
+		.driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ,
+#endif /* <  5.4.0 */
 
+#if RTLNX_VER_MAX(4,19,0) && !RTLNX_RHEL_MAJ_PREREQ(8,3)
+	/* Legacy hooks, but still supported. */
 	.load = vbox_driver_load,
 	.unload = vbox_driver_unload,
+#endif
 	.lastclose = vbox_driver_lastclose,
 	.master_set = vbox_master_set,
 	.master_drop = vbox_master_drop,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_72)
-# if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0) && !defined(RHEL_75) \
-  && !defined(OPENSUSE_151)
+#if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
+# if RTLNX_VER_MAX(4,14,0) && !RTLNX_RHEL_MAJ_PREREQ(7,5) && !RTLNX_SUSE_MAJ_PREREQ(15,1) && !RTLNX_SUSE_MAJ_PREREQ(12,5)
 	.set_busid = drm_pci_set_busid,
 # endif
 #endif
@@ -299,30 +343,41 @@ static struct drm_driver driver = {
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
 
+#if RTLNX_VER_MAX(4,7,0)
 	.gem_free_object = vbox_gem_free_object,
+#endif
 	.dumb_create = vbox_dumb_create,
 	.dumb_map_offset = vbox_dumb_mmap_offset,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_73)
+#if RTLNX_VER_MAX(3,12,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3)
 	.dumb_destroy = vbox_dumb_destroy,
-#else
+#elif RTLNX_VER_MAX(5,12,0)
 	.dumb_destroy = drm_gem_dumb_destroy,
 #endif
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
-	.gem_prime_export = drm_gem_prime_export,
+
 	.gem_prime_import = drm_gem_prime_import,
+	.gem_prime_import_sg_table = vbox_gem_prime_import_sg_table,
+	.gem_prime_mmap = vbox_gem_prime_mmap,
+
+#if RTLNX_VER_MAX(5,11,0)
+	.dev_priv_size = 0,
+# if RTLNX_VER_MIN(4,7,0)
+	.gem_free_object_unlocked = vbox_gem_free_object,
+# endif
+	.gem_prime_export = drm_gem_prime_export,
 	.gem_prime_pin = vbox_gem_prime_pin,
 	.gem_prime_unpin = vbox_gem_prime_unpin,
 	.gem_prime_get_sg_table = vbox_gem_prime_get_sg_table,
-	.gem_prime_import_sg_table = vbox_gem_prime_import_sg_table,
 	.gem_prime_vmap = vbox_gem_prime_vmap,
 	.gem_prime_vunmap = vbox_gem_prime_vunmap,
-	.gem_prime_mmap = vbox_gem_prime_mmap,
+#endif
 };
 
 static int __init vbox_init(void)
 {
-#if defined(CONFIG_VGA_CONSOLE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+	printk("vboxvideo: loading version " VBOX_VERSION_STRING " r" __stringify(VBOX_SVN_REV) "\n");
+#if defined(CONFIG_VGA_CONSOLE) || RTLNX_VER_MIN(4,7,0)
 	if (vgacon_text_force() && vbox_modeset == -1)
 		return -EINVAL;
 #endif
@@ -330,7 +385,7 @@ static int __init vbox_init(void)
 	if (vbox_modeset == 0)
 		return -EINVAL;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_73)
+#if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,3)
 	return pci_register_driver(&vbox_pci_driver);
 #else
 	return drm_pci_init(&driver, &vbox_pci_driver);
@@ -339,7 +394,7 @@ static int __init vbox_init(void)
 
 static void __exit vbox_exit(void)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_73)
+#if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,3)
 	pci_unregister_driver(&vbox_pci_driver);
 #else
 	drm_pci_exit(&driver, &vbox_pci_driver);

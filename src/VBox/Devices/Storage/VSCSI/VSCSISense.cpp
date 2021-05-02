@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,10 @@ int vscsiReqSenseOkSet(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq)
     pVScsiSense->abSenseBuf[13] = SCSI_ASC_NONE; /* Should be ASCQ but it has the same value for success. */
 
     if (pVScsiReq->pbSense && pVScsiReq->cbSense)
-        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense));
+    {
+        pVScsiReq->cbSenseWritten = RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense);
+        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, pVScsiReq->cbSenseWritten);
+    }
 
     return SCSI_STATUS_OK;
 }
@@ -58,7 +61,10 @@ int vscsiReqSenseErrorSet(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq, uint8
     pVScsiSense->abSenseBuf[13] = uSCSIASCQ;
 
     if (pVScsiReq->pbSense && pVScsiReq->cbSense)
-        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense));
+    {
+        pVScsiReq->cbSenseWritten = RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense);
+        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, pVScsiReq->cbSenseWritten);
+    }
 
     return SCSI_STATUS_CHECK_CONDITION;
 }
@@ -74,7 +80,10 @@ int vscsiReqSenseErrorInfoSet(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq, u
     pVScsiSense->abSenseBuf[13] = uSCSIASCQ;
 
     if (pVScsiReq->pbSense && pVScsiReq->cbSense)
-        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense));
+    {
+        pVScsiReq->cbSenseWritten = RT_MIN(sizeof(pVScsiSense->abSenseBuf), pVScsiReq->cbSense);
+        memcpy(pVScsiReq->pbSense, pVScsiSense->abSenseBuf, pVScsiReq->cbSenseWritten);
+    }
 
     return SCSI_STATUS_CHECK_CONDITION;
 }

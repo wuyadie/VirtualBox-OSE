@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -131,10 +131,9 @@ typedef struct _VBOXMP_DEVEXT
    VBOXVIDEOCM_MGR SeamlessCtxMgr;
    /* hgsmi allocation manager */
    VBOXVIDEOCM_ALLOC_MGR AllocMgr;
+   /* mutex for context list operations */
    VBOXVDMADDI_NODE aNodes[VBOXWDDM_NUM_NODES];
    LIST_ENTRY DpcCmdQueue;
-   LIST_ENTRY SwapchainList3D;
-   /* mutex for context list operations */
    KSPIN_LOCK ContextLock;
    KSPIN_LOCK SynchLock;
    volatile uint32_t cContexts3D;
@@ -145,19 +144,11 @@ typedef struct _VBOXMP_DEVEXT
    volatile uint32_t fCompletingCommands;
 
    DWORD dwDrvCfgFlags;
-#ifdef VBOX_WITH_CROGL
+
    BOOLEAN f3DEnabled;
-   BOOLEAN fTexPresentEnabled;
    BOOLEAN fCmdVbvaEnabled;
    BOOLEAN fComplexTopologiesEnabled;
 
-   uint32_t u32CrConDefaultClientID;
-
-   VBOXCMDVBVA CmdVbva;
-
-   VBOXMP_CRCTLCON CrCtlCon;
-   VBOXMP_CRSHGSMITRANSPORT CrHgsmiTransport;
-#endif
    VBOXWDDM_GLOBAL_POINTER_INFO PointerInfo;
 
    VBOXVTLIST CtlList;
@@ -171,10 +162,6 @@ typedef struct _VBOXMP_DEVEXT
 
 
 
-#ifdef VBOX_VDMA_WITH_WATCHDOG
-   PKTHREAD pWdThread;
-   KEVENT WdEvent;
-#endif
    BOOL bVSyncTimerEnabled;
    volatile uint32_t fVSyncInVBlank;
    volatile LARGE_INTEGER VSyncTime;
@@ -209,6 +196,7 @@ typedef struct _VBOXMP_DEVEXT
 
 #ifdef VBOX_WDDM_MINIPORT
            VBOXVDMAINFO Vdma;
+           UINT uLastCompletedPagingBufferCmdFenceId; /* Legacy */
 # ifdef VBOXVDMA_WITH_VBVA
            VBOXVBVAINFO Vbva;
 # endif
@@ -234,6 +222,7 @@ typedef struct _VBOXMP_DEVEXT
    PVBOXWDDM_EXT_GA pGa;                       /* Pointer to Gallium backend data. */
 #endif
 
+   ULONG cbVRAMCpuVisible;                     /* How much video memory is available for the CPU visible segment. */
 } VBOXMP_DEVEXT, *PVBOXMP_DEVEXT;
 
 DECLINLINE(PVBOXMP_DEVEXT) VBoxCommonToPrimaryExt(PVBOXMP_COMMON pCommon)
@@ -253,23 +242,7 @@ DECLINLINE(PVBOXMP_COMMON) VBoxCommonFromDeviceExt(PVBOXMP_DEVEXT pExt)
 #ifdef VBOX_WDDM_MINIPORT
 DECLINLINE(ULONG) vboxWddmVramCpuVisibleSize(PVBOXMP_DEVEXT pDevExt)
 {
-#ifdef VBOX_WITH_CROGL
-    if (pDevExt->fCmdVbvaEnabled)
-    {
-        /* all memory layout info should be initialized */
-        Assert(pDevExt->CmdVbva.Vbva.offVRAMBuffer);
-        /* page aligned */
-        Assert(!(pDevExt->CmdVbva.Vbva.offVRAMBuffer & 0xfff));
-
-        return (ULONG)(pDevExt->CmdVbva.Vbva.offVRAMBuffer & ~0xfffULL);
-    }
-#endif
-    /* all memory layout info should be initialized */
-    Assert(pDevExt->aSources[0].Vbva.Vbva.offVRAMBuffer);
-    /* page aligned */
-    Assert(!(pDevExt->aSources[0].Vbva.Vbva.offVRAMBuffer & 0xfff));
-
-    return (ULONG)(pDevExt->aSources[0].Vbva.Vbva.offVRAMBuffer & ~0xfffULL);
+    return pDevExt->cbVRAMCpuVisible;
 }
 
 DECLINLINE(ULONG) vboxWddmVramCpuVisibleSegmentSize(PVBOXMP_DEVEXT pDevExt)

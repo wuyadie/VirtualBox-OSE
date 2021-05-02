@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -392,7 +392,9 @@ int vbsfMappingsAdd(const char *pszFolderName, PSHFLSTRING pMapName, bool fWrita
             RTFSPROPERTIES prop;
             prop.fCaseSensitive = false; /* Shut up MSC. */
             rc = RTFsQueryProperties(g_FolderMapping[i].pszFolderName, &prop);
+#ifndef DEBUG_bird /* very annoying */
             AssertRC(rc);
+#endif
             g_FolderMapping[i].fHostCaseSensitive = RT_SUCCESS(rc) ? prop.fCaseSensitive : false;
             vbsfRootHandleAdd(i);
             vbsfMappingsWakeupAllWaiters();

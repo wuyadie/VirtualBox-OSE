@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -95,7 +95,8 @@ DECLR0VBGL(int) VbglGR0Verify(const VMMDevRequestHeader *pReq, size_t cbReq)
         || pReq->requestType == VMMDevReq_ReportGuestUserState
         || pReq->requestType == VMMDevReq_LogString
         || pReq->requestType == VMMDevReq_SetPointerShape
-        || pReq->requestType == VMMDevReq_VideoSetVisibleRegion)
+        || pReq->requestType == VMMDevReq_VideoSetVisibleRegion
+        || pReq->requestType == VMMDevReq_VideoUpdateMonitorPositions)
     {
         if (RT_UNLIKELY(cbReq > VMMDEV_MAX_VMMDEVREQ_SIZE))
         {
@@ -180,4 +181,3 @@ DECLR0VBGL(void) VbglR0GRFree(VMMDevRequestHeader *pReq)
     if (RT_SUCCESS(rc))
         VbglR0PhysHeapFree(pReq);
 }
-

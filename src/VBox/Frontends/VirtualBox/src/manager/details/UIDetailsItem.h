@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,6 +88,10 @@ public:
 
         /** Returns the description of the item. */
         virtual QString description() const = 0;
+
+        /** Installs event-filter for @a pSource object.
+          * @note  Base-class implementation does nothing. */
+        virtual void installEventFilterHelper(QObject *pSource) { Q_UNUSED(pSource); }
     /** @} */
 
     /** @name Children stuff.
@@ -124,7 +128,7 @@ public:
         virtual QSizeF sizeHint(Qt::SizeHint enmWhich, const QSizeF &constraint = QSizeF()) const /* override */;
     /** @} */
 
-protected slots:
+public slots:
 
     /** @name Item stuff.
       * @{ */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include "UIConverter.h"
 #include "UIWizardNewVDPageExpert.h"
 #include "UIWizardNewVD.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIMessageCenter.h"
 #include "UIIconPool.h"
 #include "QIRichTextLabel.h"
@@ -85,7 +85,7 @@ UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, 
                 m_pFormatButtonGroup = new QButtonGroup(m_pFormatCnt);
                 {
                     /* Enumerate medium formats in special order: */
-                    CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
+                    CSystemProperties properties = uiCommon().virtualBox().GetSystemProperties();
                     const QVector<CMediumFormat> &formats = properties.GetMediumFormats();
                     QMap<QString, CMediumFormat> vdi, preferred, others;
                     foreach (const CMediumFormat &format, formats)
@@ -210,10 +210,10 @@ void UIWizardNewVDPageExpert::sltMediumFormatChanged()
     if (!m_pLocationEditor->text().isEmpty() && !m_strDefaultExtension.isEmpty())
     {
         QFileInfo fileInfo(m_pLocationEditor->text());
-        if (fileInfo.completeSuffix() != m_strDefaultExtension)
+        if (fileInfo.suffix() != m_strDefaultExtension)
         {
-            QString strNewFilePath = QString("%1/%2.%3").arg(fileInfo.absoluteDir().absolutePath()).arg(fileInfo.baseName()).arg(m_strDefaultExtension);
-            m_pLocationEditor->setText(strNewFilePath);
+            QFileInfo newFileInfo(fileInfo.absolutePath(), QString("%1.%2").arg(fileInfo.completeBaseName()).arg(m_strDefaultExtension));
+            m_pLocationEditor->setText(newFileInfo.absoluteFilePath());
         }
     }
 

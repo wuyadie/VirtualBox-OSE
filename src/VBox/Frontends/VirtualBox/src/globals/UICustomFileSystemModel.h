@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,7 @@ public:
     /** Searches for the child by path and returns it if found. */
     UICustomFileSystemItem *child(const QString &path) const;
     int childCount() const;
-    QList<const UICustomFileSystemItem*> children() const;
+    QList<UICustomFileSystemItem*> children() const;
     /** Removes the item from the list of children and !!DELETES!! the item. */
     void removeChild(UICustomFileSystemItem *pItem);
     void removeChildren();

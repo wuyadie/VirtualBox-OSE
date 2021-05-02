@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,6 +215,20 @@ void MediumAttachment::uninit()
 
 // IHardDiskAttachment properties
 /////////////////////////////////////////////////////////////////////////////
+
+
+HRESULT MediumAttachment::getMachine(ComPtr<IMachine> &aMachine)
+{
+    LogFlowThisFuncEnter();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    ComObjPtr<Machine> pMachine(m->pMachine);
+    pMachine.queryInterfaceTo(aMachine.asOutParam());
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
 
 
 HRESULT MediumAttachment::getMedium(ComPtr<IMedium> &aHardDisk)

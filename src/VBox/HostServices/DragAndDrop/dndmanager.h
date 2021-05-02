@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,7 +68,7 @@ public:
 
     DnDHGCancelMessage(void)
     {
-        int rc2 = initData(DragAndDropSvc::HOST_DND_CANCEL,
+        int rc2 = initData(DragAndDropSvc::HOST_DND_FN_CANCEL,
                            0 /* cParms */, 0 /* aParms */);
         AssertRC(rc2);
     }

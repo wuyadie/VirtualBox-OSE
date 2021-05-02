@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,32 +24,40 @@ ifndef VBOX_DEVICES_CONFIG_KMK_INCLUDED
 endif
 
 # Include sub-makefiles.
-include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
-include $(PATH_SUB_CURRENT)/Audio/testcase/Makefile.kmk
-include $(PATH_SUB_CURRENT)/Input/testcase/Makefile.kmk
-ifdef VBOX_WITH_TESTCASES
- include $(PATH_SUB_CURRENT)/Samples/Makefile.kmk
-endif
-if defined(VBOX_WITH_INTEL_PXE) || defined(VBOX_ONLY_EXTPACKS)
- include $(PATH_SUB_CURRENT)/PC/PXE/Makefile.kmk
-else if defined(VBOX_WITH_PXE_ROM)
- if !defined(VBOX_WITHOUT_IPXE)
-  include $(PATH_SUB_CURRENT)/PC/ipxe/Makefile.kmk
+if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
+ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Audio/testcase/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Input/testcase/Makefile.kmk
+ ifdef VBOX_WITH_TESTCASES
+  include $(PATH_SUB_CURRENT)/Samples/Makefile.kmk
+ endif
+ if defined(VBOX_WITH_INTEL_PXE) || defined(VBOX_ONLY_EXTPACKS)
+  include $(PATH_SUB_CURRENT)/PC/PXE/Makefile.kmk
+ else if defined(VBOX_WITH_PXE_ROM)
+  if !defined(VBOX_WITHOUT_IPXE)
+   include $(PATH_SUB_CURRENT)/PC/ipxe/Makefile.kmk
+  endif
  endif
 endif
-if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
- include $(PATH_SUB_CURRENT)/BiosCommonCode/Makefile.kmk
- include $(PATH_SUB_CURRENT)/PC/BIOS/Makefile.kmk
- include $(PATH_SUB_CURRENT)/Graphics/BIOS/Makefile.kmk
+if !defined(VBOX_ONLY_EXTPACKS)
+ if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
+  include $(PATH_SUB_CURRENT)/BiosCommonCode/Makefile.kmk
+  include $(PATH_SUB_CURRENT)/PC/BIOS/Makefile.kmk
+  include $(PATH_SUB_CURRENT)/Graphics/BIOS/Makefile.kmk
+ endif
 
  #
  # Main targets.
  #
- LIBRARIES += ServicesR0
- DLLS      += VBoxDDU VBoxDD VBoxDD2
- SYSMODS   += VBoxDDR0
- ifdef VBOX_WITH_RAW_MODE
-  SYSMODS   += VBoxDDRC
+ if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
+  LIBRARIES += ServicesR0
+  DLLS      += VBoxDDU VBoxDD VBoxDD2
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxDDR0
+  ifdef VBOX_WITH_RAW_MODE
+   SYSMODS   += VBoxDDRC
+  endif
+ else
+  DLLS      += VBoxDDU
  endif
 
 
@@ -60,10 +68,10 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDDU_NAME             = $(basename $(notdir $(LIB_DDU)))
  VBoxDDU_INST.darwin      = $(INST_DLL) $(INST_TESTCASE)
  VBoxDDU_DEFS             = IN_VBOXDDU
- ifdef VBOX_WITH_VUSB
+ if defined(VBOX_WITH_VUSB) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   VBoxDDU_DEFS           += VBOX_WITH_VUSB
  endif
- ifdef VBOX_WITH_USB
+ if defined(VBOX_WITH_USB) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   VBoxDDU_DEFS           += VBOX_WITH_USB IN_USBLIB
   VBoxDDU_SDKS.win        = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
   if defined(VBOX_WITH_EHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
@@ -89,14 +97,10 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDDU_SOURCES        += Storage/VSCSI/VSCSILunSsc.cpp
   VBoxDDU_DEFS		 += VBOX_WITH_VSCSI_SSC
  endif
- ifdef VBOX_WITH_USB
-  VBoxDDU_INCS.os2       += \
- 	$(PATH_ROOT)/src/VBox/HostDrivers/VBoxUSB/os2
- endif
  VBoxDDU_LIBS             = \
  	$(LIB_RUNTIME) \
  	$(PATH_STAGE_LIB)/StorageLib$(VBOX_SUFF_LIB)
- ifdef VBOX_WITH_USB
+ if defined(VBOX_WITH_USB) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   VBoxDDU_LIBS           += \
  	$(PATH_STAGE_LIB)/USBLib$(VBOX_SUFF_LIB)
   VBoxDDU_LIBS.win       += \
@@ -104,12 +108,17 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib
  endif
  VBoxDDU_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDDU.dylib
- ifdef VBOX_WITH_USB
+ if defined(VBOX_WITH_USB) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   VBoxDDU_LDFLAGS.darwin += -framework IOKit
  endif
 
  VBoxDDU_LDFLAGS.linux    = $(VBOX_GCC_NO_UNDEFINED)
  $(call VBOX_SET_VER_INFO_DLL,VBoxDDU,VirtualBox VMM Devices and Drivers Utilities)
+
+
+endif # VBOX_ONLY_EXTPACKS
+if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""  # Goes on almost to the end of the file.
+
 
  #
  # VBoxDD (shared object)
@@ -122,7 +131,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Network/slirp \
  	$(VBOX_GRAPHICS_INCS)
  VBoxDD_DEFS             = \
- 	VBOX_ACPI \
  	VBOX_HGCM_HOST_CODE \
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
  	$(if $(VBOX_BIOS_DMI_FALLBACK),VBOX_BIOS_DMI_FALLBACK,) \
@@ -137,8 +145,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	build/VBoxDD.cpp \
 	\
  	Input/DevPS2.cpp \
- 	Input/PS2K.cpp \
- 	Input/PS2M.cpp \
+ 	Input/DevPS2K.cpp \
+ 	Input/DevPS2M.cpp \
  	Input/UsbKbd.cpp \
  	Input/UsbMouse.cpp \
  	Bus/DevPCI.cpp \
@@ -147,6 +155,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Bus/MsixCommon.cpp \
 	EFI/DevSmc.cpp \
 	EFI/DevFlash.cpp \
+	EFI/FlashCore.cpp \
  	Graphics/DevVGA.cpp \
  	Storage/DevATA.cpp \
  	PC/DevPit-i8254.cpp \
@@ -189,7 +198,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Storage/ATAPIPassthrough.cpp \
  	Storage/IOBufMgmt.cpp \
  	Network/DrvNetSniffer.cpp \
- 	Network/Pcap.cpp
+ 	Network/Pcap.cpp \
+ 	Trace/DrvIfsTrace.cpp \
+ 	Trace/DrvIfsTrace-serial.cpp
  ifn1of ($(KBUILD_TARGET), os2)
   VBoxDD_SOURCES += Storage/DrvHostBase.cpp
  endif
@@ -231,7 +242,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	-framework IOKit \
  	-framework Carbon \
  	-framework DiskArbitration \
- 	-framework SystemConfiguration
+ 	-framework SystemConfiguration \
+ 	-framework AVFoundation \
+ 	-framework Foundation
  VBoxDD_LDFLAGS.linux    = $(VBOX_GCC_NO_UNDEFINED)
 
  # --- Tracing bits. ---
@@ -244,9 +257,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
  # --- Graphics bits. ---
 
- ifdef VBOX_WITH_CRHGSMI
-  VBoxDD_DEFS           += VBOX_WITH_CRHGSMI
- endif
  ifdef VBOXWDDM_TEST_UHGSMI
   VBoxDD_DEFS           += VBOXWDDM_TEST_UHGSMI
  endif
@@ -285,18 +295,22 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   VBoxDD_DEFS           += VBOX_WITH_VMSVGA3D
   VBoxDD_SOURCES        += \
   	Graphics/DevVGA-SVGA3d.cpp \
+  	Graphics/DevVGA-SVGA3d-hlp.cpp \
   	Graphics/DevVGA-SVGA3d-info.cpp \
   	Graphics/DevVGA-SVGA3d-shared.cpp \
   	Graphics/DevVGA-SVGA3d-savedstate.cpp
   if  "$(KBUILD_TARGET)" == "win" && !defined(VBOX_WITH_VMSVGA3D_USE_OPENGL)
    VBoxDD_DEFS          += VMSVGA3D_DIRECT3D
-   VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
+   VBoxDD_SOURCES       += \
+       Graphics/DevVGA-SVGA3d-win.cpp \
+       Graphics/DevVGA-SVGA3d-win-d3d9.cpp
    VBoxDD_LIBS.win      += d3d9.lib $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
    VBoxDD_LDFLAGS.win   += /DELAYLOAD:d3d9.dll
   else
    VBoxDD_DEFS          += VMSVGA3D_OPENGL
    VBoxDD_SOURCES       += \
    	Graphics/DevVGA-SVGA3d-ogl.cpp \
+   	Graphics/DevVGA-SVGA3d-glHlp.cpp \
    	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
    VBoxDD_SOURCES.darwin += \
    	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DObjCLazyLoad.asm
@@ -339,10 +353,6 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   VBoxDD_DEFS           += VBOX_WITH_VDMA
   VBoxDD_SOURCES        += \
  	Graphics/DevVGA_VDMA.cpp
- endif
-
- ifdef VBOX_VDMA_WITH_WATCHDOG
-  VBoxDD_DEFS           += VBOX_VDMA_WITH_WATCHDOG
  endif
 
  ifdef VBOX_WITH_PXE_ROM
@@ -470,8 +480,15 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   VBoxDD_DEFS           += VBOX_WITH_VIRTIO
   VBoxDD_SOURCES        += \
  	VirtIO/Virtio.cpp \
+  	VirtIO/VirtioCore.cpp \
  	Network/DevVirtioNet.cpp
  endif
+
+ if defined(VBOX_WITH_VIRTIO) && defined(VBOX_WITH_VIRTIO_NET_1_0)
+  VBoxDD_DEFS         += VBOX_WITH_VIRTIO_NET_1_0
+  VBoxDD_SOURCES      += \
+  	Network/DevVirtioNet_1_0.cpp
+endif
 
  ifdef VBOX_WITH_UDPTUNNEL
   VBoxDD_DEFS           += VBOX_WITH_UDPTUNNEL
@@ -513,11 +530,17 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  	Storage/DevLsiLogicSCSI.cpp
  endif
 
-  if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
-   VBoxDD_DEFS          += VBOX_WITH_NVME_IMPL
-   VBoxDD_SOURCES       += \
+ if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+  VBoxDD_DEFS          += VBOX_WITH_NVME_IMPL
+  VBoxDD_SOURCES       += \
  	Storage/DevNVMe.cpp
-  endif
+ endif
+
+ if defined(VBOX_WITH_VIRTIO) && defined(VBOX_WITH_VIRTIO_SCSI)
+  VBoxDD_DEFS           += VBOX_WITH_VIRTIO_SCSI
+  VBoxDD_SOURCES        += \
+  	Storage/DevVirtioSCSI.cpp
+ endif
 
  ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
   VBoxDD_DEFS           += VBOX_WITH_PDM_ASYNC_COMPLETION
@@ -570,64 +593,64 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  VBoxDD_SOURCES         += \
 	Audio/DevIchAc97.cpp \
 	Audio/DevSB16.cpp \
-	Audio/DevHDA.cpp \
-	Audio/DevHDACommon.cpp \
-	Audio/HDACodec.cpp \
-	Audio/HDAStream.cpp \
-	Audio/HDAStreamChannel.cpp \
-	Audio/HDAStreamMap.cpp \
-	Audio/HDAStreamPeriod.cpp \
+	Audio/DevHda.cpp \
+	Audio/DevHdaCommon.cpp \
+	Audio/DevHdaCodec.cpp \
+	Audio/DevHdaStream.cpp \
+	Audio/DevHdaStreamChannel.cpp \
+	Audio/DevHdaStreamMap.cpp \
+	Audio/AudioHlp.cpp \
 	Audio/AudioMixBuffer.cpp \
 	Audio/AudioMixer.cpp \
 	Audio/DrvAudio.cpp \
-	Audio/DrvAudioCommon.cpp \
-	Audio/DrvHostNullAudio.cpp
+	Audio/DrvHostAudioNull.cpp
 
  ifdef VBOX_WITH_AUDIO_DEBUG
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_DEBUG
   VBoxDD_SOURCES += \
-	Audio/DrvHostDebugAudio.cpp
+	Audio/DrvHostAudioDebug.cpp
  endif
 
  ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_VALIDATIONKIT
   VBoxDD_SOURCES += \
-	Audio/DrvHostValidationKit.cpp
+	Audio/DrvHostAudioValidationKit.cpp
  endif
 
  ifeq ($(KBUILD_TARGET),darwin)
   VBoxDD_SOURCES += \
-	Audio/DrvHostCoreAudio.cpp
+	Audio/DrvHostAudioCoreAudio.cpp \
+	Audio/DrvHostAudioCoreAudioAuth.mm
  endif
 
  ifeq ($(KBUILD_TARGET),win)
   VBoxDD_SOURCES += \
-	Audio/DrvHostDSound.cpp
+	Audio/DrvHostAudioDSound.cpp
   ifdef VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
-   VBoxDD_SOURCES += \
-	Audio/VBoxMMNotificationClient.cpp
    VBoxDD_DEFS    += VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
+   VBoxDD_SOURCES += \
+	Audio/DrvHostAudioDSoundMMNotifClient.cpp
   endif
  endif
 
  ifdef VBOX_WITH_AUDIO_OSS
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_OSS
   VBoxDD_SOURCES += \
-	Audio/DrvHostOSSAudio.cpp
+	Audio/DrvHostAudioOss.cpp
  endif
 
  ifdef VBOX_WITH_AUDIO_ALSA
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_ALSA
   VBoxDD_SOURCES += \
-	Audio/DrvHostALSAAudio.cpp \
-	Audio/alsa_stubs.c
+	Audio/DrvHostAudioAlsa.cpp \
+	Audio/DrvHostAudioAlsaStubs.cpp
  endif
 
  ifdef VBOX_WITH_AUDIO_PULSE
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_PULSE
   VBoxDD_SOURCES += \
-	Audio/DrvHostPulseAudio.cpp \
-	Audio/pulse_stubs.c
+	Audio/DrvHostAudioPulseAudio.cpp \
+	Audio/DrvHostAudioPulseAudioStubs.cpp
  endif
 
  # --- WARNING! SLIRP MESS AHEAD! ;-) ---
@@ -760,7 +783,7 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  ifdef VBOX_WITH_VIRTUALKD
   VBoxDD_DEFS.win     += VBOX_WITH_VIRTUALKD
   VBoxDD_SOURCES.win  += \
-	Misc/VirtualKD.cpp
+	Misc/DevVirtualKD.cpp
  endif
 
  if defined(VBOX_WITH_NETFLT)
@@ -905,14 +928,14 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   	EFI/DevSmc.cpp \
   	Graphics/DevVGA.cpp \
   	Input/DevPS2.cpp \
-  	Input/PS2K.cpp \
-  	Input/PS2M.cpp \
+  	Input/DevPS2K.cpp \
+  	Input/DevPS2M.cpp \
   	PC/DevACPI.cpp \
   	PC/DevIoApic.cpp \
   	PC/DevPit-i8254.cpp \
   	PC/DevPIC.cpp \
   	PC/DevRTC.cpp \
- 	PC/DevDMA.cpp \
+  	PC/DevDMA.cpp \
   	PC/DevHPET.cpp \
   	Storage/DevATA.cpp \
   	Network/DevPCNet.cpp \
@@ -925,8 +948,8 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
 
   VBoxDDRC_DEFS         += $(VBOX_AUDIO_DEFS)
   VBoxDDRC_SOURCES      += \
- 	Audio/DevHDA.cpp \
- 	Audio/DevHDACommon.cpp \
+ 	Audio/DevHda.cpp \
+ 	Audio/DevHdaCommon.cpp \
 	Audio/DevIchAc97.cpp
 
   VBoxDDRC_DEFS         += \
@@ -945,7 +968,14 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
    VBoxDDRC_DEFS        += VBOX_WITH_VIRTIO
    VBoxDDRC_SOURCES     += \
   	VirtIO/Virtio.cpp \
+  	VirtIO/VirtioCore.cpp \
   	Network/DevVirtioNet.cpp
+  endif
+
+  ifdef defined(VBOX_WITH_VIRTIO) && defined(VBOX_WITH_VIRTIO_NET_1_0)
+   VBoxDDRC_DEFS         += VBOX_WITH_VIRTIO_NET_1_0
+   VBoxDDRC_SOURCES      += \
+  	 Network/DevVirtioNet_1_0.cpp
   endif
 
   ifdef VBOX_WITH_HGSMI
@@ -957,9 +987,6 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   ifdef VBOX_WITH_VDMA
    VBoxDDRC_DEFS        += VBOX_WITH_VDMA
   endif
-  ifdef VBOX_WITH_CRHGSMI
-   VBoxDDRC_DEFS        += VBOX_WITH_CRHGSMI
-  endif
   ifdef VBOXWDDM_WITH_VBVA
    VBoxDDRC_DEFS        += VBOXWDDM_WITH_VBVA
   endif
@@ -970,9 +997,6 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   endif
   ifdef VBOX_WITH_VMSVGA3D
    VBoxDDRC_DEFS         += VBOX_WITH_VMSVGA3D
-  endif
-  ifdef VBOX_VDMA_WITH_WATCHDOG
-   VBoxDDRC_DEFS        += VBOX_VDMA_WITH_WATCHDOG
   endif
 
   ifdef VBOX_WITH_VUSB
@@ -1020,7 +1044,7 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
    VBoxDDGC_DEFS       += VBOX_WITH_NVME_IMPL
    VBoxDDGC_SOURCES    += \
-  	Storage/DevNVMe.cpp
+   	Storage/DevNVMe.cpp
   endif
 
   if1of ($(VBOX_LDR_FMT32), pe lx)
@@ -1028,9 +1052,8 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
   	$(PATH_STAGE_LIB)/VMMRCImp$(VBOX_SUFF_LIB)
   endif
+  $(call VBOX_SET_VER_INFO_RC,VBoxDDRC,VirtualBox VMM Devices and Drivers$(COMMA) raw-mode) # last!
  endif # VBOX_WITH_RAW_MODE
-
- $(call VBOX_SET_VER_INFO_RC,VBoxDDRC,VirtualBox VMM Devices and Drivers$(COMMA) raw-mode) # last!
 
 
  #
@@ -1059,6 +1082,16 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  VBoxDD2_LIBS.darwin    += $(LIB_REM)
  VBoxDD2_LDFLAGS.darwin  = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDD2.dylib
  VBoxDD2_LDFLAGS.linux   = $(VBOX_GCC_NO_UNDEFINED)
+ if defined(VBOX_WITH_EFI) && !defined(VBOX_WITH_EFIFW_PACKING)
+  VBoxDD_DEFS           += VBOX_WITH_EFI_IN_DD2
+  VBoxDD2_DEFS          += VBOX_WITH_EFI
+  VBoxDD2_SOURCES       += \
+  	EFI/DevEFI-binaries.asm
+  EFI/DevEFI-binaries.asm_ASINCS = $(PATH_STAGE)/$(INST_BIN)
+  EFI/DevEFI-binaries.asm_DEPS   = \
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI32.fd \
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI64.fd
+ endif
 
  $(call VBOX_SET_VER_INFO_DLL,VBoxDD2,VirtualBox VMM Devices and Drivers 2) # (last!)
 
@@ -1077,10 +1110,12 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  	Bus/MsiCommon.cpp \
  	Bus/MsixCommon.cpp \
  	EFI/DevSmc.cpp \
+ 	EFI/DevFlash.cpp \
+	EFI/FlashCore.cpp \
  	Graphics/DevVGA.cpp \
  	Input/DevPS2.cpp \
- 	Input/PS2K.cpp \
- 	Input/PS2M.cpp \
+ 	Input/DevPS2K.cpp \
+ 	Input/DevPS2M.cpp \
  	PC/DevACPI.cpp \
  	PC/DevIoApic.cpp \
  	PC/DevPit-i8254.cpp \
@@ -1091,13 +1126,19 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  	Storage/DevATA.cpp \
  	Network/DevPCNet.cpp \
  	Serial/DevSerial.cpp \
-  	Serial/DevOxPcie958.cpp \
-  	Serial/UartCore.cpp \
+ 	Serial/DevOxPcie958.cpp \
+ 	Serial/UartCore.cpp \
  	Parallel/DevParallel.cpp \
-  	VMMDev/VMMDev.cpp \
+ 	GIMDev/GIMDev.cpp \
+ 	VMMDev/VMMDev.cpp \
  	VMMDev/VMMDevTesting.cpp \
  	Network/DrvIntNet.cpp \
  	Network/DrvDedicatedNic.cpp
+
+ ifdef VBOX_WITH_DTRACE_R0
+  VBoxDDR0_USES         += dtrace
+  VBoxDDR0_SOURCES      += build/VBoxDD.d
+ endif
 
  VBoxDDR0_SOURCES.win += Parallel/DrvHostParallel.cpp
 
@@ -1105,18 +1146,17 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
 	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
 	$(if $(VBOX_WITH_WDDM),VBOX_WITH_WDDM,) \
 	$(if $(VBOX_WITH_VDMA),VBOX_WITH_VDMA,) \
-	$(if $(VBOX_WITH_CRHGSMI),VBOX_WITH_CRHGSMI,) \
 	$(if $(VBOXWDDM_WITH_VBVA),VBOXWDDM_WITH_VBVA,) \
-	$(if $(VBOX_VDMA_WITH_WATCHDOG),VBOX_VDMA_WITH_WATCHDOG,) \
 	$(if $(VBOX_WITH_HP_HDA),VBOX_WITH_HP_HDA,) \
 	$(if $(VBOX_WITH_INTEL_HDA),VBOX_WITH_INTEL_HDA,) \
 	$(if $(VBOX_WITH_NVIDIA_HDA),VBOX_WITH_NVIDIA_HDA,)
 
  VBoxDDR0_DEFS += $(VBOX_AUDIO_DEFS)
  VBoxDDR0_SOURCES += \
- 	Audio/DevHDA.cpp \
- 	Audio/DevHDACommon.cpp \
-	Audio/DevIchAc97.cpp
+ 	Audio/DevHda.cpp \
+ 	Audio/DevHdaCommon.cpp \
+ 	Audio/DevHdaStream.cpp \
+ 	Audio/DevIchAc97.cpp
 
  ifdef VBOX_WITH_E1000
   VBoxDDR0_DEFS         += VBOX_WITH_E1000
@@ -1129,7 +1169,14 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   VBoxDDR0_DEFS         += VBOX_WITH_VIRTIO
   VBoxDDR0_SOURCES      += \
 	VirtIO/Virtio.cpp \
+  	VirtIO/VirtioCore.cpp \
   	Network/DevVirtioNet.cpp
+ endif
+
+ if defined(VBOX_WITH_VIRTIO) && defined(VBOX_WITH_VIRTIO_NET_1_0)
+  VBoxDDR0_DEFS         += VBOX_WITH_VIRTIO_NET_1_0
+  VBoxDDR0_SOURCES      += \
+  	Network/DevVirtioNet_1_0.cpp
  endif
 
  ifdef VBOX_WITH_NETSHAPER
@@ -1166,6 +1213,11 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
   endif
  endif
 
+ ifdef VBOX_WITH_EFI
+  VBoxDDR0_DEFS         += VBOX_WITH_EFI
+  VBoxDDR0_SOURCES      += EFI/DevEFI.cpp
+ endif
+
  if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
   VBoxDDR0_SOURCES      += \
 	Bus/DevPciRaw.cpp
@@ -1192,7 +1244,13 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
   VBoxDDR0_DEFS       += VBOX_WITH_NVME_IMPL
   VBoxDDR0_SOURCES    += \
- 	Storage/DevNVMe.cpp
+  	Storage/DevNVMe.cpp
+ endif
+
+ if defined (VBOX_WITH_VIRTIO) && defined(VBOX_WITH_VIRTIO_SCSI)
+  VBoxDDR0_DEFS         += VBOX_WITH_VIRTIO_SCSI
+  VBoxDDR0_SOURCES      += \
+  	Storage/DevVirtioSCSI.cpp
  endif
 
  ifdef VBOX_WITH_HGSMI
@@ -1215,12 +1273,12 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  # Ring-0 Services (library, linked into VMMR0.r0)
  #
  ServicesR0_TEMPLATE  = VBoxR0
- ServicesR0_DEFS      = IN_INTNET_R0 IN_RT_R0 \
+ ServicesR0_DEFS      = VBOX_IN_VMM IN_INTNET_R0 IN_RT_R0 $(VMM_COMMON_DEFS) \
 	$(if $(VBOX_WITH_PCI_PASSTHROUGH),IN_PCIRAW_R0,) \
 	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE,)
  ServicesR0_SOURCES   = \
  	Network/SrvIntNetR0.cpp \
-        $(if $(VBOX_WITH_PCI_PASSTHROUGH),Bus/SrvPciRawR0.cpp,)
+#        $(if $(VBOX_WITH_PCI_PASSTHROUGH),Bus/SrvPciRawR0.cpp,)
  Network/SrvIntNetR0.cpp_CXXFLAGS := $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
 
 
@@ -1296,34 +1354,19 @@ VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
  # PDM device testcase framework.
  #
  ifdef VBOX_WITH_TESTCASES_TSTDEV
-  DLLS += tstDeviceVBoxVMMStubs
-  tstDeviceVBoxVMMStubs_TEMPLATE      = VBoxR3DllNoPic
-  tstDeviceVBoxVMMStubs_SONAME.linux  = tstDeviceVBoxVMMStubs.so
-  tstDeviceVBoxVMMStubs_SONAME.darwin = tstDeviceVBoxVMMStubs.dylib
-  tstDeviceVBoxVMMStubs_DEFS          = IN_VMM_R3 IN_DIS IN_GMM_R3 IN_DBG $(VMM_COMMON_DEFS)
-  tstDeviceVBoxVMMStubs_LIBS          = $(LIB_RUNTIME)
-
-  tstDeviceVBoxVMMStubs_SOURCES  = \
- 	testcase/tstDeviceVMMStubs.cpp
-
   PROGRAMS += tstDevice
   tstDevice_TEMPLATE    = VBOXR3TSTEXE
   tstDevice_DEFS        += IN_SUP_R3
-  tstDevice_LIBS.linux  = $(PATH_STAGE_BIN)/tstDeviceVBoxVMMStubs.so
-  tstDevice_LIBS.darwin = $(PATH_STAGE_BIN)/tstDeviceVBoxVMMStubs.dylib
-  # Required on OS X to prevent resolving symbols in the real VBoxVMM.dylib when VBoxDD.dylib is loaded
-  tstDevice_LDFLAGS.darwin += -force_flat_namespace
   tstDevice_SOURCES     = \
  	testcase/tstDevice.cpp \
- 	testcase/tstDevicePdmDevHlp.cpp \
- 	testcase/tstDeviceVMM.cpp \
- 	testcase/tstDeviceSUP.cpp
+ 	testcase/tstDeviceCfg.cpp \
+ 	testcase/tstDevicePdmDevHlp.cpp
  endif
 
-endif # !VBOX_ONLY_EXTPACKS
+endif # !VBOX_ONLY_EXTPACKS && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
 
 
-if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
+if defined(VBOX_WITH_EXTPACK) && defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
  #
  # The EHCI (USB 2.0) Extension Pack Modules.
  #
@@ -1335,7 +1378,7 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
 	USB/DevXHCI.cpp
   $(call VBOX_SET_VER_INFO_DLL,VBoxEhciR3,PUEL Extension Pack - EHCI Device)
 
-  SYSMODS += VBoxEhciR0
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxEhciR0
   VBoxEhciR0_TEMPLATE = VBoxR0ExtPackPuel
   VBoxEhciR0_SOURCES  = \
 	USB/DevEHCI.cpp \
@@ -1360,7 +1403,7 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
 
  endif
 
- if defined(VBOX_WITH_PCI_PASSTHROUGH)
+ if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL)
   DLLS += VBoxPciRawR3
   VBoxPciRawR3_TEMPLATE     = VBoxR3ExtPackPuel
   VBoxPciRawR3_SOURCES      = Bus/DevPciRaw.cpp
@@ -1371,7 +1414,7 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
   VBoxPciRawDrv_SOURCES     = Bus/DrvPciRaw.cpp
   $(call VBOX_SET_VER_INFO_DLL,VBoxPciRawDrv,PUEL Extension Pack - PCI Passthrough Driver)
 
-  SYSMODS += VBoxPciRawR0
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxPciRawR0
   VBoxPciRawR0_TEMPLATE     = VBoxR0ExtPackPuel
   VBoxPciRawR0_SOURCES      = Bus/DevPciRaw.cpp
   $(call VBOX_SET_VER_INFO_R0,VBoxPciRawR0,PUEL Extension Pack - PCI Passthrough Driver$(COMMA) ring-0)
@@ -1389,7 +1432,7 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
   	Storage/DevNVMe.cpp
   $(call VBOX_SET_VER_INFO_DLL,VBoxNvmeR3,PUEL Extension Pack - NVMe Device)
 
-  SYSMODS += VBoxNvmeR0
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxNvmeR0
   VBoxNvmeR0_TEMPLATE = VBoxR0ExtPackPuel
   VBoxNvmeR0_SOURCES  = \
   	Storage/DevNVMe.cpp
@@ -1418,11 +1461,15 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
  #
  INSTALLS += VBoxExtPackPuelInsRoms
  VBoxExtPackPuelInsRoms_TEMPLATE = VBoxInsExtPackPuel
- VBoxExtPackPuelInsRoms_SOURCES = PC/PXE/PXE-Intel.rom=>PXE-Intel.rom
-endif # VBOX_WITH_EXTPACK_PUEL
+ ifdef PXE_EXPERIMENTAL_BUILD_SETUP
+  VBoxExtPackPuelInsRoms_SOURCES = $(PATH_OUT)/obj/NetBiosBin/NetBiosBin.rom=>PXE-Intel.rom
+ else
+  VBoxExtPackPuelInsRoms_SOURCES = PC/PXE/PXE-Intel.rom=>PXE-Intel.rom
+ endif
+endif # VBOX_WITH_EXTPACK_PUEL && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
 
 
-if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
+if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
  #
  # Template used for VBoxSVGA3D.  (Strips away compiler options.)
  #
@@ -1534,17 +1581,10 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  VBoxSVGA3DObjC_LDFLAGS.darwin = \
  	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSVGA3DObjC.dylib \
  	-framework OpenGL
- if 1
  VBoxSVGA3DObjC_SOURCES.darwin += \
  	Graphics/DevVGA-SVGA3d-cocoa.m
- else
- VBoxSVGA3DObjC_SOURCES.darwin += \
- 	../HostServices/SharedOpenGL/render/renderspu_cocoa_helper.m \
- 	../HostServices/SharedOpenGL/OpenGLTest/OpenGLTestDarwin.cpp
- endif
 
 
-endif # defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
+endif # defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -89,7 +89,8 @@ ifeq ($(KBUILD_TARGET_ARCH),amd64)
 endif
 ifeq ($(KBUILD_TARGET_ARCH),x86)
 DRIVER_FILES += \
-	$(PATH_STAGE_BIN)/additions/VBoxMouseNT.sys
+	$(PATH_STAGE_BIN)/additions/VBoxMouseNT.sys \
+	$(PATH_STAGE_BIN)/additions/VBoxSFW2K.sys
 endif
 DRIVER_FILES += \
 	$(PATH_STAGE_BIN)/additions/VBoxVideo.inf \
@@ -98,22 +99,6 @@ ifdef VBOX_SIGN_ADDITIONS
 DRIVER_FILES += \
 	$(PATH_STAGE_BIN)/additions/VBoxVideo.cat \
 	$(PATH_STAGE_BIN)/additions/VBoxGuest.cat
-endif
-ifdef VBOX_WITH_CROGL
-DRIVER_FILES += \
-	$(PATH_STAGE_BIN)/additions/VBoxOGL.dll \
-	$(PATH_STAGE_BIN)/additions/wined3d.dll \
-	$(PATH_STAGE_BIN)/additions/VBoxD3D9.dll \
-	$(PATH_STAGE_BIN)/additions/VBoxD3D8.dll
- ifeq ($(KBUILD_TARGET_ARCH),amd64)
-	# Also include 32-bit DLLs on 64-bit guests to enable
-	# running 32-bit OpenGL apps on that.
-	DRIVER_FILES += \
-		$(VBOX_PATH_ADDITIONS.win.x86)/VBoxOGL.dll \
-		$(VBOX_PATH_ADDITIONS.win.x86)/wined3d.dll \
-		$(VBOX_PATH_ADDITIONS.win.x86)/VBoxD3D9.dll \
-		$(VBOX_PATH_ADDITIONS.win.x86)/VBoxD3D8.dll
- endif
 endif
 ifdef VBOX_WITH_WDDM
 DRIVER_FILES += \
@@ -126,11 +111,6 @@ DRIVER_FILES += \
 	$(PATH_STAGE_BIN)/additions/VBoxSVGA.dll \
 	$(PATH_STAGE_BIN)/additions/VBoxICD.dll \
 	$(PATH_STAGE_BIN)/additions/VBoxGL.dll
- endif
- ifdef VBOX_WITH_CROGL
-DRIVER_FILES += \
-	$(PATH_STAGE_BIN)/additions/wined3dwddm.dll \
-	$(PATH_STAGE_BIN)/additions/VBoxD3D9wddm.dll
  endif
  ifdef VBOX_SIGN_ADDITIONS
 DRIVER_FILES += \
@@ -146,15 +126,8 @@ DRIVER_FILES += \
 	$(PATH_STAGE_BIN)/additions/VBoxICD-x86.dll \
 	$(PATH_STAGE_BIN)/additions/VBoxGL-x86.dll
   endif
-  ifdef VBOX_WITH_CROGL
-DRIVER_FILES += \
-	$(PATH_STAGE_BIN)/additions/wined3dwddm-x86.dll \
-	$(PATH_STAGE_BIN)/additions/VBoxD3D9wddm-x86.dll \
-	$(PATH_STAGE_BIN)/additions/VBoxOGL-x86.dll
-  endif
  endif
 endif
-
 VB_WIN_ADD_NSIS_ENV := \
 	-E 'PATH_OUT=$(subst /,\,$(PATH_OUT))' \
 	-E 'PATH_TARGET=$(subst /,\,$(PATH_TARGET))' \
@@ -173,8 +146,8 @@ VB_WIN_ADD_NSIS_ENV := \
 	-E 'VBOX_SVN_REV=$(VBOX_SVN_REV)' \
 	-E 'VBOX_WINDOWS_ADDITIONS_ICON_FILE=$(subst /,\,$(VBOX_WINDOWS_ADDITIONS_ICON_FILE))' \
 	-E 'VBOX_NSIS_ICON_FILE=$(subst /,\,$(VBOX_NSIS_ICON_FILE))' \
-	-E 'VBOX_WITH_CROGL=$(if $(VBOX_WITH_CROGL),1,0)' \
 	-E 'VBOX_WITH_GUEST_INSTALL_HELPER=$(if $(VBOX_WITH_GUEST_INSTALL_HELPER),1,0)' \
+	-E 'VBOX_WITH_GUEST_INSTALLER_UNICODE=$(if $(VBOX_WITH_GUEST_INSTALLER_UNICODE),1,0)' \
 	-E 'VBOX_WITH_LICENSE_INSTALL_RTF=$(if $(VBOX_BRAND_LICENSE_RTF),1,0)' \
 	-E 'VBOX_WITH_WDDM=$(if $(VBOX_WITH_WDDM),1,0)' \
 	-E 'VBOX_WITH_MESA3D=$(if $(VBOX_WITH_MESA3D),1,0)' \
@@ -263,6 +236,83 @@ $(PATH_STAGE_BIN)/additions/VBoxWindowsAdditions-$(KBUILD_TARGET_ARCH).exe: \
 			$(foreach lang,$(VBOX_INSTALLER_ADD_LANGUAGES),'/DVBOX_BRAND_$(lang)_LICENSE_RTF=1') \
 			'$(subst /,\,$<)'
 	$(call VBOX_SIGN_FILE_FN,$@)
+
+#
+# Repackaging scripts and files.
+#
+INSTALLS += RePackScriptsAdd
+RePackScriptsAdd_TEMPLATE = DUMMY
+RePackScriptsAdd_INST = repackadd/
+RePackScriptsAdd_INSTTYPE = stage
+RePackScriptsAdd_SOURCES = \
+	../../../Installer/win/Scripts/UnpackBlessedDrivers.cmd \
+	$(RePackScriptsAdd_0_OUTDIR)/PackDriversForSubmission.cmd \
+	$(RePackScriptsAdd_0_OUTDIR)/Combined-1-Prepare.cmd \
+	$(RePackScriptsAdd_0_OUTDIR)/Combined-3-RepackAdditions.cmd \
+	$(RePackScriptsAdd_0_OUTDIR)/sign-ev.cmd
+RePackScriptsAdd_CLEAN = \
+	$(RePackScriptsAdd_0_OUTDIR)/sign-ev.cmd
+
+ifndef VBOX_OSE
+RePackScriptsAdd_SOURCES += \
+	$(RePackScriptsAdd_0_OUTDIR)/Combined-2-SignAdditions.cmd \
+	../../../Installer/win/Scripts/sign-attestation.sh
+endif
+
+$(call VBOX_EDIT_VERSION_AND_BUILD_RULE_FN,RePackScriptsAdd,../../../Installer/win/Scripts/PackDriversForSubmission.cmd,PackDriversForSubmission.cmd)
+$(call VBOX_EDIT_VERSION_AND_BUILD_RULE_FN,RePackScriptsAdd,../../../Installer/win/Scripts/Combined-1-Prepare.cmd,Combined-1-Prepare.cmd)
+ifndef VBOX_OSE
+$(call VBOX_EDIT_VERSION_AND_BUILD_RULE_FN,RePackScriptsAdd,../../../Installer/win/Scripts/Combined-2-SignAdditions.cmd,Combined-2-SignAdditions.cmd)
+endif
+$(call VBOX_EDIT_VERSION_AND_BUILD_RULE_FN,RePackScriptsAdd,../../../Installer/win/Scripts/Combined-3-RepackAdditions.cmd,Combined-3-RepackAdditions.cmd)
+
+# The %~dp1\ oddity is working around otherwise ending with \" during
+# expansion of the CCS command line which for a reason I cannot immediately
+# understand appends a " to the path.
+$$(RePackScriptsAdd_0_OUTDIR)/sign-ev.cmd: | $$(dir $$@)
+	$(APPEND) -nt "$@" \
+		'if ".%KBUILD_DEVTOOLS%" == "." (echo KBUILD_DEVTOOLS is not set & exit /b 1)' \
+		'if ".%KBUILD_BIN_PATH%" == "." (echo KBUILD_BIN_PATH is not set & exit /b 1)' \
+		'if ".%1" == "." (echo No .cab file specified & exit /b 1)' \
+		$(subst $(KBUILD_BIN_PATH),%KBUILD_BIN_PATH%,$(subst $(KBUILD_DEVTOOLS),%KBUILD_DEVTOOLS%, \
+		'( $(call VBOX_SIGN_EV_FILE_FN,%1,%~dp1\) ) || exit /b1' \
+		) )
+
+#
+# Repacking resources.
+#
+INSTALLS += RePackScriptsAddResources
+RePackScriptsAddResources_TEMPLATE = DUMMY
+RePackScriptsAddResources_INST = repackadd/resources/
+RePackScriptsAddResources_INSTTYPE = stage
+RePackScriptsAddResources_DIRS = Languages
+RePackScriptsAddResources_SOURCES = \
+	welcome.bmp \
+	$(VBOX_WINDOWS_ADDITIONS_ICON_FILE)=>VirtualBoxGA-vista.ico \
+	$(VBOX_NSIS_ICON_FILE)=>VirtualBoxGA-nsis.ico \
+	iexplore.ico \
+	$(PATH_ROOT)/doc/License-gpl-2.0.rtf \
+	VBoxGuestAdditions.nsi \
+	dumplog.nsh \
+	ReplaceDLL.nsh \
+	servicepack.nsh \
+	strstr.nsh \
+	VBoxGuestAdditionsCommon.nsh \
+	VBoxGuestAdditionsExternal.nsh \
+	VBoxGuestAdditionsLog.nsh\
+	VBoxGuestAdditionsNT4.nsh \
+	VBoxGuestAdditionsUninstall.nsh \
+	VBoxGuestAdditionsUninstallOld.nsh \
+	VBoxGuestAdditionsVista.nsh\
+	VBoxGuestAdditionsW2KXP.nsh\
+	winver.nsh \
+	ISO/AUTORUN.INF \
+	ISO/NT3xReadme.txt \
+       \
+	Languages/English.nsh=>Languages/English.nsh \
+	Languages/French.nsh=>Languages/French.nsh \
+	Languages/German.nsh=>Languages/German.nsh
+
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

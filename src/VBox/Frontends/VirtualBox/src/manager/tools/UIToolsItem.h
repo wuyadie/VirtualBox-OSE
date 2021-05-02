@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,9 +92,11 @@ public:
         /** Returns model reference. */
         UIToolsModel *model() const;
 
-        /** Reconfigures icon with new @a enmClass, @a enmType, @a icon and @a strName. */
+        /** Reconfigures item with new @a enmClass, @a enmType, @a icon and @a strName. */
         void reconfigure(UIToolClass enmClass, UIToolType enmType,
                          const QIcon &icon, const QString &strName);
+        /** Reconfigures item with @a strName. */
+        void reconfigure(const QString &strName);
 
         /** Returns item class. */
         UIToolClass itemClass() const;

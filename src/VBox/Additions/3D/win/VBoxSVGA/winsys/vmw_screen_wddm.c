@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,7 +106,6 @@ vmw_drm_gb_surface_from_handle(struct svga_winsys_screen *sws,
                                SVGA3dSurfaceFormat *format)
 {
     RT_NOREF3(sws, whandle, format);
-    ASMBreakpoint();
     return 0;
 }
 
@@ -116,7 +115,6 @@ vmw_drm_surface_from_handle(struct svga_winsys_screen *sws,
 			    SVGA3dSurfaceFormat *format)
 {
     RT_NOREF3(sws, whandle, format);
-    ASMBreakpoint();
     return 0;
 }
 

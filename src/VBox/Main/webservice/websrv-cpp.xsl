@@ -11,7 +11,7 @@
         See webservice/Makefile.kmk for an overview of all the things
         generated for the webservice.
 
-    Copyright (C) 2007-2016 Oracle Corporation
+    Copyright (C) 2007-2020 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -930,7 +930,7 @@ const char *g_pcszIUnknown = "IUnknown";
         </xsl:when>
         <xsl:otherwise>
           <xsl:call-template name="fatalError">
-            <xsl:with-param name="msg" select="concat('emitOutputArgBackConverter2: Type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $ifname, '::', $method, '&quot; has invalid wsmap attribute value &quot;', $wsmap, '&quot; in XIDL.')" />
+            <xsl:with-param name="msg" select="concat('emitOutputArgBackConverter2: Type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $thatifname, '::', $method, '&quot; has invalid wsmap attribute value &quot;', $wsmap, '&quot; in XIDL.')" />
           </xsl:call-template>
         </xsl:otherwise>
       </xsl:choose>

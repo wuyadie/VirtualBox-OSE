@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,7 @@ export DH_COMPAT=5
 # STAGEDISO are set.
 
 package  := virtualbox
-verpkg   := virtualbox-6.0
+verpkg   := virtualbox-6.1
 current  := $(shell pwd)
 vboxroot := $(shell cd ../../../..; pwd)
 pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd ../../../../..; pwd))
@@ -63,7 +63,6 @@ ose      := $(if $(OSE),1,$(if $(wildcard $(vboxroot)/src/VBox/RDP/server),,1))
 chrarch  := $(shell if [ `uname -m` = "x86_64" ]; then echo "amd64"; else echo "x86"; fi)
 -include $(vboxroot)/SVN_REVISION
 svnrev   :=$(if $(svn_revision),$(svn_revision),)
-
 NOMODS   ?= $(ose)
 NOQT     ?= $(HEADLESS)
 NOWEBSVC ?= $(ose)
@@ -106,8 +105,7 @@ cfg_flags := $(if $(NOQT),--disable-qt,) \
 	     $(if $(NOWINE),,--setup-wine) \
 	     $(if $(NOWEBSVC),,$(if $(ose),--enable-webservice,)) \
 	     $(if $(VNC),--enable-vnc,) \
-	     --disable-extpack \
-	     $(if $(filter DEBIAN_7_0,$(debdist)),--build-libopus,)
+	     --disable-extpack
 
 bld_flags := AUTOCFG=$(current)/debian/AutoConfig.kmk \
 	     LOCALCFG=$(current)/debian/LocalConfig.kmk \
@@ -160,17 +158,14 @@ debian/modules-stamp: debian/build-stamp
 	        make -j4 -C $(builddir)/bin/src/vboxdrv KBUILD_VERBOSE= KERN_VER=$$(basename $$d) all; \
 	        make -C $(builddir)/bin/src/vboxnetflt KERN_VER=$$(basename $$d) clean && \
 		(cp $(builddir)/bin/src/vboxdrv/Module.symvers $(builddir)/bin/src/vboxnetflt || true) && \
-	        make -j4 -C $(builddir)/bin/src/vboxnetflt KBUILD_VERBOSE= KERN_VER=$$(basename $$d) all; \
+	        make -j4 -C $(builddir)/bin/src/vboxnetflt KBUILD_VERBOSE= KERN_VER=$$(basename $$d) KBUILD_EXTRA_SYMBOLS=$(builddir)/bin/src/vboxnetflt/Module.symvers all; \
 	        make -C $(builddir)/bin/src/vboxnetadp KERN_VER=$$(basename $$d) clean && \
 		(cp $(builddir)/bin/src/vboxdrv/Module.symvers $(builddir)/bin/src/vboxnetadp || true) && \
-	        make -j4 -C $(builddir)/bin/src/vboxnetadp KBUILD_VERBOSE= KERN_VER=$$(basename $$d) all; \
+	        make -j4 -C $(builddir)/bin/src/vboxnetadp KBUILD_VERBOSE= KERN_VER=$$(basename $$d) KBUILD_EXTRA_SYMBOLS=$(builddir)/bin/src/vboxnetadp/Module.symvers all; \
 	        make -C $(builddir)/bin/src/vboxpci KERN_VER=$$(basename $$d) clean && \
 		(cp $(builddir)/bin/src/vboxdrv/Module.symvers $(builddir)/bin/src/vboxpci || true) && \
-	        make -j4 -C $(builddir)/bin/src/vboxpci KBUILD_VERBOSE= KERN_VER=$$(basename $$d) all; \
-	        make -C $(builddir)/bin/src/vboxdrv KERN_VER=$$(basename $$d) clean; \
-	        make -C $(builddir)/bin/src/vboxnetflt KERN_VER=$$(basename $$d) clean; \
-	        make -C $(builddir)/bin/src/vboxnetadp KERN_VER=$$(basename $$d) clean; \
-	        make -C $(builddir)/bin/src/vboxpci KERN_VER=$$(basename $$d) clean; \
+	        make -j4 -C $(builddir)/bin/src/vboxpci KBUILD_VERBOSE= KERN_VER=$$(basename $$d) KBUILD_EXTRA_SYMBOLS=$(builddir)/bin/src/vboxpci/Module.symvers all; \
+	        make -C $(builddir)/bin/src/vboxpci KERN_VER=$$(basename $$d) clean; true; \
 	    fi; \
 	done
 	touch debian/modules-stamp
@@ -211,7 +206,7 @@ binary binary-arch binary-indep: build $(if $(NOMODS),,modules)
 	   $(prefix)/usr/share/pixmaps/virtualbox.png)
 	$(if $(NOQT),,mv $(archdir)/nls $(prefix)/usr/share/$(package))
 	$(if $(NOQT),,cd $(archdir)/icons; for i in *; do \
-        for j in $$i/virtualbox.*; do \
+	    for j in $$i/virtualbox.*; do \
 	        if [ -f $$j ]; then \
 	            if [ ! -d $(prefix)/usr/share/icons/hicolor/$$i/apps ]; then \
 	                install -d -g 0 -o 0 $(prefix)/usr/share/icons/hicolor/$$i/apps; \
@@ -234,22 +229,24 @@ binary binary-arch binary-indep: build $(if $(NOMODS),,modules)
 	   $(prefix)/usr/share/pixmaps/VBox.png
 	mv $(archdir)/src  $(prefix)/usr/share/$(package)
 	rm $(archdir)/VBox.sh
-	install -D -g 0 -o 0 -m 644 VBox.sh $(prefix)/usr/bin/VBox
+	install -D -g 0 -o 0 -m 644 $(vboxroot)/src/VBox/Installer/linux/VBox.sh $(prefix)/usr/bin/VBox
 	mv $(archdir)/VBoxSysInfo.sh $(prefix)/usr/share/$(package)
 	if [ -r $(archdir)/VBoxDTrace ]; then \
 	    mv $(archdir)/VBoxDTrace $(prefix)/usr/bin; \
 	fi
 	mv $(archdir)/VBoxTunctl $(prefix)/usr/bin
 	$(if $(NOMODS),,for d in $(moddir)/*; do \
-	    if [ -f $$d/vboxdrv.ko -a -f $$d/vboxnetflt.ko -a -f $$d/vboxnetadp.ko -a -f $$d/vboxpci.ko ]; then \
+	    if [ -f $$d/vboxdrv.ko -a -f $$d/vboxnetflt.ko -a -f $$d/vboxnetadp.ko ]; then \
 	        install -D -g 0 -o 0 -m 0644 \
 		    $$d/vboxdrv.ko $(prefix)/lib/modules/$$(basename $$d)/misc/vboxdrv.ko; \
 	        install -D -g 0 -o 0 -m 0644 \
 		    $$d/vboxnetflt.ko $(prefix)/lib/modules/$$(basename $$d)/misc/vboxnetflt.ko; \
 	        install -D -g 0 -o 0 -m 0644 \
 		    $$d/vboxnetadp.ko $(prefix)/lib/modules/$$(basename $$d)/misc/vboxnetadp.ko; \
-	        install -D -g 0 -o 0 -m 0644 \
-		    $$d/vboxpci.ko $(prefix)/lib/modules/$$(basename $$d)/misc/vboxpci.ko; \
+	        if [ -f $$d/vboxpci.ko ]; then \
+	            install -D -g 0 -o 0 -m 0644 \
+		        $$d/vboxpci.ko $(prefix)/lib/modules/$$(basename $$d)/misc/vboxpci.ko; \
+	        fi \
 	    fi \
 	    done)
 ifeq ($(ose),)
@@ -305,6 +302,7 @@ endif
 	    usr/bin/VBox                        usr/bin/vboxautostart \
 	    $(if $(NOWEBSVC),,usr/bin/VBox      usr/bin/vboxwebsrv) \
 	    $(if $(NOVBOXIMG),,usr/lib/virtualbox/vbox-img usr/bin/vbox-img) \
+	    $(if $(NOVBOXIMGMOUNT),,usr/lib/virtualbox/vboximg-mount usr/bin/vboximg-mount) \
 	    usr/share/virtualbox/src/vboxhost   usr/src/vboxhost-$(ver)
 	$(if $(NOMODS),,dh_installmodules)
 	sed -e 's|%VER%|$(debver)|g' \

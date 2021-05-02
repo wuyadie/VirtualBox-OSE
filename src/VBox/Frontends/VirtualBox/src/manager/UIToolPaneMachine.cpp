@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,10 +94,15 @@ void UIToolPaneMachine::openTool(UIToolType enmType)
         {
             case UIToolType_Error:
             {
-                /* Create Desktop pane: */
+                /* Create Error pane: */
                 m_pPaneError = new UIErrorPane(m_pActionPool->action(UIActionIndexST_M_Group_S_Refresh));
                 if (m_pPaneError)
                 {
+#ifndef VBOX_WS_MAC
+                    const int iMargin = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 4;
+                    m_pPaneError->setContentsMargins(iMargin, 0, iMargin, 0);
+#endif
+
                     /* Configure pane: */
                     m_pPaneError->setProperty("ToolType", QVariant::fromValue(UIToolType_Error));
 
@@ -115,7 +120,6 @@ void UIToolPaneMachine::openTool(UIToolType enmType)
                 {
                     /* Configure pane: */
                     m_pPaneDetails->setProperty("ToolType", QVariant::fromValue(UIToolType_Details));
-                    connect(this, &UIToolPaneMachine::sigSlidingStarted, m_pPaneDetails, &UIDetails::sigSlidingStarted);
                     connect(this, &UIToolPaneMachine::sigToggleStarted,  m_pPaneDetails, &UIDetails::sigToggleStarted);
                     connect(this, &UIToolPaneMachine::sigToggleFinished, m_pPaneDetails, &UIDetails::sigToggleFinished);
                     connect(m_pPaneDetails, &UIDetails::sigLinkClicked,  this, &UIToolPaneMachine::sigLinkClicked);

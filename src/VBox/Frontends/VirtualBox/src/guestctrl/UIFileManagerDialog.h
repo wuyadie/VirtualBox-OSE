@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,6 @@ protected:
     CGuest        m_comGuest;
     QString       m_strMachineName;
 };
-
 
 /** QIManagerDialog extension providing GUI with the dialog displaying file manager releated logs. */
 class UIFileManagerDialog : public QIWithRetranslateUI<QIManagerDialog>

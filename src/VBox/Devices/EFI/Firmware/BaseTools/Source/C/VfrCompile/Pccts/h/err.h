@@ -185,6 +185,7 @@ va_dcl
 #endif
     assert(k <= sizeof(f)/sizeof(f[0]));    /* MR20 G. Hobbelt */
 	text[0] = '\0';
+	memset(f, '\0', sizeof(f));
 	for (i=1; i<=k; i++)	/* collect all lookahead sets */
 	{
 		f[i-1] = va_arg(ap, SetWordType *);
@@ -649,7 +650,7 @@ _inf_zzgettok()
 /* allocate default size text,token and line arrays;
  * then, read all of the input reallocing the arrays as needed.
  * Once the number of total tokens is known, the LATEXT(i) array (zzinf_text)
- * is allocated and it's pointers are set to the tokens in zzinf_text_buffer.
+ * is allocated and its pointers are set to the tokens in zzinf_text_buffer.
  */
 void
 #ifdef __USE_PROTOS

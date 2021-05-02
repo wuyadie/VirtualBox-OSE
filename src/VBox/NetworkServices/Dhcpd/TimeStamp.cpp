@@ -1,10 +1,10 @@
-/* $Id: TimeStamp.cpp $ */
+/* $Id: Timestamp.cpp $ */
 /** @file
  * DHCP server - timestamps
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "TimeStamp.h"
 
-#include <iprt/string.h>
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#include "DhcpdInternal.h"
+#include "Timestamp.h"
 
 
-size_t TimeStamp::absStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput) const
+size_t Timestamp::strFormatHelper(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput) const RT_NOEXCEPT
 {
-    RTTIMESPEC Spec;
-    getAbsTimeSpec(&Spec);
-
-    RTTIME Time;
-    RTTimeExplode(&Time, &Spec);
-
-    size_t cb = RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                            "%RI32-%02u-%02uT%02u:%02u:%02uZ",
-                            Time.i32Year, Time.u8Month, Time.u8MonthDay,
-                            Time.u8Hour, Time.u8Minute, Time.u8Second);
-    return cb;
+    RTTIMESPEC TimeSpec;
+    RTTIME     Time;
+    char       szBuf[64];
+    ssize_t    cchBuf = RTTimeToStringEx(RTTimeExplode(&Time, getAbsTimeSpec(&TimeSpec)), szBuf, sizeof(szBuf), 0);
+    Assert(cchBuf > 0);
+    return pfnOutput(pvArgOutput, szBuf, cchBuf);
 }
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ static void VBoxDispGetDDHalInfo(PVBOXDISPDEV pDev, DD_HALINFO *pHalInfo)
     /* memory info */
 
     pHalInfo->vmiData.fpPrimary = pDev->layout.offFramebuffer;
-    /*pHalInfo->vmiData.dwFlags /*unused*/
+    /*pHalInfo->vmiData.dwFlags  - unused*/
     pHalInfo->vmiData.dwDisplayWidth = pDev->mode.ulWidth;
     pHalInfo->vmiData.dwDisplayHeight = pDev->mode.ulHeight;
     pHalInfo->vmiData.lDisplayPitch = pDev->mode.lScanlineStride;
@@ -85,6 +85,8 @@ VBoxDispDrvGetDirectDrawInfo(DHPDEV dhpdev, DD_HALINFO *pHalInfo, DWORD *pdwNumH
 
         pDev->vhwa.bEnabled = RT_SUCCESS(rc);
     }
+#else
+    RT_NOREF(pdwFourCC);
 #endif
 
     /* we could only have 1 heap, so it's not really a list */
@@ -180,6 +182,8 @@ VBoxDispDrvEnableDirectDraw(DHPDEV dhpdev, DD_CALLBACKS *pCallBacks, DD_SURFACEC
             pSurfaceCallBacks->dwFlags |= DDHAL_SURFCB32_UPDATEOVERLAY|DDHAL_SURFCB32_SETOVERLAYPOSITION;
         }
     }
+#else
+    RT_NOREF(dhpdev);
 #endif
 
     LOGF_LEAVE();

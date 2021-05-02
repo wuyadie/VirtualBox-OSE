@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2019 Oracle Corporation
+# Copyright (C) 2011-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -37,9 +37,7 @@ VBoxDrvCfg_SOURCES        = cfg/VBoxDrvCfg.cpp
 INSTALLS += HostDrivers-scripts
 HostDrivers-scripts_INST = $(INST_DIST)
 HostDrivers-scripts_EXEC_SOURCES = \
-	loadall.sh \
 	loadall.cmd \
-	load.sh \
 	load.cmd
 
 # generate rules

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,14 +94,14 @@ typedef NETIFINFO const *PCNETIFINFO;
 
 int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list);
 int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask);
-int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength);
+int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface *pIf, const Utf8Str &aOldIPV6Address, const Utf8Str &aIPV6Address, ULONG aIPV6MaskPrefixLength);
 int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf);
 #if defined(RT_OS_WINDOWS)
 int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, IN_BSTR bstrName = NULL);
 #else /* !defined(RT_OS_WINDOWS) */
 int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, const char *pszName = NULL);
 #endif /* !defined(RT_OS_WINDOWS) */
-int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId, IProgress **aProgress);
+int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, const Guid &aId, IProgress **aProgress);
 int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *);
 int NetIfGetConfigByName(PNETIFINFO pInfo);
 int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState);

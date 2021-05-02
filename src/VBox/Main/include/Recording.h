@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,14 +21,9 @@
 # pragma once
 #endif
 
-#include <VBox/com/array.h>
-#include <VBox/com/string.h>
-#include <VBox/com/VirtualBox.h>
+#include <VBox/err.h>
 #include <VBox/settings.h>
 
-using namespace com;
-
-#include "RecordingInternals.h"
 #include "RecordingStream.h"
 
 class Console;

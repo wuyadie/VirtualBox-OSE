@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -158,7 +158,7 @@ SELFSIZINGTABLE::~SelfSizingTable()
         while (pColData)
         {
             COLDATA *pColDataNext = pColData->next;
-            delete pColData->pszData;
+            delete[] pColData->pszData;
             delete pColData;
             pColData = pColDataNext;
         }

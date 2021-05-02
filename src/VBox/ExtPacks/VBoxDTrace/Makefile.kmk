@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2012-2019 Oracle Corporation
+# Copyright (C) 2012-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -171,6 +171,10 @@ if defined(VBOX_WITH_EXTPACK_VBOXDTRACE) && defined(VBOX_WITH_EXTPACK)
  #	$(VBOXDT_PATH_LIBDTRACE)/common/dt_pid.c
 
  # Generate sources
+ VBoxDTraceCmd_CLEAN = \
+ 	$(VBoxDTraceCmd_0_OUTDIR)/dt_errtags.c \
+ 	$(VBoxDTraceCmd_0_OUTDIR)/dt_names.c
+
  $$(VBoxDTraceCmd_0_OUTDIR)/dt_errtags.c: \
  		$(VBOXDT_PATH_LIBDTRACE)/common/dt_errtags.h \
  		$(VBOXDT_PATH_LIBDTRACE)/common/mkerrtags.sed \
@@ -238,7 +242,7 @@ if defined(VBOX_WITH_EXTPACK_VBOXDTRACE) && defined(VBOX_WITH_EXTPACK)
  # The ring-0 part of VBoxDTrace.
  #
  ifneq ($(KBUILD_TARGET),solaris) # disabled on solaris - neiter needed nor currently able to build it here.
-  SYSMODS += VBoxDTraceR0
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxDTraceR0
  endif
  VBoxDTraceR0_TEMPLATE = VBoxR0ExtPackDTrace
  VBoxDTraceR0_DEFS = IN_VBOXDTRACE_R0 IN_RT_R0

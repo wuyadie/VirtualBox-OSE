@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,8 +94,8 @@ typedef struct GIMCPU
 typedef GIMCPU *PGIMCPU;
 
 /**
- * Callback when a debug buffer read has completed and before signaling
- * the next read.
+ * Callback when a debug buffer read has completed and before signalling the next
+ * read.
  *
  * @param   pVM             The cross context VM structure.
  */

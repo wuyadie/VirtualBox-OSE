@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3411,11 +3411,14 @@ DECLHIDDEN(int) rtDwarfUnwind_Slow(PRTDWARFCURSOR pCursor, RTUINTPTR uRvaCursor,
             /*
              * Common information entry (CIE).  Record the info we need about it.
              */
-            if ((cCies & 8) == 0)
+            if ((cCies % 8) == 0)
             {
                 void *pvNew = RTMemRealloc(paCies, sizeof(paCies[0]) * (cCies + 8));
                 if (pvNew)
+                {
                     paCies = (PRTDWARFCIEINFO)pvNew;
+                    pCieHint = NULL;
+                }
                 else
                 {
                     rc = VERR_NO_MEMORY;
@@ -6073,7 +6076,7 @@ static int rtDbgModDwarfTryOpenDbgFile(PRTDBGMODINT pDbgMod, PRTDBGMODDWARF pThi
         {
             pDbgInfoMod->pszName = pDbgMod->pszName;
             pDbgInfoMod->pImgVt  = &g_rtDbgModVtImgLdr;
-            rc = pDbgInfoMod->pImgVt->pfnTryOpen(pDbgInfoMod, enmArch);
+            rc = pDbgInfoMod->pImgVt->pfnTryOpen(pDbgInfoMod, enmArch, 0 /*fLdrFlags*/);
             if (RT_SUCCESS(rc))
             {
                 pThis->pDbgInfoMod = pDbgInfoMod;

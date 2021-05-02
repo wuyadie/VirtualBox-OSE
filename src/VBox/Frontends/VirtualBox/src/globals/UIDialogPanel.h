@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,12 +59,10 @@ protected:
     /** Handles the translation event. */
     void retranslateUi() /* override */;
 
-    /** Handles Qt @a pEvent, used for keyboard processing. */
-    bool eventFilter(QObject *pObject, QEvent *pEvent);
     /** Handles the Qt show @a pEvent. */
-    void showEvent(QShowEvent *pEvent);
+    void showEvent(QShowEvent *pEvent) /* override */;
     /** Handles the Qt hide @a pEvent. */
-    void hideEvent(QHideEvent *pEvent);
+    void hideEvent(QHideEvent *pEvent) /* override */;
     void addVerticalSeparator();
 
 private:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,8 @@
 /* Other VBox includes: */
 #include <VBox/log.h>
 #include <iprt/errcore.h>
+
+#include <VBox/GuestHost/DragAndDrop.h>
 
 
 UIDnDMIMEData::UIDnDMIMEData(UIDnDHandler *pDnDHandler,
@@ -233,7 +235,7 @@ int UIDnDMIMEData::getDataAsVariant(const QVector<uint8_t> &vecData,
         case QVariant::List: /* Used on OS X for representing URI lists. */
         {
             QString strData = QString(reinterpret_cast<const char*>(vecData.constData()));
-            QStringList lstString = strData.split("\r\n", QString::SkipEmptyParts);
+            QStringList lstString = strData.split(DND_PATH_SEPARATOR_STR, QString::SkipEmptyParts);
 
             QVariantList lstVariant;
 
@@ -252,7 +254,7 @@ int UIDnDMIMEData::getDataAsVariant(const QVector<uint8_t> &vecData,
         case QVariant::StringList:
         {
             QString strData = QString(reinterpret_cast<const char*>(vecData.constData()));
-            QStringList lstString = strData.split("\r\n", QString::SkipEmptyParts);
+            QStringList lstString = strData.split(DND_PATH_SEPARATOR_STR, QString::SkipEmptyParts);
 
             LogFlowFunc(("\tStringList has %d entries\n", lstString.size()));
 # ifdef DEBUG

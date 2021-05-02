@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -288,6 +288,15 @@ RTR3DECL(int)  RTTcpFlush(RTSOCKET hSocket);
  * @param   fEnable     When set to true enables coalescing.
  */
 RTR3DECL(int)  RTTcpSetSendCoalescing(RTSOCKET hSocket, bool fEnable);
+
+/**
+ * Sets send and receive buffer sizes.
+ *
+ * @returns iprt status code.
+ * @param   hSocket     Socket descriptor.
+ * @param   cbSize      Buffer size in bytes.
+ */
+RTR3DECL(int)  RTTcpSetBufferSize(RTSOCKET hSocket, uint32_t cbSize);
 
 /**
  * Socket I/O multiplexing.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,7 @@
 
 /* GUI includes: */
 #include "UIMediumDefs.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CMediumFormat.h"
@@ -105,7 +105,7 @@ QList<QPair<QString, QString> > UIMediumDefs::FloppyBackends(const CVirtualBox &
 
 QString UIMediumDefs::getPreferredExtensionForMedium(KDeviceType enmDeviceType)
 {
-    CSystemProperties comSystemProperties = vboxGlobal().virtualBox().GetSystemProperties();
+    CSystemProperties comSystemProperties = uiCommon().virtualBox().GetSystemProperties();
     QVector<CMediumFormat> mediumFormats = comSystemProperties.GetMediumFormats();
     for (int i = 0; i < mediumFormats.size(); ++i)
     {
@@ -127,7 +127,7 @@ QString UIMediumDefs::getPreferredExtensionForMedium(KDeviceType enmDeviceType)
 
 QVector<CMediumFormat> UIMediumDefs::getFormatsForDeviceType(KDeviceType enmDeviceType)
 {
-    CSystemProperties comSystemProperties = vboxGlobal().virtualBox().GetSystemProperties();
+    CSystemProperties comSystemProperties = uiCommon().virtualBox().GetSystemProperties();
     QVector<CMediumFormat> mediumFormats = comSystemProperties.GetMediumFormats();
     QVector<CMediumFormat> formatList;
     for (int i = 0; i < mediumFormats.size(); ++i)

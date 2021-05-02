@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,17 +73,13 @@
 #include <VBox/vmm/pdmdev.h> /* For PDMAPICMODE enum. */
 #include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/version.h>
-#include <VBox/HostServices/VBoxClipboardSvc.h>
-#ifdef VBOX_WITH_CROGL
-# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
-#include <VBox/VBoxOGL.h>
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
+# include <VBox/HostServices/VBoxClipboardSvc.h>
 #endif
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
 # include <VBox/com/defs.h>
 # include <VBox/com/array.h>
-# include "HGCM.h" /** @todo It should be possible to register a service
-                    *        extension using a VMMDev callback. */
 # include <vector>
 #endif /* VBOX_WITH_GUEST_PROPS */
 #include <VBox/intnet.h>
@@ -179,6 +175,7 @@ struct BootNic
     }
 };
 
+#ifndef VBOX_WITH_EFI_IN_DD2
 static int findEfiRom(IVirtualBox* vbox, FirmwareType_T aFirmwareType, Utf8Str *pEfiRomFile)
 {
     Bstr aFilePath, empty;
@@ -197,6 +194,7 @@ static int findEfiRom(IVirtualBox* vbox, FirmwareType_T aFirmwareType, Utf8Str *
 
     return VINF_SUCCESS;
 }
+#endif
 
 /**
  * @throws HRESULT on extra data retrival error.
@@ -242,7 +240,6 @@ static int getSmcDeviceKey(IVirtualBox *pVirtualBox, IMachine *pMachine, Utf8Str
         szProdName[0] = '\0';
         RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_NAME, szProdName, sizeof(szProdName));
         if (   (   !strncmp(szProdName, RT_STR_TUPLE("Mac"))
-                || !strncmp(szProdName, RT_STR_TUPLE("iMac"))
                 || !strncmp(szProdName, RT_STR_TUPLE("iMac"))
                 || !strncmp(szProdName, RT_STR_TUPLE("Xserve"))
                )
@@ -392,6 +389,27 @@ static void InsertConfigNode(PCFGMNODE pNode,
     int vrc = CFGMR3InsertNode(pNode, pcszName, ppChild);
     if (RT_FAILURE(vrc))
         throw ConfigError("CFGMR3InsertNode", vrc, pcszName);
+}
+
+/**
+ * Helper that calls CFGMR3InsertNodeF and throws an RTCError if that fails.
+ *
+ * @param   pNode           See CFGMR3InsertNodeF.
+ * @param   ppChild         See CFGMR3InsertNodeF.
+ * @param   pszNameFormat   Name format string, see CFGMR3InsertNodeF.
+ * @param   ...             Format arguments.
+ */
+static void InsertConfigNodeF(PCFGMNODE pNode,
+                              PCFGMNODE *ppChild,
+                              const char *pszNameFormat,
+                              ...)
+{
+    va_list va;
+    va_start(va, pszNameFormat);
+    int vrc = CFGMR3InsertNodeF(pNode, ppChild, "%N", pszNameFormat, &va);
+    va_end(va);
+    if (RT_FAILURE(vrc))
+        throw ConfigError("CFGMR3InsertNodeF", vrc, pszNameFormat);
 }
 
 /**
@@ -821,11 +839,13 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
     virtualBox->GetGuestOSType(osTypeId.raw(), pGuestOSType.asOutParam());
 
     BOOL fOsXGuest = FALSE;
+    BOOL fWinGuest = FALSE;
     if (!pGuestOSType.isNull())
     {
         Bstr guestTypeFamilyId;
         hrc = pGuestOSType->COMGETTER(FamilyId)(guestTypeFamilyId.asOutParam());            H();
         fOsXGuest = guestTypeFamilyId == Bstr("MacOS");
+        fWinGuest = guestTypeFamilyId == Bstr("Windows");
     }
 
     ULONG maxNetworkAdapters;
@@ -853,21 +873,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         InsertConfigInteger(pRoot, "NumCPUs",              cCpus);
         InsertConfigInteger(pRoot, "CpuExecutionCap",      ulCpuExecutionCap);
         InsertConfigInteger(pRoot, "TimerMillies",         10);
-#ifdef VBOX_WITH_RAW_MODE
-        InsertConfigInteger(pRoot, "RawR3Enabled",         1);     /* boolean */
-        InsertConfigInteger(pRoot, "RawR0Enabled",         1);     /* boolean */
-        /** @todo Config: RawR0, PATMEnabled and CSAMEnabled needs attention later. */
-        InsertConfigInteger(pRoot, "PATMEnabled",          1);     /* boolean */
-        InsertConfigInteger(pRoot, "CSAMEnabled",          1);     /* boolean */
-#endif
-
-#ifdef VBOX_WITH_RAW_RING1
-        if (osTypeId == "QNX")
-        {
-            /* QNX needs special treatment in raw mode due to its use of ring-1. */
-            InsertConfigInteger(pRoot, "RawR1Enabled",     1);     /* boolean */
-        }
-#endif
 
         BOOL fPageFusion = FALSE;
         hrc = pMachine->COMGETTER(PageFusionEnabled)(&fPageFusion);                         H();
@@ -1080,34 +1085,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         }
 
         BOOL fHMForced;
-#ifdef VBOX_WITH_RAW_MODE
-        /* - With more than 4GB PGM will use different RAMRANGE sizes for raw
-             mode and hv mode to optimize lookup times.
-           - With more than one virtual CPU, raw-mode isn't a fallback option.
-           - With a 64-bit guest, raw-mode isn't a fallback option either. */
-        fHMForced = fHMEnabled
-                 && (   cbRam + cbRamHole > _4G
-                     || cCpus > 1
-                     || fIsGuest64Bit);
-# ifdef RT_OS_DARWIN
-        fHMForced = fHMEnabled;
-# endif
-        if (fHMForced)
-        {
-            if (cbRam + cbRamHole > _4G)
-                LogRel(("fHMForced=true - Lots of RAM\n"));
-            if (cCpus > 1)
-                LogRel(("fHMForced=true - SMP\n"));
-            if (fIsGuest64Bit)
-                LogRel(("fHMForced=true - 64-bit guest\n"));
-# ifdef RT_OS_DARWIN
-            LogRel(("fHMForced=true - Darwin host\n"));
-# endif
-        }
-#else  /* !VBOX_WITH_RAW_MODE */
         fHMEnabled = fHMForced = TRUE;
         LogRel(("fHMForced=true - No raw-mode support in this build!\n"));
-#endif /* !VBOX_WITH_RAW_MODE */
         if (!fHMForced) /* No need to query if already forced above. */
         {
             hrc = pMachine->GetHWVirtExProperty(HWVirtExPropertyType_Force, &fHMForced); H();
@@ -1200,7 +1179,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         InsertConfigInteger(pHM, "MDSClearOnVMEntry", fMDSClearOnVMEntry);
 
         /* Reset overwrite. */
-        if (i_isResetTurnedIntoPowerOff())
+        mfTurnResetIntoPowerOff = GetExtraDataBoth(virtualBox, pMachine,
+                                                   "VBoxInternal2/TurnResetIntoPowerOff", &strTmp)->equals("1");
+        if (mfTurnResetIntoPowerOff)
             InsertConfigInteger(pRoot, "PowerOffInsteadOfReset", 1);
 
         /* Use NEM rather than HM. */
@@ -1671,8 +1652,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         /*
          * VGA.
          */
+        ComPtr<IGraphicsAdapter> pGraphicsAdapter;
+        hrc = pMachine->COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam());           H();
         GraphicsControllerType_T enmGraphicsController;
-        hrc = pMachine->COMGETTER(GraphicsControllerType)(&enmGraphicsController);          H();
+        hrc = pGraphicsAdapter->COMGETTER(GraphicsControllerType)(&enmGraphicsController);          H();
         switch (enmGraphicsController)
         {
             case GraphicsControllerType_Null:
@@ -1680,11 +1663,12 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 #ifdef VBOX_WITH_VMSVGA
             case GraphicsControllerType_VMSVGA:
                 InsertConfigInteger(pHM, "LovelyMesaDrvWorkaround", 1); /* hits someone else logging backdoor. */
+                InsertConfigInteger(pNEM, "LovelyMesaDrvWorkaround", 1); /* hits someone else logging backdoor. */
                 RT_FALL_THROUGH();
             case GraphicsControllerType_VBoxSVGA:
 #endif
             case GraphicsControllerType_VBoxVGA:
-                rc = i_configGraphicsController(pDevices, enmGraphicsController, pBusMgr, pMachine, biosSettings,
+                rc = i_configGraphicsController(pDevices, enmGraphicsController, pBusMgr, pMachine, pGraphicsAdapter, biosSettings,
                                                 RT_BOOL(fHMEnabled));
                 if (FAILED(rc))
                     return rc;
@@ -1724,6 +1708,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = biosSettings->COMGETTER(PXEDebugEnabled)(&fPXEDebug);                     H();
             InsertConfigInteger(pBiosCfg,  "PXEDebug",             fPXEDebug);
             InsertConfigBytes(pBiosCfg,    "UUID", &HardwareUuid,sizeof(HardwareUuid));
+            BOOL fUuidLe;
+            hrc = biosSettings->COMGETTER(SMBIOSUuidLittleEndian)(&fUuidLe);                H();
+            InsertConfigInteger(pBiosCfg,  "UuidLe",               fUuidLe);
             InsertConfigNode(pBiosCfg,     "NetBoot", &pNetBootCfg);
             InsertConfigInteger(pBiosCfg,  "McfgBase",   uMcfgBase);
             InsertConfigInteger(pBiosCfg,  "McfgLength", cbMcfgLength);
@@ -1777,9 +1764,17 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 eFwType = fIsGuest64Bit ? FirmwareType_EFI64 : FirmwareType_EFI32;
             bool const f64BitEntry = eFwType == FirmwareType_EFI64;
 
+            Assert(eFwType == FirmwareType_EFI64 || eFwType == FirmwareType_EFI32 || eFwType == FirmwareType_EFIDUAL);
+#ifdef VBOX_WITH_EFI_IN_DD2
+            const char *pszEfiRomFile = eFwType == FirmwareType_EFIDUAL ? "VBoxEFIDual.fd"
+                                      : eFwType == FirmwareType_EFI32   ? "VBoxEFI32.fd"
+                                      :                                   "VBoxEFI64.fd";
+#else
             Utf8Str efiRomFile;
             rc = findEfiRom(virtualBox, eFwType, &efiRomFile);
             AssertRCReturn(rc, rc);
+            const char *pszEfiRomFile = efiRomFile.c_str();
+#endif
 
             /* Get boot args */
             Utf8Str bootArgs;
@@ -1788,6 +1783,13 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             /* Get device props */
             Utf8Str deviceProps;
             GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/EfiDeviceProps", &deviceProps);
+
+            /* Get NVRAM file name */
+            Bstr bstrNVRAM;
+            hrc = biosSettings->COMGETTER(NonVolatileStorageFile)(bstrNVRAM.asOutParam());  H();
+
+            BOOL fUuidLe;
+            hrc = biosSettings->COMGETTER(SMBIOSUuidLittleEndian)(&fUuidLe);                H();
 
             /* Get graphics mode settings */
             uint32_t u32GraphicsMode = UINT32_MAX;
@@ -1845,13 +1847,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigInteger(pCfg,  "NumCPUs",     cCpus);
             InsertConfigInteger(pCfg,  "McfgBase",    uMcfgBase);
             InsertConfigInteger(pCfg,  "McfgLength",  cbMcfgLength);
-            InsertConfigString(pCfg,   "EfiRom",      efiRomFile);
+            InsertConfigString(pCfg,   "EfiRom",      pszEfiRomFile);
             InsertConfigString(pCfg,   "BootArgs",    bootArgs);
             InsertConfigString(pCfg,   "DeviceProps", deviceProps);
             InsertConfigInteger(pCfg,  "IOAPIC",      fIOAPIC);
             InsertConfigInteger(pCfg,  "APIC",        uFwAPIC);
             InsertConfigBytes(pCfg,    "UUID", &HardwareUuid,sizeof(HardwareUuid));
+            InsertConfigInteger(pCfg,  "UuidLe",      fUuidLe);
             InsertConfigInteger(pCfg,  "64BitEntry",  f64BitEntry); /* boolean */
+            InsertConfigString(pCfg,   "NvramFile",   bstrNVRAM);
             if (u32GraphicsMode != UINT32_MAX)
                 InsertConfigInteger(pCfg,  "GraphicsMode",  u32GraphicsMode);
             if (!strResolution.isEmpty())
@@ -1863,13 +1867,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 InsertConfigInteger(pCfg, "DmiUseHostInfo", 1);
                 InsertConfigInteger(pCfg, "DmiExposeMemoryTable", 1);
             }
-            InsertConfigNode(pInst,    "LUN#0", &pLunL0);
-            InsertConfigString(pLunL0, "Driver", "NvramStorage");
-            InsertConfigNode(pLunL0,   "Config", &pCfg);
-            InsertConfigInteger(pCfg,  "Object", (uintptr_t)mNvram);
-#ifdef DEBUG_vvl
-            InsertConfigInteger(pCfg,  "PermanentSave", 1);
-#endif
         }
 
         /*
@@ -2142,7 +2139,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          * Storage controllers.
          */
         com::SafeIfaceArray<IStorageController> ctrls;
-        PCFGMNODE aCtrlNodes[StorageControllerType_NVMe + 1] = {};
+        PCFGMNODE aCtrlNodes[StorageControllerType_VirtioSCSI + 1] = {};
         hrc = pMachine->COMGETTER(StorageControllers)(ComSafeArrayAsOutParam(ctrls));       H();
 
         bool fFdcEnabled = false;
@@ -2402,6 +2399,23 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     break;
                 }
 
+                case StorageControllerType_VirtioSCSI:
+                {
+                    hrc = pBusMgr->assignPCIDevice("virtio-scsi", pCtlInst);                H();
+
+                    ULONG cPorts = 0;
+                    hrc = ctrls[i]->COMGETTER(PortCount)(&cPorts);                          H();
+                    InsertConfigInteger(pCfg, "NumTargets", cPorts);
+                    InsertConfigInteger(pCfg, "Bootable",   fBootable);
+
+                    /* Attach the status driver */
+                    AssertRelease(cPorts <= cLedSata);
+                    i_attachStatusDriver(pCtlInst, &mapStorageLeds[iLedVirtio], 0, cPorts - 1,
+                                       &mapMediumAttachments, pszCtrlDev, ulInstance);
+                    paLedDevType = &maStorageDevType[iLedVirtio];
+                    break;
+                }
+
                 default:
                     AssertLogRelMsgFailedReturn(("invalid storage controller type: %d\n", enmCtrlType), VERR_MAIN_CONFIG_CONSTRUCTOR_IPE);
             }
@@ -2467,11 +2481,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         PCFGMNODE pDevVirtioNet = NULL;          /* Virtio network devices */
         InsertConfigNode(pDevices, "virtio-net", &pDevVirtioNet);
 #endif /* VBOX_WITH_VIRTIO */
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+        PCFGMNODE pDevVirtioNet1_0 = NULL;          /* Virtio network devices */
+        InsertConfigNode(pDevices, "virtio-net-1-dot-0", &pDevVirtioNet1_0);
+#endif /* VBOX_WITH_VIRTIO_NET_1_0 */
         std::list<BootNic> llBootNics;
-        for (ULONG ulInstance = 0; ulInstance < maxNetworkAdapters; ++ulInstance)
+        for (ULONG uInstance = 0; uInstance < maxNetworkAdapters; ++uInstance)
         {
             ComPtr<INetworkAdapter> networkAdapter;
-            hrc = pMachine->GetNetworkAdapter(ulInstance, networkAdapter.asOutParam());     H();
+            hrc = pMachine->GetNetworkAdapter(uInstance, networkAdapter.asOutParam());      H();
             BOOL fEnabledNetAdapter = FALSE;
             hrc = networkAdapter->COMGETTER(Enabled)(&fEnabledNetAdapter);                  H();
             if (!fEnabledNetAdapter)
@@ -2487,6 +2505,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             {
                 case NetworkAdapterType_Am79C970A:
                 case NetworkAdapterType_Am79C973:
+                case NetworkAdapterType_Am79C960:
                     pDev = pDevPCNet;
                     break;
 #ifdef VBOX_WITH_E1000
@@ -2503,29 +2522,33 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     pszAdapterName = "virtio-net";
                     break;
 #endif /* VBOX_WITH_VIRTIO */
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+                case NetworkAdapterType_Virtio_1_0:
+                    pDev = pDevVirtioNet1_0;
+                    pszAdapterName = "virtio-net-1-dot-0";
+                    break;
+#endif /* VBOX_WITH_VIRTIO_NET_1_0 */
                 default:
-                    AssertMsgFailed(("Invalid network adapter type '%d' for slot '%d'",
-                                    adapterType, ulInstance));
+                    AssertMsgFailed(("Invalid network adapter type '%d' for slot '%d'", adapterType, uInstance));
                     return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS,
-                                        N_("Invalid network adapter type '%d' for slot '%d'"),
-                                        adapterType, ulInstance);
+                                        N_("Invalid network adapter type '%d' for slot '%d'"), adapterType, uInstance);
             }
 
-            InsertConfigNode(pDev, Utf8StrFmt("%u", ulInstance).c_str(), &pInst);
+            InsertConfigNode(pDev, Utf8StrFmt("%u", uInstance).c_str(), &pInst);
             InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
             /* the first network card gets the PCI ID 3, the next 3 gets 8..10,
              * next 4 get 16..19. */
             int iPCIDeviceNo;
-            switch (ulInstance)
+            switch (uInstance)
             {
                 case 0:
                     iPCIDeviceNo = 3;
                     break;
                 case 1: case 2: case 3:
-                    iPCIDeviceNo = ulInstance - 1 + 8;
+                    iPCIDeviceNo = uInstance - 1 + 8;
                     break;
                 case 4: case 5: case 6: case 7:
-                    iPCIDeviceNo = ulInstance - 4 + 16;
+                    iPCIDeviceNo = uInstance - 4 + 16;
                     break;
                 default:
                     /* auto assignment */
@@ -2551,16 +2574,14 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigNode(pInst, "Config", &pCfg);
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE   /* not safe here yet. */ /** @todo Make PCNet ring-0 safe on 32-bit mac kernels! */
             if (pDev == pDevPCNet)
-            {
                 InsertConfigInteger(pCfg, "R0Enabled",    false);
-            }
 #endif
             /*
              * Collect information needed for network booting and add it to the list.
              */
             BootNic     nic;
 
-            nic.mInstance    = ulInstance;
+            nic.mInstance    = uInstance;
             /* Could be updated by reference, if auto assigned */
             nic.mPCIAddress  = PCIAddr;
 
@@ -2580,6 +2601,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 case NetworkAdapterType_Am79C973:
                     InsertConfigString(pCfg, "ChipType", "Am79C973");
                     break;
+                case NetworkAdapterType_Am79C960:
+                    InsertConfigString(pCfg, "ChipType", "Am79C960");
+                    break;
                 case NetworkAdapterType_I82540EM:
                     InsertConfigInteger(pCfg, "AdapterType", 0);
                     break;
@@ -2590,6 +2614,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     InsertConfigInteger(pCfg, "AdapterType", 2);
                     break;
                 case NetworkAdapterType_Virtio:
+                    break;
+                case NetworkAdapterType_Virtio_1_0:
                     break;
                 case NetworkAdapterType_Null:      AssertFailedBreak(); /* (compiler warnings) */
 #ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
@@ -2604,6 +2630,17 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = networkAdapter->COMGETTER(MACAddress)(macAddr.asOutParam());              H();
             Assert(!macAddr.isEmpty());
             Utf8Str macAddrUtf8 = macAddr;
+#ifdef VBOX_WITH_CLOUD_NET
+            NetworkAttachmentType_T eAttachmentType;
+            hrc = networkAdapter->COMGETTER(AttachmentType)(&eAttachmentType);                 H();
+            if (eAttachmentType == NetworkAttachmentType_Cloud)
+            {
+                mGateways.setLocalMacAddress(macAddrUtf8);
+                /* We'll insert cloud MAC later, when it becomes known. */
+            }
+            else
+            {
+#endif
             char *macStr = (char*)macAddrUtf8.c_str();
             Assert(strlen(macStr) == 12);
             RTMAC Mac;
@@ -2620,7 +2657,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 *pMac++ = (char)(((c1 & 0x0f) << 4) | (c2 & 0x0f));
             }
             InsertConfigBytes(pCfg, "MAC", &Mac, sizeof(Mac));
-
+#ifdef VBOX_WITH_CLOUD_NET
+            }
+#endif
             /*
              * Check if the cable is supposed to be unplugged
              */
@@ -2638,14 +2677,14 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             /*
              * Attach the status driver.
              */
-            i_attachStatusDriver(pInst, &mapNetworkLeds[ulInstance], 0, 0, NULL, NULL, 0);
+            i_attachStatusDriver(pInst, &mapNetworkLeds[uInstance], 0, 0, NULL, NULL, 0);
 
             /*
              * Configure the network card now
              */
             bool fIgnoreConnectFailure = mMachineState == MachineState_Restoring;
             rc = i_configNetwork(pszAdapterName,
-                                 ulInstance,
+                                 uInstance,
                                  0,
                                  networkAdapter,
                                  pCfg,
@@ -2828,15 +2867,22 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
         if (fAudioEnabled)
         {
-            Utf8Str strAudioDevice;
+            AudioControllerType_T enmAudioController;
+            hrc = audioAdapter->COMGETTER(AudioController)(&enmAudioController);            H();
+            AudioCodecType_T enmAudioCodec;
+            hrc = audioAdapter->COMGETTER(AudioCodec)(&enmAudioCodec);                      H();
 
-            AudioControllerType_T audioController;
-            hrc = audioAdapter->COMGETTER(AudioController)(&audioController);               H();
-            AudioCodecType_T audioCodec;
-            hrc = audioAdapter->COMGETTER(AudioCodec)(&audioCodec);                         H();
+            GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/TimerHz", &strTmp);
+            const uint64_t uTimerHz = strTmp.toUInt64();
+
+            GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/BufSizeInMs", &strTmp);
+            const uint64_t uBufSizeInMs = strTmp.toUInt64();
+
+            GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/BufSizeOutMs", &strTmp);
+            const uint64_t uBufSizeOutMs = strTmp.toUInt64();
 
             GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Debug/Enabled", &strTmp);
-            const uint64_t fDebugEnabled = (strTmp.equalsIgnoreCase("true") || strTmp.equalsIgnoreCase("1")) ? 1 : 0;
+            const bool fDebugEnabled = strTmp.equalsIgnoreCase("true") || strTmp.equalsIgnoreCase("1");
 
             Utf8Str strDebugPathOut;
             GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Debug/PathOut", &strDebugPathOut);
@@ -2844,63 +2890,103 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             /** @todo Implement an audio device class, similar to the audio backend class, to construct the common stuff
              *        without duplicating (more) code. */
 
-            switch (audioController)
+            const char *pszAudioDevice;
+            switch (enmAudioController)
             {
                 case AudioControllerType_AC97:
                 {
                     /* ICH AC'97. */
-                    strAudioDevice = "ichac97";
+                    pszAudioDevice = "ichac97";
 
-                    InsertConfigNode   (pDevices, strAudioDevice.c_str(),  &pDev);
-                    InsertConfigNode   (pDev,     "0",                     &pInst);
-                    InsertConfigInteger(pInst,    "Trusted",               1); /* boolean */
-                    hrc = pBusMgr->assignPCIDevice(strAudioDevice.c_str(), pInst);          H();
-                    InsertConfigNode   (pInst,    "Config",                &pCfg);
-                    switch (audioCodec)
+                    InsertConfigNode(pDevices,      pszAudioDevice,         &pDev);
+                    InsertConfigNode(pDev,          "0",                    &pInst);
+                    InsertConfigInteger(pInst,      "Trusted",              1); /* boolean */
+                    hrc = pBusMgr->assignPCIDevice(pszAudioDevice, pInst);              H();
+                    InsertConfigNode(pInst,         "Config",               &pCfg);
+                    switch (enmAudioCodec)
                     {
                         case AudioCodecType_STAC9700:
-                            InsertConfigString(pCfg,   "Codec", "STAC9700");
+                            InsertConfigString(pCfg, "Codec",               "STAC9700");
                             break;
                         case AudioCodecType_AD1980:
-                            InsertConfigString(pCfg,   "Codec", "AD1980");
+                            InsertConfigString(pCfg, "Codec",               "AD1980");
                             break;
                         default: AssertFailedBreak();
                     }
-                    InsertConfigInteger(pCfg, "DebugEnabled", fDebugEnabled);
-                    InsertConfigString (pCfg, "DebugPathOut", strDebugPathOut);
+                    if (uTimerHz)
+                        InsertConfigInteger(pCfg,   "TimerHz",              uTimerHz);
+                    if (uBufSizeInMs)
+                        InsertConfigInteger(pCfg,   "BufSizeInMs",          uBufSizeInMs);
+                    if (uBufSizeOutMs)
+                        InsertConfigInteger(pCfg,   "BufSizeOutMs",         uBufSizeOutMs);
+                    InsertConfigInteger(pCfg,       "DebugEnabled",         fDebugEnabled);
+                    if (strDebugPathOut.isNotEmpty())
+                        InsertConfigString(pCfg,    "DebugPathOut",         strDebugPathOut);
                     break;
                 }
                 case AudioControllerType_SB16:
                 {
                     /* Legacy SoundBlaster16. */
-                    strAudioDevice = "sb16";
+                    pszAudioDevice = "sb16";
 
-                    InsertConfigNode   (pDevices, strAudioDevice.c_str(), &pDev);
-                    InsertConfigNode   (pDev,     "0", &pInst);
-                    InsertConfigInteger(pInst,    "Trusted",              1); /* boolean */
-                    InsertConfigNode   (pInst,    "Config",               &pCfg);
-                    InsertConfigInteger(pCfg,     "IRQ",                  5);
-                    InsertConfigInteger(pCfg,     "DMA",                  1);
-                    InsertConfigInteger(pCfg,     "DMA16",                5);
-                    InsertConfigInteger(pCfg,     "Port",                 0x220);
-                    InsertConfigInteger(pCfg,     "Version",              0x0405);
+                    InsertConfigNode(pDevices,      pszAudioDevice,         &pDev);
+                    InsertConfigNode(pDev,          "0", &pInst);
+                    InsertConfigInteger(pInst,      "Trusted",              1); /* boolean */
+                    InsertConfigNode(pInst,         "Config",               &pCfg);
+                    InsertConfigInteger(pCfg,       "IRQ",                  5);
+                    InsertConfigInteger(pCfg,       "DMA",                  1);
+                    InsertConfigInteger(pCfg,       "DMA16",                5);
+                    InsertConfigInteger(pCfg,       "Port",                 0x220);
+                    InsertConfigInteger(pCfg,       "Version",              0x0405);
+                    if (uTimerHz)
+                        InsertConfigInteger(pCfg,   "TimerHz",              uTimerHz);
                     break;
                 }
                 case AudioControllerType_HDA:
                 {
                     /* Intel HD Audio. */
-                    strAudioDevice = "hda";
+                    pszAudioDevice = "hda";
 
-                    InsertConfigNode   (pDevices, strAudioDevice.c_str(),  &pDev);
-                    InsertConfigNode   (pDev,     "0",                     &pInst);
-                    InsertConfigInteger(pInst,    "Trusted",               1); /* boolean */
-                    hrc = pBusMgr->assignPCIDevice(strAudioDevice.c_str(), pInst);          H();
-                    InsertConfigNode   (pInst,    "Config",                &pCfg);
-                    InsertConfigInteger(pCfg,     "DebugEnabled",          fDebugEnabled);
-                    InsertConfigString (pCfg,     "DebugPathOut",          strDebugPathOut);
+                    InsertConfigNode(pDevices,      pszAudioDevice,         &pDev);
+                    InsertConfigNode(pDev,          "0",                    &pInst);
+                    InsertConfigInteger(pInst,      "Trusted",              1); /* boolean */
+                    hrc = pBusMgr->assignPCIDevice(pszAudioDevice, pInst);              H();
+                    InsertConfigNode(pInst,         "Config",               &pCfg);
+                    if (uTimerHz)
+                        InsertConfigInteger(pCfg,   "TimerHz",              uTimerHz);
+                    if (uBufSizeInMs)
+                        InsertConfigInteger(pCfg,   "BufSizeInMs",          uBufSizeInMs);
+                    if (uBufSizeOutMs)
+                        InsertConfigInteger(pCfg,   "BufSizeOutMs",         uBufSizeOutMs);
+                    InsertConfigInteger(pCfg,       "DebugEnabled",         fDebugEnabled);
+                    if (strDebugPathOut.isNotEmpty())
+                        InsertConfigString(pCfg,    "DebugPathOut",         strDebugPathOut);
+
+                    /*
+                     * HDA-specific parameters.
+                     */
+                    uint64_t uTmp;
+                    GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/PosAdjustEnabled", &strTmp);
+                    if (strTmp.isNotEmpty())
+                        InsertConfigInteger(pCfg,          "PosAdjustEnabled",             strTmp.equalsIgnoreCase("true")
+                                                                                        || strTmp.equalsIgnoreCase("1"));
+
+                    GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/PosAdjustFrames", &strTmp);
+                    if (strTmp.isNotEmpty())
+                    {
+                        uTmp = strTmp.toUInt64(); /* Ditto. */
+                        InsertConfigInteger(pCfg,          "PosAdjustFrames",           uTmp);
+                    }
+
+                    GetExtraDataBoth(virtualBox, pMachine, "VBoxInternal2/Audio/Device/TransferHeuristicsEnabled", &strTmp);
+                    if (strTmp.isNotEmpty())
+                        InsertConfigInteger(pCfg,          "TransferHeuristicsEnabled",    strTmp.equalsIgnoreCase("true")
+                                                                                        || strTmp.equalsIgnoreCase("1"));
                     break;
                 }
-                default: AssertFailedBreak();
+                default:
+                    pszAudioDevice = "oops";
+                    AssertFailedBreak();
             }
 
             PCFGMNODE pCfgAudioAdapter = NULL;
@@ -2921,125 +3007,105 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             /*
              * The audio driver.
              */
-            Utf8Str strAudioDriver;
-
-            AudioDriverType_T audioDriver;
-            hrc = audioAdapter->COMGETTER(AudioDriver)(&audioDriver);                       H();
-            switch (audioDriver)
+            AudioDriverType_T enmAudioDriver;
+            hrc = audioAdapter->COMGETTER(AudioDriver)(&enmAudioDriver);                    H();
+            const char *pszAudioDriver;
+            switch (enmAudioDriver)
             {
                 case AudioDriverType_Null:
-                {
-                    strAudioDriver = "NullAudio";
+                    pszAudioDriver = "NullAudio";
                     break;
-                }
 #ifdef RT_OS_WINDOWS
 # ifdef VBOX_WITH_WINMM
                 case AudioDriverType_WinMM:
-                {
-                    #error "Port WinMM audio backend!" /** @todo Still needed? */
+#  error "Port WinMM audio backend!" /** @todo Still needed? */
                     break;
-                }
 # endif
                 case AudioDriverType_DirectSound:
-                {
-                    strAudioDriver = "DSoundAudio";
+                    pszAudioDriver = "DSoundAudio";
                     break;
-                }
 #endif /* RT_OS_WINDOWS */
 #ifdef RT_OS_SOLARIS
                 case AudioDriverType_SolAudio:
-                {
                     /* Should not happen, as the Solaris Audio backend is not around anymore.
                      * Remove this sometime later. */
                     LogRel(("Audio: WARNING: Solaris Audio is deprecated, please switch to OSS!\n"));
                     LogRel(("Audio: Automatically setting host audio backend to OSS\n"));
 
                     /* Manually set backend to OSS for now. */
-                    strAudioDriver = "OSSAudio";
+                    pszAudioDriver = "OSSAudio";
                     break;
-                }
 #endif
 #ifdef VBOX_WITH_AUDIO_OSS
                 case AudioDriverType_OSS:
-                {
-                    strAudioDriver = "OSSAudio";
+                    pszAudioDriver = "OSSAudio";
                     break;
-                }
 #endif
 #ifdef VBOX_WITH_AUDIO_ALSA
                 case AudioDriverType_ALSA:
-                {
-                    strAudioDriver = "ALSAAudio";
+                    pszAudioDriver = "ALSAAudio";
                     break;
-                }
 #endif
 #ifdef VBOX_WITH_AUDIO_PULSE
                 case AudioDriverType_Pulse:
-                {
-                    strAudioDriver = "PulseAudio";
+                    pszAudioDriver = "PulseAudio";
                     break;
-                }
 #endif
 #ifdef RT_OS_DARWIN
                 case AudioDriverType_CoreAudio:
-                {
-                    strAudioDriver = "CoreAudio";
+                    pszAudioDriver = "CoreAudio";
                     break;
-                }
 #endif
-                default: AssertFailedBreak();
+                default:
+                    pszAudioDriver = "oops";
+                    AssertFailedBreak();
             }
 
-            unsigned uAudioLUN = 0;
+            unsigned idxAudioLun = 0;
 
-            CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
-            rc = i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0,
-                                     strAudioDriver.c_str());
-            if (RT_SUCCESS(rc))
-                uAudioLUN++;
+            InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", idxAudioLun);
+            i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0, pszAudioDriver);
+            idxAudioLun++;
 
 #ifdef VBOX_WITH_AUDIO_VRDE
             /* Insert dummy audio driver to have the LUN configured. */
-            CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
-                InsertConfigString(pLunL0, "Driver", "AUDIO");
-            AudioDriverCfg DrvCfgVRDE(strAudioDevice, 0 /* Instance */, uAudioLUN, "AudioVRDE");
+            InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", idxAudioLun);
+            InsertConfigString(pLunL0, "Driver", "AUDIO");
+            AudioDriverCfg DrvCfgVRDE(pszAudioDevice, 0 /* Instance */, idxAudioLun, "AudioVRDE");
             rc = mAudioVRDE->InitializeConfig(&DrvCfgVRDE);
-            if (RT_SUCCESS(rc))
-                uAudioLUN++;
+            AssertRCStmt(rc, throw ConfigError(__FUNCTION__, rc, "mAudioVRDE->InitializeConfig failed"));
+            idxAudioLun++;
 #endif /* VBOX_WITH_AUDIO_VRDE */
 
 #ifdef VBOX_WITH_AUDIO_RECORDING
             /* Insert dummy audio driver to have the LUN configured. */
-            CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
-                InsertConfigString(pLunL0, "Driver", "AUDIO");
-            AudioDriverCfg DrvCfgVideoRec(strAudioDevice, 0 /* Instance */, uAudioLUN, "AudioVideoRec");
+            InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", idxAudioLun);
+            InsertConfigString(pLunL0, "Driver", "AUDIO");
+            AudioDriverCfg DrvCfgVideoRec(pszAudioDevice, 0 /* Instance */, idxAudioLun, "AudioVideoRec");
             rc = Recording.mAudioRec->InitializeConfig(&DrvCfgVideoRec);
-            if (RT_SUCCESS(rc))
-                uAudioLUN++;
+            AssertRCStmt(rc, throw ConfigError(__FUNCTION__, rc, "Recording.mAudioRec->InitializeConfig failed"));
+            idxAudioLun++;
 #endif /* VBOX_WITH_AUDIO_RECORDING */
 
             if (fDebugEnabled)
             {
 #ifdef VBOX_WITH_AUDIO_DEBUG
-                CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
-                rc = i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0,
-                                         "DebugAudio");
-                if (RT_SUCCESS(rc))
-                    uAudioLUN++;
+                InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", idxAudioLun);
+                i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0, "DebugAudio");
+                idxAudioLun++;
 #endif /* VBOX_WITH_AUDIO_DEBUG */
 
                 /*
                  * Tweak the logging groups.
                  */
-                Utf8Str strLogGroups = "drv_host_audio.e.l.l2.l3.f+" \
-                                       "drv_audio.e.l.l2.l3.f+" \
-                                       "audio_mixer.e.l.l2.l3.f+" \
-                                       "dev_hda_codec.e.l.l2.l3.f+" \
-                                       "dev_hda.e.l.l2.l3.f+" \
-                                       "dev_ac97.e.l.l2.l3.f+" \
-                                       "dev_sb16.e.l.l2.l3.f";
-
-                rc = RTLogGroupSettings(RTLogRelGetDefaultInstance(), strLogGroups.c_str());
+                rc = RTLogGroupSettings(RTLogRelGetDefaultInstance(),
+                                        "drv_host_audio.e.l.l2.l3.f"
+                                        " drv_audio.e.l.l2.l3.f"
+                                        " audio_mixer.e.l.l2.l3.f"
+                                        " dev_hda_codec.e.l.l2.l3.f"
+                                        " dev_hda.e.l.l2.l3.f"
+                                        " dev_ac97.e.l.l2.l3.f"
+                                        " dev_sb16.e.l.l2.l3.f");
                 if (RT_FAILURE(rc))
                     LogRel(("Audio: Setting debug logging failed, rc=%Rrc\n", rc));
             }
@@ -3050,45 +3116,55 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             /*
              * The ValidationKit backend.
              */
-            CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
-            rc = i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0,
-                                     "ValidationKitAudio");
-            if (RT_SUCCESS(rc))
-                uAudioLUN++;
+            InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", idxAudioLun);
+            i_configAudioDriver(audioAdapter, virtualBox, pMachine, pLunL0, "ValidationKitAudio");
+            idxAudioLun++;
 #endif /* VBOX_WITH_AUDIO_VALIDATIONKIT */
         }
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
         /*
          * Shared Clipboard.
          */
         {
-            ClipboardMode_T mode = ClipboardMode_Disabled;
-            hrc = pMachine->COMGETTER(ClipboardMode)(&mode);                                H();
+            ClipboardMode_T enmClipboardMode = ClipboardMode_Disabled;
+            hrc = pMachine->COMGETTER(ClipboardMode)(&enmClipboardMode); H();
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+            BOOL fFileTransfersEnabled;
+            hrc = pMachine->COMGETTER(ClipboardFileTransfersEnabled)(&fFileTransfersEnabled); H();
+#endif
 
-            if (/* mode != ClipboardMode_Disabled */ true)
+            /* Load the service */
+            rc = pVMMDev->hgcmLoadService("VBoxSharedClipboard", "VBoxSharedClipboard");
+            if (RT_SUCCESS(rc))
             {
-                /* Load the service */
-                rc = pVMMDev->hgcmLoadService("VBoxSharedClipboard", "VBoxSharedClipboard");
-                if (RT_FAILURE(rc))
-                {
-                    LogRel(("Shared clipboard is not available, rc=%Rrc\n", rc));
-                    /* That is not a fatal failure. */
-                    rc = VINF_SUCCESS;
-                }
-                else
-                {
-                    LogRel(("Shared clipboard service loaded\n"));
+                LogRel(("Shared Clipboard: Service loaded\n"));
 
-                    i_changeClipboardMode(mode);
+                /* Set initial clipboard mode. */
+                rc = i_changeClipboardMode(enmClipboardMode);
+                AssertLogRelMsg(RT_SUCCESS(rc), ("Shared Clipboard: Failed to set initial clipboard mode (%d): rc=%Rrc\n",
+                                                 enmClipboardMode, rc));
 
-                    /* Setup the service. */
-                    VBOXHGCMSVCPARM parm;
-                    HGCMSvcSetU32(&parm, !i_useHostClipboard());
-                    pVMMDev->hgcmHostCall("VBoxSharedClipboard",
-                                          VBOX_SHARED_CLIPBOARD_HOST_FN_SET_HEADLESS, 1, &parm);
-                }
+                /* Setup the service. */
+                VBOXHGCMSVCPARM parm;
+                HGCMSvcSetU32(&parm, !i_useHostClipboard());
+                rc = pVMMDev->hgcmHostCall("VBoxSharedClipboard", VBOX_SHCL_HOST_FN_SET_HEADLESS, 1, &parm);
+                AssertLogRelMsg(RT_SUCCESS(rc), ("Shared Clipboard: Failed to set initial headless mode (%RTbool): rc=%Rrc\n",
+                                                 !i_useHostClipboard(), rc));
+
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+                rc = i_changeClipboardFileTransferMode(RT_BOOL(fFileTransfersEnabled));
+                AssertLogRelMsg(RT_SUCCESS(rc), ("Shared Clipboard: Failed to set initial file transfers mode (%u): rc=%Rrc\n",
+                                                 fFileTransfersEnabled, rc));
+
+                /** @todo Register area callbacks? (See also deregistration todo in Console::i_powerDown.) */
+# endif
             }
+            else
+                LogRel(("Shared Clipboard: Not available, rc=%Rrc\n", rc));
+            rc = VINF_SUCCESS;  /* None of the potential failures above are fatal. */
         }
+#endif /* VBOX_WITH_SHARED_CLIPBOARD */
 
         /*
          * HGCM HostChannel.
@@ -3129,10 +3205,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             }
             else
             {
-                HGCMSVCEXTHANDLE hDummy;
-                rc = HGCMHostRegisterServiceExtension(&hDummy, "VBoxDragAndDropSvc",
+                rc = HGCMHostRegisterServiceExtension(&m_hHgcmSvcExtDragAndDrop, "VBoxDragAndDropSvc",
                                                       &GuestDnD::notifyDnDDispatcher,
-                                                      GUESTDNDINST());
+                                                      GuestDnDInst());
                 if (RT_FAILURE(rc))
                     Log(("Cannot register VBoxDragAndDropSvc extension, rc=%Rrc\n", rc));
                 else
@@ -3143,64 +3218,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             }
         }
 #endif /* VBOX_WITH_DRAG_AND_DROP */
-
-#ifdef VBOX_WITH_CROGL
-        /*
-         * crOpenGL.
-         */
-        {
-            BOOL fEnabled3D = false;
-            hrc = pMachine->COMGETTER(Accelerate3DEnabled)(&fEnabled3D);                    H();
-
-            if (   fEnabled3D
-# ifdef VBOX_WITH_VMSVGA3D
-                && enmGraphicsController == GraphicsControllerType_VBoxVGA
-# endif
-                )
-            {
-                BOOL fSupports3D = VBoxOglIs3DAccelerationSupported();
-                if (!fSupports3D)
-                    return VMR3SetError(pUVM, VERR_NOT_AVAILABLE, RT_SRC_POS,
-                            N_("This VM was configured to use 3D acceleration. However, the "
-                               "3D support of the host is not working properly and the "
-                               "VM cannot be started. To fix this problem, either "
-                               "fix the host 3D support (update the host graphics driver?) "
-                               "or disable 3D acceleration in the VM settings"));
-
-                /* Load the service. */
-                rc = pVMMDev->hgcmLoadService("VBoxSharedCrOpenGL", "VBoxSharedCrOpenGL");
-                if (RT_FAILURE(rc))
-                {
-                    LogRel(("Failed to load Shared OpenGL service, rc=%Rrc\n", rc));
-                    /* That is not a fatal failure. */
-                    rc = VINF_SUCCESS;
-                }
-                else
-                {
-                    LogRel(("Shared OpenGL service loaded -- 3D enabled\n"));
-
-                    /* Setup the service. */
-                    VBOXHGCMSVCPARM parm;
-                    parm.type = VBOX_HGCM_SVC_PARM_PTR;
-
-                    parm.u.pointer.addr = (IConsole *)(Console *)this;
-                    parm.u.pointer.size = sizeof(IConsole *);
-
-                    rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_CONSOLE,
-                                               SHCRGL_CPARMS_SET_CONSOLE, &parm);
-                    if (!RT_SUCCESS(rc))
-                        AssertMsgFailed(("SHCRGL_HOST_FN_SET_CONSOLE failed with %Rrc\n", rc));
-
-                    parm.u.pointer.addr = pVM;
-                    parm.u.pointer.size = sizeof(pVM);
-                    rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL",
-                                               SHCRGL_HOST_FN_SET_VM, SHCRGL_CPARMS_SET_VM, &parm);
-                    if (!RT_SUCCESS(rc))
-                        AssertMsgFailed(("SHCRGL_HOST_FN_SET_VM failed with %Rrc\n", rc));
-                }
-            }
-        }
-#endif
 
         /*
          * ACPI
@@ -3246,6 +3263,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 {
                     uint32_t u32AudioPCIAddr = (Address.miDevice << 16) | Address.miFn;
                     InsertConfigInteger(pCfg, "AudioPciAddress",    u32AudioPCIAddr);
+                }
+            }
+            if (fOsXGuest)
+            {
+                PCIBusAddress Address;
+                if (pBusMgr->findPCIAddress("nvme", 0, Address))
+                {
+                    uint32_t u32NvmePCIAddr = (Address.miDevice << 16) | Address.miFn;
+                    InsertConfigInteger(pCfg, "NvmePciAddress",    u32NvmePCIAddr);
                 }
             }
             InsertConfigInteger(pCfg,  "IocPciAddress", uIocPCIAddress);
@@ -3337,6 +3363,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             Utf8Str strPath;
             strPath.append(strSettingsPath).append("debug/;");
             strPath.append(strSettingsPath).append(";");
+            strPath.append("cache*").append(strSettingsPath).append("dbgcache/;"); /* handy for symlinking to actual cache */
             strPath.append(szHomeDir);
 
             InsertConfigString(pDbgf, "Path", strPath.c_str());
@@ -3447,103 +3474,110 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 }
 
 /**
- * Retrieves an uint32_t value from the audio driver's extra data branch
- * (VBoxInternal2/Audio/DriverName/Value), or, if not found, use global branch
- * (VBoxInternal2/Audio/Value).
- *
- * The driver branch always supersedes the global branch.
- * If both branches are not found (empty), return the given default value.
- *
- * @return VBox status code.
- * @param  pVirtualBox          Pointer to IVirtualBox instance.
- * @param  pMachine             Pointer to IMachine instance.
- * @param  pszDriverName        Audio driver name to retrieve value for.
- * @param  pszValue             Value name to retrieve.
- * @param  uDefault             Default value to return if value not found / invalid.
- */
-uint32_t Console::i_getAudioDriverValU32(IVirtualBox *pVirtualBox, IMachine *pMachine,
-                                         const char *pszDriverName, const char *pszValue, uint32_t uDefault)
-{
-    Utf8Str strTmp;
-
-    Utf8StrFmt strPathDrv("VBoxInternal2/Audio/%s/%s", pszDriverName, pszValue);
-    GetExtraDataBoth(pVirtualBox, pMachine, strPathDrv.c_str(), &strTmp);
-    if (strTmp.isEmpty())
-    {
-        Utf8StrFmt strPathGlobal("VBoxInternal2/Audio/%s", pszValue);
-        GetExtraDataBoth(pVirtualBox, pMachine, strPathGlobal.c_str(), &strTmp);
-        if (strTmp.isNotEmpty())
-            return strTmp.toUInt32();
-    }
-    else /* Return driver-specific value. */
-        return strTmp.toUInt32();
-
-    return uDefault;
-}
-
-/**
  * Configures an audio driver via CFGM by getting (optional) values from extra data.
  *
- * @return VBox status code.
  * @param  pAudioAdapter        Pointer to audio adapter instance. Needed for the driver's input / output configuration.
  * @param  pVirtualBox          Pointer to IVirtualBox instance.
  * @param  pMachine             Pointer to IMachine instance.
  * @param  pLUN                 Pointer to CFGM node of LUN (the driver) to configure.
  * @param  pszDrvName           Name of the driver to configure.
+ *
+ * @throws ConfigError or HRESULT on if there is trouble.
  */
-int Console::i_configAudioDriver(IAudioAdapter *pAudioAdapter, IVirtualBox *pVirtualBox, IMachine *pMachine,
-                                 PCFGMNODE pLUN, const char *pszDrvName)
+void Console::i_configAudioDriver(IAudioAdapter *pAudioAdapter, IVirtualBox *pVirtualBox, IMachine *pMachine,
+                                  PCFGMNODE pLUN, const char *pszDrvName)
 {
-#define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
+#define H()     AssertLogRelMsgStmt(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), \
+                                    throw ConfigError(__FUNCTION__, VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR, "line: " RT_XSTR(__LINE__)))
 
     HRESULT hrc;
 
-    Utf8Str strTmp;
-    GetExtraDataBoth(pVirtualBox, pMachine, "VBoxInternal2/Audio/Debug/Enabled", &strTmp);
-    const uint64_t fDebugEnabled = (strTmp.equalsIgnoreCase("true") || strTmp.equalsIgnoreCase("1")) ? 1 : 0;
-
     BOOL fAudioEnabledIn = FALSE;
-    hrc = pAudioAdapter->COMGETTER(EnabledIn)(&fAudioEnabledIn);                             H();
+    hrc = pAudioAdapter->COMGETTER(EnabledIn)(&fAudioEnabledIn);                            H();
     BOOL fAudioEnabledOut = FALSE;
-    hrc = pAudioAdapter->COMGETTER(EnabledOut)(&fAudioEnabledOut);
+    hrc = pAudioAdapter->COMGETTER(EnabledOut)(&fAudioEnabledOut);                          H();
 
     InsertConfigString(pLUN, "Driver", "AUDIO");
 
     PCFGMNODE pCfg;
     InsertConfigNode(pLUN,   "Config", &pCfg);
-        InsertConfigString (pCfg, "DriverName",    pszDrvName);
-        InsertConfigInteger(pCfg, "InputEnabled",  fAudioEnabledIn);
-        InsertConfigInteger(pCfg, "OutputEnabled", fAudioEnabledOut);
+    InsertConfigString(pCfg,  "DriverName",    pszDrvName);
+    InsertConfigInteger(pCfg, "InputEnabled",  fAudioEnabledIn);
+    InsertConfigInteger(pCfg, "OutputEnabled", fAudioEnabledOut);
 
-        if (fDebugEnabled)
+    Utf8Str strTmp;
+    GetExtraDataBoth(pVirtualBox, pMachine, "VBoxInternal2/Audio/Debug/Enabled", &strTmp);
+    const uint64_t fDebugEnabled = strTmp.equalsIgnoreCase("true") || strTmp.equalsIgnoreCase("1");
+    if (fDebugEnabled)
+    {
+        InsertConfigInteger(pCfg, "DebugEnabled",  fDebugEnabled);
+
+        Utf8Str strDebugPathOut;
+        GetExtraDataBoth(pVirtualBox, pMachine, "VBoxInternal2/Audio/Debug/PathOut", &strDebugPathOut);
+        InsertConfigString(pCfg, "DebugPathOut",  strDebugPathOut.c_str());
+    }
+
+    /*
+     * PCM input parameters (playback + recording).
+     * We have host driver specific ones as: VBoxInternal2/Audio/<DrvName>/<Value>
+     * And global ones for all host drivers: VBoxInternal2/Audio/<Value>
+     */
+    for (unsigned iDir = 0; iDir < 2; iDir++)
+    {
+        static const struct
         {
-            InsertConfigInteger(pCfg, "DebugEnabled",  fDebugEnabled);
+            const char *pszExtraName;
+            const char *pszCfgmName;
+        } s_aToCopy[] =
+        {   /* PCM  parameters: */
+            { "PCMSampleBit",        "PCMSampleBit"        },
+            { "PCMSampleHz",         "PCMSampleHz"         },
+            { "PCMSampleSigned",     "PCMSampleSigned"     },
+            { "PCMSampleSwapEndian", "PCMSampleSwapEndian" },
+            { "PCMSampleChannels",   "PCMSampleChannels"   },
+            /* Buffering stuff: */
+            { "PeriodSizeMs",        "PeriodSizeMs"        },
+            { "BufferSizeMs",        "BufferSizeMs"        },
+            { "PreBufferSizeMs",     "PreBufferSizeMs"     },
+        };
 
-            Utf8Str strDebugPathOut;
-            GetExtraDataBoth(pVirtualBox, pMachine, "VBoxInternal2/Audio/Debug/PathOut", &strDebugPathOut);
-            InsertConfigString(pCfg, "DebugPathOut",  strDebugPathOut.c_str());
+        PCFGMNODE   pDirNode = NULL;
+        const char *pszDir   = iDir == 0 ? "In" : "Out";
+        for (size_t i = 0; i < RT_ELEMENTS(s_aToCopy); i++)
+        {
+            char szExtra[128];
+            RTStrPrintf(szExtra, sizeof(szExtra), "VBoxInternal2/Audio/%s/%s%s", pszDrvName, s_aToCopy[i].pszExtraName, pszDir);
+            GetExtraDataBoth(pVirtualBox, pMachine, szExtra, &strTmp); /* throws hrc */
+            if (strTmp.isEmpty())
+            {
+                RTStrPrintf(szExtra, sizeof(szExtra), "VBoxInternal2/Audio/%s%s", s_aToCopy[i].pszExtraName, pszDir);
+                GetExtraDataBoth(pVirtualBox, pMachine, szExtra, &strTmp);
+                if (strTmp.isEmpty())
+                    continue;
+            }
+
+            uint32_t uValue;
+            int vrc = RTStrToUInt32Full(strTmp.c_str(), 0, &uValue);
+            if (RT_SUCCESS(vrc))
+            {
+                if (!pDirNode)
+                    InsertConfigNode(pCfg, pszDir, &pDirNode);
+                InsertConfigInteger(pDirNode, s_aToCopy[i].pszCfgmName, uValue);
+            }
+            else
+                LogRel(("Ignoring malformed 32-bit unsigned integer config value '%s' = '%s': %Rrc\n", szExtra, strTmp.c_str(), vrc));
         }
-
-        InsertConfigInteger(pCfg, "PeriodSizeMs",
-                            i_getAudioDriverValU32(pVirtualBox, pMachine, pszDrvName, "PeriodSizeMs", 0 /* Default */));
-        InsertConfigInteger(pCfg, "BufferSizeMs",
-                            i_getAudioDriverValU32(pVirtualBox, pMachine, pszDrvName, "BufferSizeMs", 0 /* Default */));
-        InsertConfigInteger(pCfg, "PreBufferSizeMs",
-                            i_getAudioDriverValU32(pVirtualBox, pMachine, pszDrvName, "PreBufferSizeMs", UINT32_MAX /* Default */));
+    }
 
     PCFGMNODE pLunL1;
     InsertConfigNode(pLUN, "AttachedDriver", &pLunL1);
+    InsertConfigNode(pLunL1, "Config", &pCfg);
+    Bstr bstrTmp;
+    hrc = pMachine->COMGETTER(Name)(bstrTmp.asOutParam());                                  H();
+    InsertConfigString(pCfg, "StreamName", bstrTmp);
+    InsertConfigString(pLunL1, "Driver", pszDrvName);
 
-        InsertConfigNode(pLunL1, "Config", &pCfg);
-
-            Bstr bstrTmp;
-            hrc = pMachine->COMGETTER(Name)(bstrTmp.asOutParam());                           H();
-            InsertConfigString(pCfg, "StreamName", bstrTmp);
-
-        InsertConfigString(pLunL1, "Driver", pszDrvName);
-
-    LogFlowFunc(("szDrivName=%s, hrc=%Rhrc\n", pszDrvName, hrc));
-    return hrc;
+    LogFlowFunc(("szDrivName=%s\n", pszDrvName));
 
 #undef H
 }
@@ -3574,6 +3608,7 @@ int Console::i_configCfgmOverlay(PCFGMNODE pRoot, IVirtualBox *pVirtualBox, IMac
      * extra data to support global settings with local overrides.
      */
     int rc = VINF_SUCCESS;
+    bool fFirst = true;
     try
     {
         /** @todo add support for removing nodes and byte blobs. */
@@ -3627,6 +3662,13 @@ int Console::i_configCfgmOverlay(PCFGMNODE pRoot, IVirtualBox *pVirtualBox, IMac
             if (FAILED(hrc))
                 LogRel(("Warning: Cannot get extra data key %s, rc = %Rhrc\n", strKey.c_str(), hrc));
 
+            if (fFirst)
+            {
+                fFirst = false;
+                LogRel(("Extradata overrides:\n"));
+            }
+            LogRel(("  %s=\"%ls\"%s\n", strKey.c_str(), bstrExtraDataValue.raw(), i2 < cGlobalValues ? " (global)" : ""));
+
             /*
              * The key will be in the format "Node1/Node2/Value" or simply "Value".
              * Split the two and get the node, delete the value and create the node
@@ -3638,7 +3680,7 @@ int Console::i_configCfgmOverlay(PCFGMNODE pRoot, IVirtualBox *pVirtualBox, IMac
             {
                 /* terminate the node and advance to the value (Utf8Str might not
                 offically like this but wtf) */
-                *(char*)pszCFGMValueName = '\0';
+                *(char *)pszCFGMValueName = '\0';
                 ++pszCFGMValueName;
 
                 /* does the node already exist? */
@@ -3789,6 +3831,7 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
                                         const GraphicsControllerType_T enmGraphicsController,
                                         BusAssignmentManager *pBusMgr,
                                         const ComPtr<IMachine> &ptrMachine,
+                                        const ComPtr<IGraphicsAdapter> &ptrGraphicsAdapter,
                                         const ComPtr<IBIOSSettings> &ptrBiosSettings,
                                         bool fHMEnabled)
 {
@@ -3808,10 +3851,10 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
         hrc = pBusMgr->assignPCIDevice(pcszDevice, pInst);                                  H();
         InsertConfigNode(pInst,    "Config", &pCfg);
         ULONG cVRamMBs;
-        hrc = ptrMachine->COMGETTER(VRAMSize)(&cVRamMBs);                                   H();
+        hrc = ptrGraphicsAdapter->COMGETTER(VRAMSize)(&cVRamMBs);                           H();
         InsertConfigInteger(pCfg,  "VRamSize",             cVRamMBs * _1M);
         ULONG cMonitorCount;
-        hrc = ptrMachine->COMGETTER(MonitorCount)(&cMonitorCount);                          H();
+        hrc = ptrGraphicsAdapter->COMGETTER(MonitorCount)(&cMonitorCount);                  H();
         InsertConfigInteger(pCfg,  "MonitorCount",         cMonitorCount);
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
         InsertConfigInteger(pCfg,  "R0Enabled",            fHMEnabled);
@@ -3819,7 +3862,7 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
         NOREF(fHMEnabled);
 #endif
         BOOL f3DEnabled;
-        hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                      H();
+        hrc = ptrGraphicsAdapter->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);              H();
         InsertConfigInteger(pCfg,  "3DEnabled",            f3DEnabled);
 
         i_attachStatusDriver(pInst, &mapCrOglLed, 0, 0, NULL, NULL, 0);
@@ -3834,13 +3877,15 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
                 InsertConfigInteger(pCfg, "VMSVGAPciBarLayout", true);
                 InsertConfigInteger(pCfg, "VMSVGAPciId", true);
             }
-#ifdef VBOX_WITH_VMSVGA3D
+# ifdef VBOX_WITH_VMSVGA3D
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
-#else
+# else
             LogRel(("VMSVGA3d not available in this build!\n"));
-#endif
+# endif /* VBOX_WITH_VMSVGA3D */
         }
-#endif
+#else
+        RT_NOREF(enmGraphicsController);
+#endif /* VBOX_WITH_VMSVGA */
 
         /* Custom VESA mode list */
         unsigned cModes = 0;
@@ -4030,7 +4075,7 @@ int Console::i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache)
             {
                 RTFOFF maxSize;
                 /* Careful: This function will work only on selected local file systems! */
-                rc = RTFileGetMaxSizeEx(file, &maxSize);
+                rc = RTFileQueryMaxSizeEx(file, &maxSize);
                 RTFileClose(file);
                 if (   RT_SUCCESS(rc)
                     && maxSize > 0
@@ -4188,7 +4233,7 @@ int Console::i_unmountMediumFromGuest(PUVM pUVM, StorageBus_T enmBus, DeviceType
     PPDMIBASE pBase;
     if (enmBus == StorageBus_USB)
         rc = PDMR3UsbQueryDriverOnLun(pUVM, pcszDevice, uInstance, uLUN, "SCSI", &pBase);
-    else if (   (enmBus == StorageBus_SAS || enmBus == StorageBus_SCSI)
+    else if (   (enmBus == StorageBus_SAS || enmBus == StorageBus_SCSI || enmBus == StorageBus_VirtioSCSI)
              || (enmBus == StorageBus_SATA && enmDevType == DeviceType_DVD))
         rc = PDMR3QueryDriverOnLun(pUVM, pcszDevice, uInstance, uLUN, "SCSI", &pBase);
     else /* IDE or Floppy */
@@ -4277,6 +4322,7 @@ int Console::i_removeMediumDriverFromVm(PCFGMNODE pCtlInst,
             && (   (enmBus == StorageBus_SATA && enmDevType == DeviceType_DVD)
                 || enmBus == StorageBus_SAS
                 || enmBus == StorageBus_SCSI
+                || enmBus == StorageBus_VirtioSCSI
                 || enmBus == StorageBus_USB))
         {
             /* Get the current attached driver we have to detach. */
@@ -4532,7 +4578,7 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
          * or for SATA if the new device is a CD/DVD drive.
          */
         if (   (fHotplug || !fAttachDetach)
-            && (   (enmBus == StorageBus_SCSI || enmBus == StorageBus_SAS || enmBus == StorageBus_USB)
+            && (   (enmBus == StorageBus_SCSI || enmBus == StorageBus_SAS || enmBus == StorageBus_USB || enmBus == StorageBus_VirtioSCSI)
                 || (enmBus == StorageBus_SATA && lType == DeviceType_DVD && !fPassthrough)))
         {
             InsertConfigString(pLunL0, "Driver", "SCSI");
@@ -4576,7 +4622,7 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
                                               fHotplug ? 0 : PDM_TACH_FLAGS_NOT_HOT_PLUG, NULL /*ppBase*/);
             }
             else if (   !fHotplug
-                     && (   (enmBus == StorageBus_SAS || enmBus == StorageBus_SCSI)
+                     && (   (enmBus == StorageBus_SAS || enmBus == StorageBus_SCSI || enmBus == StorageBus_VirtioSCSI)
                          || (enmBus == StorageBus_SATA && lType == DeviceType_DVD)))
                 rc = PDMR3DriverAttach(pUVM, pcszDevice, uInstance, uLUN,
                                        fHotplug ? 0 : PDM_TACH_FLAGS_NOT_HOT_PLUG, NULL /*ppBase*/);
@@ -4792,8 +4838,7 @@ int Console::i_configMedium(PCFGMNODE pLunL0,
                  *        make DrvVD undo TempReadOnly.  It gets interesting if we fail after
                  *        that. Grumble. */
                 if (   enmType == DeviceType_HardDisk
-                    && (   aMachineState == MachineState_TeleportingIn
-                        || aMachineState == MachineState_FaultTolerantSyncing))
+                    && aMachineState == MachineState_TeleportingIn)
                     InsertConfigInteger(pCfg, "TempReadOnly", 1);
 
                 /* Flag for opening the medium for sharing between VMs. This
@@ -5009,6 +5054,11 @@ int Console::i_configNetwork(const char *pszDevice,
         HRESULT hrc;
         Bstr bstr;
 
+#ifdef VBOX_WITH_CLOUD_NET
+        /* We'll need device's pCfg for cloud attachments */
+        PCFGMNODE pDevCfg = pCfg;
+#endif /* VBOX_WITH_CLOUD_NET */
+
 #define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
 
         /*
@@ -5051,6 +5101,10 @@ int Console::i_configNetwork(const char *pszDevice,
             CFGMR3RemoveNode(CFGMR3GetChildF(pInst, "LUN#%u", uLun));
         }
 
+        Bstr networkName, trunkName, trunkType;
+        NetworkAttachmentType_T eAttachmentType;
+        hrc = aNetworkAdapter->COMGETTER(AttachmentType)(&eAttachmentType);                 H();
+
 #ifdef VBOX_WITH_NETSHAPER
         ComObjPtr<IBandwidthGroup> pBwGroup;
         Bstr strBwGroup;
@@ -5063,10 +5117,14 @@ int Console::i_configNetwork(const char *pszDevice,
 #endif /* VBOX_WITH_NETSHAPER */
 
         AssertMsg(uLun == 0, ("Network attachments with LUN > 0 are not supported yet\n"));
-        CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%u", uLun);
+        InsertConfigNodeF(pInst, &pLunL0, "LUN#%u", uLun);
 
+        /*
+         * Do not insert neither a shaper nor a sniffer if we are not attached to anything.
+         * This way we can easily detect if we are attached to anything at the device level.
+         */
 #ifdef VBOX_WITH_NETSHAPER
-        if (!strBwGroup.isEmpty())
+        if (!strBwGroup.isEmpty()  && eAttachmentType != NetworkAttachmentType_Null)
         {
             InsertConfigString(pLunL0, "Driver", "NetShaper");
             InsertConfigNode(pLunL0, "Config", &pCfg);
@@ -5075,7 +5133,7 @@ int Console::i_configNetwork(const char *pszDevice,
         }
 #endif /* VBOX_WITH_NETSHAPER */
 
-        if (fSniffer)
+        if (fSniffer && eAttachmentType != NetworkAttachmentType_Null)
         {
             InsertConfigString(pLunL0, "Driver", "NetSniffer");
             InsertConfigNode(pLunL0, "Config", &pCfg);
@@ -5085,10 +5143,6 @@ int Console::i_configNetwork(const char *pszDevice,
             InsertConfigNode(pLunL0, "AttachedDriver", &pLunL0);
         }
 
-
-        Bstr networkName, trunkName, trunkType;
-        NetworkAttachmentType_T eAttachmentType;
-        hrc = aNetworkAdapter->COMGETTER(AttachmentType)(&eAttachmentType);                 H();
         switch (eAttachmentType)
         {
             case NetworkAttachmentType_Null:
@@ -5176,8 +5230,7 @@ int Console::i_configNetwork(const char *pszDevice,
                     PCFGMNODE pPF = NULL; /* /Devices/Dev/.../Config/PortForwarding/$n/ */
 
                     uint16_t port = 0;
-                    BSTR r = pfs[i];
-                    Utf8Str utf = Utf8Str(r);
+                    Utf8Str utf = pfs[i];
                     Utf8Str strName;
                     Utf8Str strProto;
                     Utf8Str strHostPort;
@@ -5845,6 +5898,46 @@ int Console::i_configNetwork(const char *pszDevice,
                 break;
             }
 
+#ifdef VBOX_WITH_CLOUD_NET
+            case NetworkAttachmentType_Cloud:
+            {
+                static const char *s_pszCloudExtPackName = "Oracle VM VirtualBox Extension Pack";
+                /*
+                 * Cloud network attachments do not work wihout installed extpack.
+                 * Without extpack support they won't work either.
+                 */
+# ifdef VBOX_WITH_EXTPACK
+                if (!mptrExtPackManager->i_isExtPackUsable(s_pszCloudExtPackName))
+# endif
+                {
+                    return VMSetError(VMR3GetVM(mpUVM), VERR_NOT_FOUND, RT_SRC_POS,
+                            N_("Implementation of the cloud network attachment not found!\n"
+                                "To fix this problem, either install the '%s' or switch to "
+                                "another network attachment type in the VM settings.\n"
+                                ),
+                            s_pszCloudExtPackName);
+                }
+
+                ComPtr<ICloudNetwork> network;
+                hrc = aNetworkAdapter->COMGETTER(CloudNetwork)(bstr.asOutParam());            H();
+                hrc = pMachine->COMGETTER(Name)(mGateways.mTargetVM.asOutParam());            H();
+                hrc = virtualBox->FindCloudNetworkByName(bstr.raw(), network.asOutParam());   H();
+                hrc = startGateways(virtualBox, network, mGateways);                          H();
+                InsertConfigBytes(pDevCfg, "MAC", &mGateways.mCloudMacAddress, sizeof(mGateways.mCloudMacAddress));
+                if (!bstr.isEmpty())
+                {
+                    InsertConfigString(pLunL0, "Driver", "IntNet");
+                    InsertConfigNode(pLunL0, "Config", &pCfg);
+                    InsertConfigString(pCfg, "Network", BstrFmt("cloud-%ls", bstr.raw()));
+                    InsertConfigInteger(pCfg, "TrunkType", kIntNetTrunkType_WhateverNone);
+                    InsertConfigString(pCfg, "IfPolicyPromisc", pszPromiscuousGuestPolicy);
+                    networkName = bstr;
+                    trunkType = Bstr(TRUNKTYPE_WHATEVER);
+                }
+                break;
+            }
+#endif /* VBOX_WITH_CLOUD_NET */
+
             default:
                 AssertMsgFailed(("should not get here!\n"));
                 break;
@@ -5864,6 +5957,9 @@ int Console::i_configNetwork(const char *pszDevice,
             case NetworkAttachmentType_NAT:
             case NetworkAttachmentType_Generic:
             case NetworkAttachmentType_NATNetwork:
+#ifdef VBOX_WITH_CLOUD_NET
+            case NetworkAttachmentType_Cloud:
+#endif /* VBOX_WITH_CLOUD_NET */
             {
                 if (SUCCEEDED(hrc) && RT_SUCCESS(rc))
                 {
@@ -5907,8 +6003,7 @@ int Console::i_configNetwork(const char *pszDevice,
                             }
 
                             if (fEnabledDhcp)
-                                hrc = dhcpServer->Start(networkName.raw(),
-                                                        trunkName.raw(),
+                                hrc = dhcpServer->Start(trunkName.raw(),
                                                         trunkType.raw());
                         }
                         else

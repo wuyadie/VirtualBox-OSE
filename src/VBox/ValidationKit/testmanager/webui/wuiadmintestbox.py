@@ -7,7 +7,7 @@ Test Manager WUI - TestBox.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard python imports.
@@ -238,7 +238,7 @@ class WuiTestBoxList(WuiListContentWithActionBase):
                      % (len(self._aoEntries), cActive, cDead,)
         return (sTitle, sBody);
 
-    def _formatListEntry(self, iEntry): # pylint: disable=R0914
+    def _formatListEntry(self, iEntry): # pylint: disable=too-many-locals
         from testmanager.webui.wuiadmin import WuiAdmin;
         oEntry  = self._aoEntries[iEntry];
 
@@ -273,7 +273,7 @@ class WuiTestBoxList(WuiListContentWithActionBase):
                 oState = str(oEntry.oStatus.enmState);
             else:
                 from testmanager.webui.wuimain import WuiMain;
-                oState = WuiTmLink(oEntry.oStatus.enmState, WuiMain.ksScriptName,                       # pylint: disable=R0204
+                oState = WuiTmLink(oEntry.oStatus.enmState, WuiMain.ksScriptName,                       # pylint: disable=redefined-variable-type
                                    { WuiMain.ksParamAction: WuiMain.ksActionTestResultDetails,
                                      TestSetData.ksParam_idTestSet: oEntry.oStatus.idTestSet, },
                                    sTitle = '#%u' % (oEntry.oStatus.idTestSet,),

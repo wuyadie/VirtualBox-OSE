@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #include <QAbstractButton>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIWizard.h"
 #include "UIWizardPage.h"
 
@@ -28,7 +28,7 @@
 *   Class UIWizardPageBase implementation.                                                                                       *
 *********************************************************************************************************************************/
 
-UIWizard *UIWizardPageBase::wizardImp()
+UIWizard *UIWizardPageBase::wizardImp() const
 {
     /* Should be reimplemented in sub-class to enable access to wizard! */
     AssertMsgFailed(("UIWizardPageBase::wizardImp() should be reimplemented!"));

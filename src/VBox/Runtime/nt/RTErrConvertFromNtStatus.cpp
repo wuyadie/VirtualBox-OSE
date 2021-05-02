@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,6 +92,7 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
         case STATUS_UNEXPECTED_NETWORK_ERROR:
                                             return VERR_NET_IO_ERROR;
         case STATUS_INVALID_IMAGE_HASH:     return VERR_LDR_IMAGE_HASH;
+        case STATUS_LOGON_FAILURE:          return VERR_AUTHENTICATION_FAILURE;
 #ifdef VBOX
         case STATUS_TRUST_FAILURE:          return VERR_SUPLIB_NT_PROCESS_UNTRUSTED_5;
 #endif

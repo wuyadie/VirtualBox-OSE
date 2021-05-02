@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -190,8 +190,8 @@ void UIGlobalSettingsDisplay::prepare()
         m_pResolutionWidthSpin->setMaximum(iMaxSize);
         m_pResolutionHeightSpin->setMinimum(iMinHeight);
         m_pResolutionHeightSpin->setMaximum(iMaxSize);
-        connect(m_pMaxResolutionCombo, SIGNAL(currentIndexChanged(int)),
-                this, SLOT(sltHandleMaximumGuestScreenSizePolicyChange()));
+        connect(m_pMaxResolutionCombo, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
+                this, &UIGlobalSettingsDisplay::sltHandleMaximumGuestScreenSizePolicyChange);
     }
 
     /* Apply language settings: */

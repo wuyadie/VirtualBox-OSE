@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2019 Oracle Corporation
+# Copyright (C) 2007-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/uni.h=>include/iprt/uni.h \
     ${PATH_ROOT}/include/iprt/utf16.h=>include/iprt/utf16.h \
     ${PATH_ROOT}/include/iprt/x86.h=>include/iprt/x86.h \
+    ${PATH_ROOT}/include/iprt/linux/version.h=>include/iprt/linux/version.h \
     ${PATH_ROOT}/include/VBox/cdefs.h=>include/VBox/cdefs.h \
     ${PATH_ROOT}/include/VBox/err.h=>include/VBox/err.h \
     ${PATH_ROOT}/include/VBox/log.h=>include/VBox/log.h \
@@ -87,6 +88,8 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest-linux.c=>VBoxGuest-linux.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuestInternal.h=>VBoxGuestInternal.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/linux/Makefile=>Makefile \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/linux/combined-agnostic.c=>combined-agnostic.c \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/linux/combined-os-specific.c=>combined-os-specific.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/lib/VBoxGuestR0LibInternal.h=>VBoxGuestR0LibInternal.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/lib/VBoxGuestR0LibGenericRequest.cpp=>VBoxGuestR0LibGenericRequest.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/lib/VBoxGuestR0LibHGCMInternal.cpp=>VBoxGuestR0LibHGCMInternal.c \

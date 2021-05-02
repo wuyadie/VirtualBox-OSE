@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,12 +33,9 @@
 #include "CGuest.h"
 
 /* Forward declarations: */
-class QDialogButtonBox;
-class QVBoxLayout;
 class UIActionPool;
 class UIGuestProcessControlDialog;
 class CGuest;
-
 
 /** QIManagerDialogFactory extension used as a factory for the Guest Control dialog. */
 class UIGuestProcessControlDialogFactory : public QIManagerDialogFactory

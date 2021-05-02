@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_fb.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -42,15 +42,15 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 
-#include <drm/drmP.h>
+#include "vbox_drv.h"
+
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 
-#include "vbox_drv.h"
 #include <VBoxVideo.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !defined(RHEL_74)
+#if RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 /**
  * Tell the host about dirty rectangles to update.
  */
@@ -123,10 +123,10 @@ static void vbox_dirty_update(struct vbox_fbdev *fbdev,
 
 	vbox_bo_unreserve(bo);
 }
-#endif
+#endif /* RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4) */
 
 #ifdef CONFIG_FB_DEFERRED_IO
-# if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !defined(RHEL_74)
+# if RTLNX_VER_MAX(4,7,0) && !RTLNX_RHEL_MAJ_PREREQ(7,4)
 static void drm_fb_helper_deferred_io(struct fb_info *info, struct list_head *pagelist)
 {
 	struct vbox_fbdev *fbdev = info->par;
@@ -157,9 +157,9 @@ static struct fb_deferred_io vbox_defio = {
 	.delay = HZ / 30,
 	.deferred_io = drm_fb_helper_deferred_io,
 };
-#endif
+#endif /* CONFIG_FB_DEFERRED_IO */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && !defined(RHEL_73)
+#if RTLNX_VER_MAX(4,3,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3)
 static void drm_fb_helper_sys_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 	struct vbox_fbdev *fbdev = info->par;
@@ -184,7 +184,7 @@ static void drm_fb_helper_sys_imageblit(struct fb_info *info, const struct fb_im
 	vbox_dirty_update(fbdev, image->dx, image->dy, image->width,
 			  image->height);
 }
-#endif
+#endif /* RTLNX_VER_MAX(4,3,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3) */
 
 static struct fb_ops vboxfb_ops = {
 	.owner = THIS_MODULE,
@@ -207,7 +207,7 @@ static int vboxfb_create_object(struct vbox_fbdev *fbdev,
 	struct drm_device *dev = fbdev->helper.dev;
 	u32 size;
 	struct drm_gem_object *gobj;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+#if RTLNX_VER_MAX(3,3,0)
 	u32 pitch = mode_cmd->pitch;
 #else
 	u32 pitch = mode_cmd->pitches[0];
@@ -225,7 +225,7 @@ static int vboxfb_create_object(struct vbox_fbdev *fbdev,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && !defined(RHEL_73)
+#if RTLNX_VER_MAX(4,3,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3)
 static struct fb_info *drm_fb_helper_alloc_fbi(struct drm_fb_helper *helper)
 {
 	struct fb_info *info;
@@ -267,7 +267,7 @@ static int vboxfb_create(struct drm_fb_helper *helper,
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
 	pitch = mode_cmd.width * ((sizes->surface_bpp + 7) / 8);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+#if RTLNX_VER_MAX(3,3,0)
 	mode_cmd.bpp = sizes->surface_bpp;
 	mode_cmd.depth = sizes->surface_depth;
 	mode_cmd.pitch = pitch;
@@ -295,13 +295,18 @@ static int vboxfb_create(struct drm_fb_helper *helper,
 	if (ret)
 		return ret;
 
-	ret = vbox_bo_pin(bo, TTM_PL_FLAG_VRAM, NULL);
+	ret = vbox_bo_pin(bo, VBOX_MEM_TYPE_VRAM, NULL);
 	if (ret) {
 		vbox_bo_unreserve(bo);
 		return ret;
 	}
 
+#if RTLNX_VER_MIN(5,12,0)
+	ret = ttm_bo_kmap(&bo->bo, 0, bo->bo.mem.num_pages, &bo->kmap);
+#else
 	ret = ttm_bo_kmap(&bo->bo, 0, bo->bo.num_pages, &bo->kmap);
+#endif
+
 	vbox_bo_unreserve(bo);
 	if (ret) {
 		DRM_ERROR("failed to kmap fbcon\n");
@@ -335,19 +340,23 @@ static int vboxfb_create(struct drm_fb_helper *helper,
 	info->apertures->ranges[0].base = pci_resource_start(dev->pdev, 0);
 	info->apertures->ranges[0].size = pci_resource_len(dev->pdev, 0);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+#if RTLNX_VER_MIN(5,2,0) || RTLNX_RHEL_MAJ_PREREQ(8,2)
+        /*
+         * The corresponding 5.2-rc1 Linux DRM kernel changes have been
+         * also backported to older RedHat based 4.18.0 Linux kernels.
+         */
 	drm_fb_helper_fill_info(info, &fbdev->helper, sizes);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+#elif RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7, 5)
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->format->depth);
 #else
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if RTLNX_VER_MAX(5,2,0) && !RTLNX_RHEL_MAJ_PREREQ(8,2)
 	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width,
 			       sizes->fb_height);
 #endif
 
-	info->screen_base = bo->kmap.virtual;
+	info->screen_base = (char __iomem *)bo->kmap.virtual;
 	info->screen_size = size;
 
 #ifdef CONFIG_FB_DEFERRED_IO
@@ -366,7 +375,7 @@ static struct drm_fb_helper_funcs vbox_fb_helper_funcs = {
 	.fb_probe = vboxfb_create,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && !defined(RHEL_73)
+#if RTLNX_VER_MAX(4,3,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3)
 static void drm_fb_helper_unregister_fbi(struct drm_fb_helper *fb_helper)
 {
 	if (fb_helper && fb_helper->fbdev)
@@ -379,6 +388,11 @@ void vbox_fbdev_fini(struct drm_device *dev)
 	struct vbox_private *vbox = dev->dev_private;
 	struct vbox_fbdev *fbdev = vbox->fbdev;
 	struct vbox_framebuffer *afb = &fbdev->afb;
+
+#ifdef CONFIG_FB_DEFERRED_IO
+	if (fbdev->helper.fbdev && fbdev->helper.fbdev->fbdefio)
+		fb_deferred_io_cleanup(fbdev->helper.fbdev);
+#endif
 
 	drm_fb_helper_unregister_fbi(&fbdev->helper);
 
@@ -396,12 +410,16 @@ void vbox_fbdev_fini(struct drm_device *dev)
 				vbox_bo_unpin(bo);
 			vbox_bo_unreserve(bo);
 		}
+#if RTLNX_VER_MIN(5,9,0) || RTLNX_RHEL_MIN(8,4)
+		drm_gem_object_put(afb->obj);
+#else
 		drm_gem_object_put_unlocked(afb->obj);
+#endif
 		afb->obj = NULL;
 	}
 	drm_fb_helper_fini(&fbdev->helper);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if RTLNX_VER_MIN(3,9,0)
 	drm_framebuffer_unregister_private(&afb->base);
 #endif
 	drm_framebuffer_cleanup(&afb->base);
@@ -411,7 +429,7 @@ int vbox_fbdev_init(struct drm_device *dev)
 {
 	struct vbox_private *vbox = dev->dev_private;
 	struct vbox_fbdev *fbdev;
-	int ret;
+	int ret = 0;
 
 	fbdev = devm_kzalloc(dev->dev, sizeof(*fbdev), GFP_KERNEL);
 	if (!fbdev)
@@ -420,14 +438,16 @@ int vbox_fbdev_init(struct drm_device *dev)
 	vbox->fbdev = fbdev;
 	spin_lock_init(&fbdev->dirty_lock);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(RHEL_72)
+#if RTLNX_VER_MAX(3,17,0) && !RTLNX_RHEL_MAJ_PREREQ(7,2)
 	fbdev->helper.funcs = &vbox_fb_helper_funcs;
 #else
 	drm_fb_helper_prepare(dev, &fbdev->helper, &vbox_fb_helper_funcs);
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+#if RTLNX_VER_MIN(5,7,0) || RTLNX_RHEL_MIN(8,4)
+        ret = drm_fb_helper_init(dev, &fbdev->helper);
+#elif RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
 	ret = drm_fb_helper_init(dev, &fbdev->helper, vbox->num_crtcs);
-#else
+#else /* < 4.11.0 */
 	ret =
 	    drm_fb_helper_init(dev, &fbdev->helper, vbox->num_crtcs,
 			       vbox->num_crtcs);
@@ -435,9 +455,11 @@ int vbox_fbdev_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 
+#if RTLNX_VER_MAX(5,7,0) && !RTLNX_RHEL_MAJ_PREREQ(8,4)
 	ret = drm_fb_helper_single_add_all_connectors(&fbdev->helper);
 	if (ret)
 		goto err_fini;
+#endif
 
 	/* disable all the possible outputs/crtcs before entering KMS mode */
 	drm_helper_disable_unused_functions(dev);

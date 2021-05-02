@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -118,11 +118,9 @@
 # else
 
 # endif
-#endif /* IN_RING0*/
+#endif /* IN_RING0 */
 /** @} */
 
-
-/** @} */
 
 #endif /* !VMM_INCLUDED_SRC_include_VMMTracing_h */
 

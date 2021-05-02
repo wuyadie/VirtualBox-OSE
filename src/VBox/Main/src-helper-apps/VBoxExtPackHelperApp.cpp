@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
+#include <iprt/thread.h>
 #include <iprt/utf16.h>
 #include <iprt/vfs.h>
 #include <iprt/zip.h>
@@ -220,6 +221,28 @@ static RTEXITCODE RemoveExtPackDir(const char *pszDir, bool fTemporary)
 
 
 /**
+ * Wrapper around RTDirRename that may retry the operation for up to 15 seconds
+ * on windows to deal with AV software.
+ */
+static int CommonDirRenameWrapper(const char *pszSrc, const char *pszDst, uint32_t fFlags)
+{
+#ifdef RT_OS_WINDOWS
+    uint64_t nsNow = RTTimeNanoTS();
+    for (;;)
+    {
+        int rc = RTDirRename(pszSrc, pszDst, fFlags);
+        if (   (   rc != VERR_ACCESS_DENIED
+                && rc != VERR_SHARING_VIOLATION)
+            || RTTimeNanoTS() - nsNow > RT_NS_15SEC)
+            return rc;
+        RTThreadSleep(128);
+    }
+#else
+    return RTDirRename(pszSrc, pszDst, fFlags);
+#endif
+}
+
+/**
  * Common uninstall worker used by both uninstall and install --replace.
  *
  * @returns success or failure, message displayed on failure.
@@ -236,7 +259,7 @@ static RTEXITCODE CommonUninstallWorker(const char *pszExtPackDir)
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to construct temporary extension pack path: %Rrc", rc);
 
-    rc = RTDirRename(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
+    rc = CommonDirRenameWrapper(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
     if (rc == VERR_ALREADY_EXISTS)
     {
         /* Automatic cleanup and try again.  It's in theory possible that we're
@@ -244,7 +267,7 @@ static RTEXITCODE CommonUninstallWorker(const char *pszExtPackDir)
            again. (There is no installation race due to the exclusive temporary
            installation directory.) */
         RemoveExtPackDir(szExtPackUnInstDir, false /*fTemporary*/);
-        rc = RTDirRename(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
+        rc = CommonDirRenameWrapper(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
     }
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE,
@@ -751,7 +774,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
 
     if (rcExit == RTEXITCODE_SUCCESS)
     {
-        rc = RTDirRename(szTmpPath, szFinalPath, RTPATHRENAME_FLAGS_NO_REPLACE);
+        rc = CommonDirRenameWrapper(szTmpPath, szFinalPath, RTPATHRENAME_FLAGS_NO_REPLACE);
         if (   RT_FAILURE(rc)
             && fReplace
             && RTDirExists(szFinalPath))
@@ -759,7 +782,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
             /* Automatic uninstall if --replace was given. */
             rcExit = CommonUninstallWorker(szFinalPath);
             if (rcExit == RTEXITCODE_SUCCESS)
-                rc = RTDirRename(szTmpPath, szFinalPath, RTPATHRENAME_FLAGS_NO_REPLACE);
+                rc = CommonDirRenameWrapper(szTmpPath, szFinalPath, RTPATHRENAME_FLAGS_NO_REPLACE);
         }
         if (RT_SUCCESS(rc))
             RTMsgInfo("Successfully installed '%s' (%s)", pszName, pszTarball);
@@ -1547,8 +1570,8 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
          * program to complete.
          */
         RTPROCESS hProcess;
-        rc = RTProcCreateEx(papszArgs[iSuArg], &papszArgs[iSuArg], RTENV_DEFAULT, 0 /*fFlags*/,
-                            NULL /*phStdIn*/, NULL /*phStdOut*/, NULL /*phStdErr*/, NULL /*pszAsUser*/, NULL /*pszPassword*/,
+        rc = RTProcCreateEx(papszArgs[iSuArg], &papszArgs[iSuArg], RTENV_DEFAULT, 0 /*fFlags*/, NULL /*phStdIn*/,
+                            NULL /*phStdOut*/, NULL /*phStdErr*/, NULL /*pszAsUser*/, NULL /*pszPassword*/, NULL /* pvExtraData*/,
                             &hProcess);
         if (RT_SUCCESS(rc))
         {

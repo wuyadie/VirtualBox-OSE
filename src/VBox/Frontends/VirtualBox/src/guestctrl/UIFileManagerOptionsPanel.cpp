@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,20 +16,13 @@
  */
 
 /* Qt includes: */
-#include <QComboBox>
 #include <QHBoxLayout>
-#include <QFontDatabase>
-#include <QFontDialog>
 #include <QCheckBox>
-#include <QLabel>
-#include <QSpinBox>
 
 /* GUI includes: */
 #include "QIToolButton.h"
-#include "UIIconPool.h"
 #include "UIFileManager.h"
 #include "UIFileManagerOptionsPanel.h"
-
 
 UIFileManagerOptionsPanel::UIFileManagerOptionsPanel(QWidget *pParent, UIFileManagerOptions *pFileManagerOptions)
     : UIDialogPanel(pParent)
@@ -88,27 +81,19 @@ void UIFileManagerOptionsPanel::prepareWidgets()
 
     m_pListDirectoriesOnTopCheckBox = new QCheckBox;
     if (m_pListDirectoriesOnTopCheckBox)
-    {
         mainLayout()->addWidget(m_pListDirectoriesOnTopCheckBox, 0, Qt::AlignLeft);
-    }
 
     m_pDeleteConfirmationCheckBox = new QCheckBox;
     if (m_pDeleteConfirmationCheckBox)
-    {
         mainLayout()->addWidget(m_pDeleteConfirmationCheckBox, 0, Qt::AlignLeft);
-    }
 
     m_pHumanReabableSizesCheckBox = new QCheckBox;
     if (m_pHumanReabableSizesCheckBox)
-    {
         mainLayout()->addWidget(m_pHumanReabableSizesCheckBox, 0, Qt::AlignLeft);
-    }
 
     m_pShowHiddenObjectsCheckBox = new QCheckBox;
     if (m_pShowHiddenObjectsCheckBox)
-    {
         mainLayout()->addWidget(m_pShowHiddenObjectsCheckBox, 0, Qt::AlignLeft);
-    }
 
     /* Set initial checkbox status wrt. options: */
     if (m_pFileManagerOptions)
@@ -174,7 +159,6 @@ void UIFileManagerOptionsPanel::prepareConnections()
     if (m_pShowHiddenObjectsCheckBox)
         connect(m_pShowHiddenObjectsCheckBox, &QCheckBox::toggled,
                 this, &UIFileManagerOptionsPanel::sltShowHiddenObjectsCheckBoxToggled);
-
 }
 
 void UIFileManagerOptionsPanel::retranslateUi()

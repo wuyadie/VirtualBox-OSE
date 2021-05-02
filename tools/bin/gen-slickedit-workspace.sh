@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2009-2019 Oracle Corporation
+# Copyright (C) 2009-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -109,6 +109,29 @@ my_get_name()
 }
 
 ##
+# Gets the newest version of a library (like openssl).
+#
+# @param    $1      The library base path relative to root.
+my_get_newest_ver()
+{
+    cd "${MY_ABS_DIR}"
+    latest=
+    for ver in "$1"*;
+    do
+        if test -z "${latest}" || "${MY_EXPR}" "${ver}" ">" "${latest}"; then
+            latest="${ver}"
+        fi
+    done
+    if test -z "${latest}"; then
+        echo "error: could not find any version of: $1" >&2;
+        exit 1;
+    fi
+    echo "${latest}"
+    return 0;
+}
+
+
+##
 # Generate file entry for the specified file if it was found to be of interest.
 #
 # @param    $1      The output file name base.
@@ -170,7 +193,7 @@ my_wildcard()
     else
         MY_FOLDER="$1-All.lst"
     fi
-    EXCLUDES="*.log;*.kup;*~;*.pyc;*.exe;*.sys;*.dll;*.o;*.obj;*.lib;*.a;*.ko;*.class;*.cvsignore;*.done;*.project;*.actionScriptProperties;*.scm-settings;*.svnpatch.rej;*.svn-base;.svn/*;*.gitignore;*.gitattributes"
+    EXCLUDES="*.log;*.kup;*~;*.bak;*.bak?;*.pyc;*.exe;*.sys;*.dll;*.o;*.obj;*.lib;*.a;*.ko;*.class;*.cvsignore;*.done;*.project;*.actionScriptProperties;*.scm-settings;*.svnpatch.rej;*.svn-base;.svn/*;*.gitignore;*.gitattributes;*.gitmodules;*.swagger-codegen-ignore;*.png;*.bmp;*.jpg"
     echo '        <F N="'"${2}"'/*" Recurse="1" Excludes="'"${EXCLUDES}"'"/>' >> "${MY_FOLDER}"
 }
 
@@ -497,10 +520,10 @@ my_generate_usercpp_h()
     # Probe the slickedit user config, picking the most recent version.
     #
     if test -z "${MY_SLICK_CONFIG}"; then
-        if test -d "${HOME}/Library/Application Support/Slickedit"; then
-            MY_SLICKDIR_="${HOME}/Library/Application Support/Slickedit"
+        if test -d "${HOME}/Library/Application Support/SlickEdit"; then
+            MY_SLICKDIR_="${HOME}/Library/Application Support/SlickEdit"
             MY_USERCPP_H="unxcpp.h"
-            MY_VSLICK_DB="vslick.stu"
+            MY_VSLICK_DB="vslick.sta" # was .stu earlier, 24 is using .sta.
         elif test -d "${HOMEDRIVE}${HOMEPATH}/Documents/My SlickEdit Config"; then
             MY_SLICKDIR_="${HOMEDRIVE}${HOMEPATH}/Documents/My SlickEdit Config"
             MY_USERCPP_H="usercpp.h"
@@ -571,6 +594,8 @@ my_generate_usercpp_h()
 #define RT_C_DECLS_BEGIN
 #define RT_C_DECLS_END
 #define RT_NO_THROW
+#define RT_NOEXCEPT
+#define RT_OVERRIDE
 #define RT_THROW(type) throw(type)
 #define RT_GCC_EXTENSION
 #define RT_COMPILER_GROKS_64BIT_BITFIELDS
@@ -1040,7 +1065,6 @@ my_generate_project "VMM"           "src/VBox/VMM"                          --be
     "include/VBox/vmm/patm.*" \
     "include/VBox/vmm/pdm*.h" \
     "include/VBox/vmm/pgm.*" \
-    "include/VBox/vmm/rem.h" \
     "include/VBox/vmm/selm.*" \
     "include/VBox/vmm/ssm.h" \
     "include/VBox/vmm/stam.*" \
@@ -1049,24 +1073,13 @@ my_generate_project "VMM"           "src/VBox/VMM"                          --be
     "include/VBox/vmm/vm.*" \
     "include/VBox/vmm/vmm.*"
 
-# src/recompiler
-my_generate_project "REM"           "src/recompiler"                        --begin-incs \
-    "include" \
-    "src/recompiler" \
-    "src/recompiler/target-i386" \
-    "src/recompiler/tcg/i386" \
-    "src/recompiler/Sun/crt" \
-    --end-includes \
-    "src/recompiler" \
-    "src/VBox/VMM/include/REMInternal.h" \
-    "src/VBox/VMM/VMMAll/REMAll.cpp"
-
 # src/VBox/Additions
+my_generate_project "Add-darwin"    "src/VBox/Additions/darwin"             --begin-incs "include" "src/VBox/Additions/darwin"              --end-includes "src/VBox/Additions/darwin"
 my_generate_project "Add-freebsd"   "src/VBox/Additions/freebsd"            --begin-incs "include" "src/VBox/Additions/freebsd"             --end-includes "src/VBox/Additions/freebsd"
+my_generate_project "Add-haiku"     "src/VBox/Additions/haiku"              --begin-incs "include" "src/VBox/Additions/haiku"               --end-includes "src/VBox/Additions/haiku"
 my_generate_project "Add-linux"     "src/VBox/Additions/linux"              --begin-incs "include" "src/VBox/Additions/linux"               --end-includes "src/VBox/Additions/linux"
 my_generate_project "Add-os2"       "src/VBox/Additions/os2"                --begin-incs "include" "src/VBox/Additions/os2"                 --end-includes "src/VBox/Additions/os2"
 my_generate_project "Add-solaris"   "src/VBox/Additions/solaris"            --begin-incs "include" "src/VBox/Additions/solaris"             --end-includes "src/VBox/Additions/solaris"
-my_generate_project "Add-haiku"     "src/VBox/Additions/haiku"              --begin-incs "include" "src/VBox/Additions/haiku"               --end-includes "src/VBox/Additions/haiku"
 my_generate_project "Add-win"       "src/VBox/Additions/WINNT"              --begin-incs "include" "src/VBox/Additions/WINNT"               --end-includes "src/VBox/Additions/WINNT"
 if test -z "$MY_OPT_MINIMAL"; then
     my_generate_project "Add-x11"   "src/VBox/Additions/x11"                --begin-incs "include" "src/VBox/Additions/x11"                 --end-includes "src/VBox/Additions/x11"
@@ -1077,7 +1090,6 @@ my_generate_project "Add-Lib"       "src/VBox/Additions/common/VBoxGuest/lib" --
 my_generate_project "Add-Service"   "src/VBox/Additions/common/VBoxService"   --begin-incs "include" "src/VBox/Additions/common/VBoxService"  --end-includes "src/VBox/Additions/common/VBoxService"
 my_generate_project "Add-VBoxVideo" "src/VBox/Additions/common/VBoxVideo"     --begin-incs "include" "src/VBox/Additions/common/VBoxVideo"    --end-includes "src/VBox/Additions/common/VBoxVideo"
 if test -z "$MY_OPT_MINIMAL"; then
-    my_generate_project "Add-crOpenGL"  "src/VBox/Additions/common/crOpenGL"    --begin-incs "include" "src/VBox/Additions/common/crOpenGL"     --end-includes "src/VBox/Additions/common/crOpenGL"
     my_generate_project "Add-pam"       "src/VBox/Additions/common/pam"         --begin-incs "include" "src/VBox/Additions/common/pam"          --end-includes "src/VBox/Additions/common/pam"
     my_generate_project "Add-cmn-test"  "src/VBox/Additions/common/testcase"    --begin-incs "include" "src/VBox/Additions/common/testcase"     --end-includes "src/VBox/Additions/common/testcase"
     my_generate_project "Add-CredProv"  "src/VBox/Additions/WINNT/VBoxCredProv" --begin-incs "include" "src/VBox/Additions/WINNT/VBoxCredProv"  --end-includes "src/VBox/Additions/WINNT/VBoxCredProv"
@@ -1122,7 +1134,6 @@ my_generate_project "HGSMI-GH"      "src/VBox/GuestHost/HGSMI"              --be
 if test -z "$MY_OPT_MINIMAL"; then
     my_generate_project "DnD-GH"    "src/VBox/GuestHost/DragAndDrop"        --begin-incs "include"                                          --end-includes "src/VBox/GuestHost/DragAndDrop"
 fi
-my_generate_project "OpenGL-GH"     "src/VBox/GuestHost/OpenGL"             --begin-incs "include" "src/VBox/GuestHost/OpenGL"              --end-includes "src/VBox/GuestHost/OpenGL"
 my_generate_project "ShClip-GH"     "src/VBox/GuestHost/SharedClipboard"    --begin-incs "include"                                          --end-includes "src/VBox/GuestHost/SharedClipboard"
 
 # src/VBox/HostDrivers
@@ -1138,7 +1149,6 @@ my_generate_project "DragAndDrop"   "src/VBox/HostServices/DragAndDrop"     --be
 my_generate_project "GuestProps"    "src/VBox/HostServices/GuestProperties" --begin-incs "include" "src/VBox/HostServices/GuestProperties"  --end-includes "src/VBox/HostServices/GuestProperties"
 my_generate_project "ShClip-HS"     "src/VBox/HostServices/SharedClipboard" --begin-incs "include" "src/VBox/HostServices/SharedClipboard"  --end-includes "src/VBox/HostServices/SharedClipboard"
 my_generate_project "SharedFolders" "src/VBox/HostServices/SharedFolders"   --begin-incs "include" "src/VBox/HostServices/SharedFolders"    --end-includes "src/VBox/HostServices/SharedFolders" "include/VBox/shflsvc.h"
-my_generate_project "OpenGL-HS"     "src/VBox/HostServices/SharedOpenGL"    --begin-incs "include" "src/VBox/HostServices/SharedOpenGL"     --end-includes "src/VBox/HostServices/SharedOpenGL"
 
 # src/VBox/ImageMounter
 my_generate_project "ImageMounter"  "src/VBox/ImageMounter"                 --begin-incs "include" "src/VBox/ImageMounter"                  --end-includes "src/VBox/ImageMounter"
@@ -1151,12 +1161,12 @@ my_generate_project "Main"          "src/VBox/Main"                         --be
 ## @todo seperate webservices and Main. pick the right headers. added generated headers.
 
 # src/VBox/Network
-my_generate_project "Net-DHCP"      "src/VBox/NetworkServices/DHCP"         --begin-incs "include" "src/VBox/NetworkServices/NetLib"        --end-includes "src/VBox/NetworkServices/DHCP"
+my_generate_project "Net-DHCP"      "src/VBox/NetworkServices/Dhcpd"        --begin-incs "include" "src/VBox/NetworkServices/NetLib"        --end-includes "src/VBox/NetworkServices/Dhcpd"
 my_generate_project "Net-NAT"       "src/VBox/NetworkServices/NAT"          --begin-incs "include" "src/VBox/NetworkServices/NAT"           --end-includes "src/VBox/NetworkServices/NAT" "src/VBox/Devices/Network/slirp"
 my_generate_project "Net-NetLib"    "src/VBox/NetworkServices/NetLib"       --begin-incs "include" "src/VBox/NetworkServices/NetLib"        --end-includes "src/VBox/NetworkServices/NetLib"
 
 # src/VBox/RDP
-my_generate_project "RDP-Client"    "src/VBox/RDP/client-1.8.3"             --begin-incs "include" "src/VBox/RDP/client-1.8.3"              --end-includes "src/VBox/RDP/client-1.8.3"
+my_generate_project "RDP-Client"    "src/VBox/RDP/client-1.8.4"             --begin-incs "include" "src/VBox/RDP/client-1.8.4"              --end-includes "src/VBox/RDP/client-1.8.4"
 my_generate_project "RDP-Server"    "src/VBox/RDP/server"                   --begin-incs "include" "src/VBox/RDP/server"                    --end-includes "src/VBox/RDP/server"
 my_generate_project "RDP-WebClient" "src/VBox/RDP/webclient"                --begin-incs "include" "src/VBox/RDP/webclient"                 --end-includes "src/VBox/RDP/webclient"
 my_generate_project "RDP-Misc"      "src/VBox/RDP"                          --begin-incs "include"                                          --end-includes "src/VBox/RDP/auth" "src/VBox/RDP/tscpasswd" "src/VBox/RDP/x11server"
@@ -1174,11 +1184,16 @@ my_generate_project "ExtPacks"      "src/VBox/ExtPacks"                     --be
 my_generate_project "bldprogs"      "src/bldprogs"                          --begin-incs "include"                                          --end-includes "src/bldprogs"
 
 # A few things from src/lib
-my_generate_project "zlib"          "src/libs/zlib-1.2.8"                   --begin-incs "include"                                          --end-includes "src/libs/zlib-1.2.8/*.c" "src/libs/zlib-1.2.8/*.h"
-my_generate_project "liblzf"        "src/libs/liblzf-3.4"                   --begin-incs "include"                                          --end-includes "src/libs/liblzf-3.4"
-my_generate_project "libpng"        "src/libs/libpng-1.2.54"                --begin-incs "include"                                          --end-includes "src/libs/libpng-1.2.54/*.c" "src/libs/libpng-1.2.54/*.h"
-my_generate_project "openssl"       "src/libs/openssl-1.1.0i"               --begin-incs "include" "src/libs/openssl-1.1.0i/crypto"         --end-includes "src/libs/openssl-1.1.0i"
-my_generate_project "curl"          "src/libs/curl-7.57.0"                  --begin-incs "include" "src/libs/curl-7.57.0/include"           --end-includes "src/libs/curl-7.57.0"
+lib=$(my_get_newest_ver src/libs/zlib)
+my_generate_project "zlib"          "${lib}"                                --begin-incs "include"                                          --end-includes "${lib}/*.c" "${lib}/*.h"
+lib=$(my_get_newest_ver src/libs/liblzf)
+my_generate_project "liblzf"        "${lib}"                                --begin-incs "include"                                          --end-includes "${lib}"
+lib=$(my_get_newest_ver src/libs/libpng)
+my_generate_project "libpng"        "${lib}"                                --begin-incs "include"                                          --end-includes "${lib}/*.c" "${lib}/*.h"
+lib=$(my_get_newest_ver src/libs/openssl)
+my_generate_project "openssl"       "${lib}"                                --begin-incs "include" "${lib}/crypto"                          --end-includes "${lib}"
+lib=$(my_get_newest_ver src/libs/curl)
+my_generate_project "curl"          "${lib}"                                --begin-incs "include" "${lib}/include"                         --end-includes "${lib}"
 
 # webtools
 my_generate_project "webtools"      "webtools"                              --begin-incs "include" "webtools/tinderbox/server/Tinderbox3"   --end-includes "webtools"

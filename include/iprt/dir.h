@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,8 +65,10 @@ RTDECL(bool) RTDirExists(const char *pszPath);
 #define RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_SET           UINT32_C(0)
 /** Ignore errors setting the not-content-indexed flag.  Windows only atm. */
 #define RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL  RT_BIT(2)
+/** Ignore umask when applying the mode. */
+#define RTDIRCREATE_FLAGS_IGNORE_UMASK                      RT_BIT(3)
 /** Valid mask. */
-#define RTDIRCREATE_FLAGS_VALID_MASK                        UINT32_C(0x00000007)
+#define RTDIRCREATE_FLAGS_VALID_MASK                        UINT32_C(0x0000000f)
 /** @} */
 
 /**
@@ -80,14 +82,23 @@ RTDECL(bool) RTDirExists(const char *pszPath);
 RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate);
 
 /**
- * Creates a directory including all parent directories in the path
- * if they don't exist.
+ * Creates a directory including all non-existing parent directories.
  *
  * @returns iprt status code.
  * @param   pszPath     Path to the directory to create.
  * @param   fMode       The mode of the new directories.
  */
 RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode);
+
+/**
+ * Creates a directory including all non-existing parent directories.
+ *
+ * @returns iprt status code.
+ * @param   pszPath     Path to the directory to create.
+ * @param   fMode       The mode of the new directories.
+ * @param   fFlags      Create flags, RTDIRCREATE_FLAGS_*.
+ */
+RTDECL(int) RTDirCreateFullPathEx(const char *pszPath, RTFMODE fMode, uint32_t fFlags);
 
 /**
  * Creates a new directory with a unique name using the given template.
@@ -596,6 +607,19 @@ RTR3DECL(int) RTDirQueryInfo(RTDIR hDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD e
  */
 RTR3DECL(int) RTDirSetTimes(RTDIR hDir, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
                             PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime);
+
+
+/**
+ * Changes the mode flags of an open directory.
+ *
+ * The API requires at least one of the mode flag sets (Unix/Dos) to
+ * be set. The type is ignored.
+ *
+ * @returns iprt status code.
+ * @param   hDir                Handle to the open directory.
+ * @param   fMode               The new file mode, see @ref grp_rt_fs for details.
+ */
+RTDECL(int) RTDirSetMode(RTDIR hDir, RTFMODE fMode);
 
 
 /** @defgroup grp_rt_dir_rel    Directory relative APIs

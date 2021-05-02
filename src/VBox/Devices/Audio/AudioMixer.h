@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,13 @@
 
 #include <VBox/vmm/pdmaudioifs.h>
 
+
+/** Pointer to an audio mixer sink. */
+typedef struct AUDMIXSINK *PAUDMIXSINK;
+
+
 /**
- * Structure for maintaining an audio mixer instance.
+ * Audio mixer instance.
  */
 typedef struct AUDIOMIXER
 {
@@ -44,19 +49,35 @@ typedef struct AUDIOMIXER
     RTLISTANCHOR            lstSinks;
     /** Number of used audio sinks. */
     uint8_t                 cSinks;
-} AUDIOMIXER, *PAUDIOMIXER;
+    /** Mixer flags. See AUDMIXER_FLAGS_XXX. */
+    uint32_t                fFlags;
+} AUDIOMIXER;
+/** Pointer to an audio mixer instance. */
+typedef AUDIOMIXER *PAUDIOMIXER;
 
 /** Defines an audio mixer stream's flags. */
 #define AUDMIXSTREAMFLAGS uint32_t
 
 /** No flags specified. */
-#define AUDMIXSTREAM_FLAG_NONE                  0
+#define AUDMIXSTREAM_F_NONE                     0
+/** The mixing stream is flagged as being enabled (active). */
+#define AUDMIXSTREAM_F_ENABLED                  RT_BIT(0)
 
-/** Prototype needed for AUDMIXSTREAM struct definition. */
-typedef struct AUDMIXSINK *PAUDMIXSINK;
+/** Defines an audio mixer stream's internal status. */
+#define AUDMIXSTREAMSTATUS uint32_t
+
+/** No status set. */
+#define AUDMIXSTREAM_STATUS_NONE                0
+/** The mixing stream is enabled (active). */
+#define AUDMIXSTREAM_STATUS_ENABLED             RT_BIT(0)
+/** The mixing stream can be read from. */
+#define AUDMIXSTREAM_STATUS_CAN_READ            RT_BIT(1)
+/** The mixing stream can be written to. */
+#define AUDMIXSTREAM_STATUS_CAN_WRITE           RT_BIT(2)
+
 
 /**
- * Structure for maintaining an audio mixer stream.
+ * Audio mixer stream.
  */
 typedef struct AUDMIXSTREAM
 {
@@ -68,8 +89,10 @@ typedef struct AUDMIXSTREAM
     RTCRITSECT              CritSect;
     /** Sink this stream is attached to. */
     PAUDMIXSINK             pSink;
-    /** Stream flags of type AUDMIXSTREAM_FLAG_. */
+    /** Stream flags of type AUDMIXSTREAM_F_. */
     uint32_t                fFlags;
+    /** Stream status of type AUDMIXSTREAM_STATUS_. */
+    uint32_t                fStatus;
     /** Pointer to audio connector being used. */
     PPDMIAUDIOCONNECTOR     pConn;
     /** Pointer to PDM audio stream this mixer stream handles. */
@@ -135,7 +158,8 @@ typedef enum AUDMIXSINKCMD
 } AUDMIXSINKCMD;
 
 /**
- * Structure for keeping audio input sink specifics.
+ * Audio input sink specifics.
+ *
  * Do not use directly. Instead, use AUDMIXSINK.
  */
 typedef struct AUDMIXSINKIN
@@ -145,7 +169,8 @@ typedef struct AUDMIXSINKIN
 } AUDMIXSINKIN;
 
 /**
- * Structure for keeping audio output sink specifics.
+ * Audio output sink specifics.
+ *
  * Do not use directly. Instead, use AUDMIXSINK.
  */
 typedef struct AUDMIXSINKOUT
@@ -153,7 +178,7 @@ typedef struct AUDMIXSINKOUT
 } AUDMIXSINKOUT;
 
 /**
- * Structure for maintaining an audio mixer sink.
+ * Audio mixer sink.
  */
 typedef struct AUDMIXSINK
 {
@@ -170,6 +195,10 @@ typedef struct AUDMIXSINK
     /** This sink's mixing buffer, acting as
      * a parent buffer for all streams this sink owns. */
     PDMAUDIOMIXBUF          MixBuf;
+    /** Scratch buffer for multiplexing / mixing. Might be NULL if not needed. */
+    uint8_t                *pabScratchBuf;
+    /** Size (in bytes) of pabScratchBuf. Might be 0 if not needed. */
+    size_t                  cbScratchBuf;
     /** Union for input/output specifics. */
     union
     {
@@ -196,13 +225,11 @@ typedef struct AUDMIXSINK
     uint64_t                tsLastUpdatedMs;
     /** Last read (recording) / written (playback) timestamp (in ns). */
     uint64_t                tsLastReadWrittenNs;
-#ifdef VBOX_AUDIO_MIXER_DEBUG
     struct
     {
         PPDMAUDIOFILE       pFile;
     } Dbg;
-#endif
-} AUDMIXSINK, *PAUDMIXSINK;
+} AUDMIXSINK;
 
 /**
  * Audio mixer operation.
@@ -220,9 +247,17 @@ typedef enum AUDMIXOP
 } AUDMIXOP;
 
 /** No flags specified. */
-#define AUDMIXSTRMCTL_FLAG_NONE         0
+#define AUDMIXSTRMCTL_F_NONE            0
 
-int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer);
+/** No mixer flags specified. */
+#define AUDMIXER_FLAGS_NONE             0
+/** Debug mode enabled.
+ *  This writes .WAV file to the host, usually to the temporary directory. */
+#define AUDMIXER_FLAGS_DEBUG            RT_BIT(0)
+/** Validation mask. */
+#define AUDMIXER_FLAGS_VALID_MASK       UINT32_C(0x00000001)
+
+int AudioMixerCreate(const char *pszName, uint32_t fFlags, PAUDIOMIXER *ppMixer);
 int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR enmDir, PAUDMIXSINK *ppSink);
 void AudioMixerDestroy(PAUDIOMIXER pMixer);
 void AudioMixerInvalidate(PAUDIOMIXER pMixer);

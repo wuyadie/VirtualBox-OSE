@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1037,9 +1037,12 @@ static DECLCALLBACK(int) drvNamedPipeConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
     {
         /* Connect to the local socket. */
         if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+            close(s);
             return PDMDrvHlpVMSetError(pDrvIns, RTErrConvertFromErrno(errno), RT_SRC_POS,
                                        N_("NamedPipe#%d failed to connect to local socket %s"),
                                        pDrvIns->iInstance, pThis->pszLocation);
+        }
 
         rc = RTSocketFromNative(&pThis->hSock, s);
         if (RT_FAILURE(rc))

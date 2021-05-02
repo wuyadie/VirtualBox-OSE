@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 #import <AppKit/NSColor.h>
 #import <AppKit/NSFont.h>
 #import <AppKit/NSScreen.h>
+#import <AppKit/NSScroller.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSImageView.h>
 
@@ -260,6 +261,19 @@ bool darwinScreensHaveSeparateSpaces()
      * This method is available since 10.9 only. */
     if ([NSScreen respondsToSelector: @selector(screensHaveSeparateSpaces)])
         return [NSScreen performSelector: @selector(screensHaveSeparateSpaces)];
+    else
+        return false;
+}
+
+bool darwinIsScrollerStyleOverlay()
+{
+    /* Check whether scrollers by default have legacy style.
+     * This method is available since 10.7 only. */
+    if ([NSScroller respondsToSelector: @selector(preferredScrollerStyle)])
+    {
+        const int enmType = (int)(intptr_t)[NSScroller performSelector: @selector(preferredScrollerStyle)];
+        return enmType == NSScrollerStyleOverlay;
+    }
     else
         return false;
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,8 +69,11 @@
 class RT_DECL_CLASS RTCString
 {
 public:
-#ifdef RT_NEED_NEW_AND_DELETE
+#if defined(RT_NEED_NEW_AND_DELETE) && (  !defined(RTMEM_WRAP_SOME_NEW_AND_DELETE_TO_EF) \
+                                        || defined(RTMEM_NO_WRAP_SOME_NEW_AND_DELETE_TO_EF))
     RTMEM_IMPLEMENT_NEW_AND_DELETE();
+#else
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
 #endif
 
     /**
@@ -295,8 +298,6 @@ public:
         cleanup();
     }
 
-    RTMEMEF_NEW_AND_DELETE_OPERATORS();
-
     /**
      * Assigns a copy of pcsz to @a this.
      *
@@ -439,7 +440,7 @@ public:
      * @param   ...             Ellipsis containing the arguments specified by
      *                          the format string.
      *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     * @throws  std::bad_alloc  On allocation error.  Object state is undefined.
      *
      * @returns Reference to the object.
      */
@@ -465,7 +466,7 @@ public:
      * @param   va              Argument vector containing the arguments
      *                          specified by the format string.
      *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     * @throws  std::bad_alloc  On allocation error.  Object state is undefined.
      *
      * @returns Reference to the object.
      */
@@ -601,7 +602,7 @@ public:
      * @param   ...             Ellipsis containing the arguments specified by
      *                          the format string.
      *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     * @throws  std::bad_alloc  On allocation error.  Object state is undefined.
      *
      * @returns Reference to the object.
      */
@@ -627,7 +628,7 @@ public:
      * @param   va              Argument vector containing the arguments
      *                          specified by the format string.
      *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     * @throws  std::bad_alloc  On allocation error.  Object state is undefined.
      *
      * @returns Reference to the object.
      */

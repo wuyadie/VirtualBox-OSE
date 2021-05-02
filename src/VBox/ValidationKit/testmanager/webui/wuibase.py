@@ -7,7 +7,7 @@ Test Manager Web-UI - Base Classes.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard python imports.
@@ -52,7 +52,7 @@ class WuiException(TMExceptionBase):
     """
     For exceptions raised by Web UI code.
     """
-    pass;
+    pass;                               # pylint: disable=unnecessary-pass
 
 
 class WuiDispatcherBase(object):
@@ -133,7 +133,7 @@ class WuiDispatcherBase(object):
         self._fDbgSqlTrace      = False;
         self._fDbgSqlExplain    = False;
         self._dDbgParams        = dict();
-        for sKey, sValue in oSrvGlue.getParameters().iteritems():
+        for sKey, sValue in oSrvGlue.getParameters().items():
             if sKey in self.kasDbgParams:
                 self._dDbgParams[sKey] = sValue;
         if self._dDbgParams:
@@ -305,7 +305,7 @@ class WuiDispatcherBase(object):
                 self._sDebug += self._debugRenderPanel();
         if self._sDebug != '':
             dReplacements['@@DEBUG@@'] = u'<div id="debug"><br><br><hr/>' \
-                                       + (unicode(self._sDebug, errors='ignore') if isinstance(self._sDebug, str)
+                                       + (utils.toUnicode(self._sDebug, errors='ignore') if isinstance(self._sDebug, str)
                                           else self._sDebug) \
                                        + u'</div>\n';
 
@@ -409,7 +409,7 @@ class WuiDispatcherBase(object):
                                      '0' if fDefault is None else str(fDefault));
         # HACK: Checkboxes doesn't return a value when unchecked, so we always
         #       provide a default when dealing with boolean parameters.
-        return sValue == 'True' or sValue == 'true' or sValue == '1';
+        return sValue in ('True', 'true', '1',);
 
     def getIntParam(self, sName, iMin = None, iMax = None, iDefault = None):
         """
@@ -522,7 +522,7 @@ class WuiDispatcherBase(object):
 
         return asValues;
 
-    def getListOfTestCasesParam(self, sName, asDefaults = None):  # too many local vars - pylint: disable=R0914
+    def getListOfTestCasesParam(self, sName, asDefaults = None):  # too many local vars - pylint: disable=too-many-locals
         """Get list of test cases and their parameters"""
         if sName in self._dParams:
             if sName not in self._asCheckedParams:
@@ -546,7 +546,7 @@ class WuiDispatcherBase(object):
 
             oListEntryTestCaseArgs = []
             for idTestCaseArgs in aiAllTestCaseArgs:
-                fArgsChecked   = True if idTestCaseArgs in aiCheckedTestCaseArgs else False
+                fArgsChecked   = idTestCaseArgs in aiCheckedTestCaseArgs;
 
                 # Dry run
                 sPrefix = '%s[%d][%d]' % (sName, idTestCase, idTestCaseArgs,);
@@ -561,11 +561,12 @@ class WuiDispatcherBase(object):
 
             sTestCaseName = self.getStringParam('%s[%d][sName]' % (sName, idTestCase), sDefault='')
 
-            oListEntryTestCase = \
-                (idTestCase,
-                 True if idTestCase in aiSelectedTestCaseIds else False,
-                 sTestCaseName,
-                 oListEntryTestCaseArgs)
+            oListEntryTestCase = (
+                idTestCase,
+                idTestCase in aiSelectedTestCaseIds,
+                sTestCaseName,
+                oListEntryTestCaseArgs
+            );
 
             aoListOfTestCases.append(oListEntryTestCase)
 
@@ -771,7 +772,7 @@ class WuiDispatcherBase(object):
         sHtml  = '<div id="debug-panel">\n' \
                  ' <form id="debug-panel-form" type="get" action="#">\n';
 
-        for sKey, oValue in self._dParams.iteritems():
+        for sKey, oValue in self._dParams.items():
             if sKey not in self.kasDbgParams:
                 if hasattr(oValue, 'startswith'):
                     sHtml += '  <input type="hidden" name="%s" value="%s"/>\n' \
@@ -854,7 +855,7 @@ class WuiDispatcherBase(object):
         (self._sPageTitle, self._sPageBody) = oForm.showForm();
         return True
 
-    def _actionGenericFormDetails(self, oDataType, oLogicType, oFormType, sIdAttr = None, sGenIdAttr = None): # pylint: disable=R0914
+    def _actionGenericFormDetails(self, oDataType, oLogicType, oFormType, sIdAttr = None, sGenIdAttr = None): # pylint: disable=too-many-locals
         """
         Generic handler for showing a details form/page.
 
@@ -1173,7 +1174,7 @@ class WuiDispatcherBase(object):
 
             # Take care about strings which may contain unicode characters: convert percent-encoded symbols back to unicode.
             for idxItem, _ in enumerate(dParams[sKey]):
-                dParams[sKey][idxItem] = dParams[sKey][idxItem].decode('utf-8')
+                dParams[sKey][idxItem] = utils.toUnicode(dParams[sKey][idxItem], 'utf-8');
 
             if not len(dParams[sKey]) > 1:
                 dParams[sKey] = dParams[sKey][0];

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2019 Oracle Corporation
+# Copyright (C) 2010-2020 Oracle Corporation
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -81,16 +81,16 @@ VBoxBusMouseMainVM_DEFS =
 #
 DLLS += VBoxBusMouseR3
 VBoxBusMouseR3_TEMPLATE = VBoxR3ExtPackBusMouse
-VBoxBusMouseR3_SOURCES  = BusMouse.cpp
+VBoxBusMouseR3_SOURCES  = DevBusMouse.cpp
 
-SYSMODS += VBoxBusMouseR0
+$(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxBusMouseR0
 VBoxBusMouseR0_TEMPLATE = VBoxR0ExtPackBusMouse
-VBoxBusMouseR0_SOURCES  = BusMouse.cpp
+VBoxBusMouseR0_SOURCES  = DevBusMouse.cpp
 
 ifdef VBOX_WITH_RAW_MODE
  SYSMODS += VBoxBusMouseRC
  VBoxBusMouseRC_TEMPLATE = VBoxRcExtPackBusMouse
- VBoxBusMouseRC_SOURCES  = BusMouse.cpp
+ VBoxBusMouseRC_SOURCES  = DevBusMouse.cpp
 endif
 
 

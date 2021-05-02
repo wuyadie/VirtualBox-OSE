@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,8 +37,19 @@ AudioDriver::AudioDriver(Console *pConsole)
 {
 }
 
+
 AudioDriver::~AudioDriver(void)
 {
+}
+
+
+AudioDriver &AudioDriver::operator=(AudioDriver const &a_rThat) RT_NOEXCEPT
+{
+    mpConsole  = a_rThat.mpConsole;
+    mCfg       = a_rThat.mCfg;
+    mfAttached = a_rThat.mfAttached;
+
+    return *this;
 }
 
 

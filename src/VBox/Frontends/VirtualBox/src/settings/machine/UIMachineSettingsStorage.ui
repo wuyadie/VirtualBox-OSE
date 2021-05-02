@@ -2,7 +2,7 @@
  <comment>
  VBox frontends: Qt GUI ("VirtualBox"):
 
- Copyright (C) 2009-2016 Oracle Corporation
+ Copyright (C) 2009-2020 Oracle Corporation
 
  This file is part of VirtualBox Open Source Edition (OSE), as
  available from http://www.virtualbox.org. This file is free software;
@@ -617,12 +617,6 @@
    <class>UIToolBar</class>
    <extends>QWidget</extends>
    <header>UIToolBar.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>UIMediaComboBox</class>
-   <extends>QComboBox</extends>
-   <header>UIMediaComboBox.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -367,16 +367,16 @@ HRESULT vboxDispKmtDestroyDevice(PVBOXDISPKMT_DEVICE pDevice)
     return E_FAIL;
 }
 
+/// @todo Used for resize and seamless. Drop crVersion* params.
 HRESULT vboxDispKmtCreateContext(PVBOXDISPKMT_DEVICE pDevice, PVBOXDISPKMT_CONTEXT pContext,
                                     VBOXWDDM_CONTEXT_TYPE enmType,
-                                    uint32_t crVersionMajor, uint32_t crVersionMinor,
                                     HANDLE hEvent, uint64_t u64UmInfo)
 {
     VBOXWDDM_CREATECONTEXT_INFO Info = {0};
     Info.u32IfVersion = 9;
     Info.enmType = enmType;
-    Info.u.vbox.crVersionMajor = crVersionMajor;
-    Info.u.vbox.crVersionMinor = crVersionMinor;
+    Info.u.vbox.crVersionMajor = 0; /* Not used */
+    Info.u.vbox.crVersionMinor = 0; /* Not used */
     Info.u.vbox.hUmEvent = (uintptr_t)hEvent;
     Info.u.vbox.u64UmInfo = u64UmInfo;
     D3DKMT_CREATECONTEXT ContextData = {0};
@@ -385,7 +385,7 @@ HRESULT vboxDispKmtCreateContext(PVBOXDISPKMT_DEVICE pDevice, PVBOXDISPKMT_CONTE
     ContextData.EngineAffinity = VBOXWDDM_ENGINE_ID_3D_KMT;
     ContextData.pPrivateDriverData = &Info;
     ContextData.PrivateDriverDataSize = sizeof (Info);
-    ContextData.ClientHint = enmType == VBOXWDDM_CONTEXT_TYPE_CUSTOM_UHGSMI_GL ? D3DKMT_CLIENTHINT_OPENGL : D3DKMT_CLIENTHINT_DX9;
+    ContextData.ClientHint = D3DKMT_CLIENTHINT_DX9;
     NTSTATUS Status = pDevice->pAdapter->pCallbacks->pfnD3DKMTCreateContext(&ContextData);
     Assert(!Status);
     if (!Status)

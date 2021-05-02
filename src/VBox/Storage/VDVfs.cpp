@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -713,7 +713,7 @@ static DECLCALLBACK(int) vdVfsChain_Instantiate(PCRTVFSCHAINELEMENTREG pProvider
     /* Determin the format. */
     char  *pszFormat = NULL;
     VDTYPE enmType   = VDTYPE_INVALID;
-    int rc = VDGetFormat(NULL, NULL, pElement->paArgs[0].psz, &pszFormat, &enmType);
+    int rc = VDGetFormat(NULL, NULL, pElement->paArgs[0].psz, VDTYPE_INVALID, &pszFormat, &enmType);
     if (RT_SUCCESS(rc))
     {
         PVDISK pDisk = NULL;

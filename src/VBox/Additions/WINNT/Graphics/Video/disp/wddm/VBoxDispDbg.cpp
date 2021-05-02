@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,7 +60,7 @@ static void vboxDispLogDbgFormatStringV(char * szBuffer, uint32_t cbBuffer, cons
     _vsnprintf(szBuffer + cbWritten, cbBuffer - cbWritten, szString, pArgList);
 }
 
-#if defined(VBOXWDDMDISP_DEBUG) || defined(VBOX_WDDMDISP_WITH_PROFILE)
+#if defined(VBOXWDDMDISP_DEBUG)
 LONG g_VBoxVDbgFIsDwm = -1;
 
 DWORD g_VBoxVDbgPid = 0;
@@ -77,7 +77,6 @@ DWORD g_VBoxVDbgFLogFlow = 0;
 
 #ifdef VBOXWDDMDISP_DEBUG
 
-# ifndef IN_VBOXCRHGSMI
 #define VBOXWDDMDISP_DEBUG_DUMP_DEFAULT 0
 DWORD g_VBoxVDbgFDumpSetTexture = VBOXWDDMDISP_DEBUG_DUMP_DEFAULT;
 DWORD g_VBoxVDbgFDumpDrawPrim = VBOXWDDMDISP_DEBUG_DUMP_DEFAULT;
@@ -107,19 +106,6 @@ DWORD g_VBoxVDbgCfgForceDummyDevCreate = 0;
 
 PVBOXWDDMDISP_DEVICE g_VBoxVDbgInternalDevice = NULL;
 PVBOXWDDMDISP_RESOURCE g_VBoxVDbgInternalRc = NULL;
-
-DWORD g_VBoxVDbgCfgCreateSwapchainOnDdiOnce = 0;
-
-void vboxDispLogDbgPrintF(char * szString, ...)
-{
-    char szBuffer[4096] = {0};
-    va_list pArgList;
-    va_start(pArgList, szString);
-    vboxDispLogDbgFormatStringV(szBuffer, sizeof (szBuffer), szString, pArgList);
-    va_end(pArgList);
-
-    OutputDebugStringA(szBuffer);
-}
 
 VOID vboxVDbgDoPrintDmlCmd(const char* pszDesc, const char* pszCmd)
 {
@@ -313,36 +299,6 @@ VOID vboxVDbgDoDumpRcRect(const char * pPrefix, PVBOXWDDMDISP_ALLOCATION pAlloc,
     Info.pD3DRc = pD3DRc;
     Info.pRect = pRect;
     vboxVDbgDoDumpPerform(pPrefix, &Info, pSuffix, vboxVDbgRcRectContentsDumperCb, NULL);
-}
-
-VOID vboxVDbgDoDumpBb(const char * pPrefix, IDirect3DSwapChain9 *pSwapchainIf, const char * pSuffix, DWORD fFlags)
-{
-    IDirect3DSurface9 *pBb = NULL;
-    HRESULT hr = pSwapchainIf->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &pBb);
-    Assert(hr == S_OK);
-    if (FAILED(hr))
-    {
-        return;
-    }
-
-    Assert(pBb);
-    vboxVDbgDoDumpRcRect(pPrefix, NULL, pBb, NULL, pSuffix, fFlags);
-    pBb->Release();
-}
-
-VOID vboxVDbgDoDumpFb(const char * pPrefix, IDirect3DSwapChain9 *pSwapchainIf, const char * pSuffix, DWORD fFlags)
-{
-    IDirect3DSurface9 *pBb = NULL;
-    HRESULT hr = pSwapchainIf->GetBackBuffer(~(UINT)0, D3DBACKBUFFER_TYPE_MONO, &pBb);
-    Assert(hr == S_OK);
-    if (FAILED(hr))
-    {
-        return;
-    }
-
-    Assert(pBb);
-    vboxVDbgDoDumpRcRect(pPrefix, NULL, pBb, NULL, pSuffix, fFlags);
-    pBb->Release();
 }
 
 
@@ -618,12 +574,6 @@ void vboxVDbgDoPrintAlloc(const char * pPrefix, const VBOXWDDMDISP_RESOURCE *pRc
     const VBOXWDDMDISP_ALLOCATION *pAlloc = &pRc->aAllocations[iAlloc];
     BOOL bPrimary = pRc->RcDesc.fFlags.Primary;
     BOOL bFrontBuf = FALSE;
-    if (bPrimary)
-    {
-        PVBOXWDDMDISP_SWAPCHAIN pSwapchain = vboxWddmSwapchainForAlloc((VBOXWDDMDISP_ALLOCATION *)pAlloc);
-        Assert(pSwapchain);
-        bFrontBuf = (vboxWddmSwapchainGetFb(pSwapchain)->pAlloc == pAlloc);
-    }
     vboxVDbgPrint(("%s d3dWidth(%d), width(%d), height(%d), format(%d), usage(%s), %s", pPrefix,
             pAlloc->SurfDesc.d3dWidth, pAlloc->SurfDesc.width, pAlloc->SurfDesc.height, pAlloc->SurfDesc.format,
             bPrimary ?
@@ -636,8 +586,6 @@ void vboxVDbgDoPrintRect(const char * pPrefix, const RECT *pRect, const char * p
 {
     vboxVDbgPrint(("%s left(%d), top(%d), right(%d), bottom(%d) %s", pPrefix, pRect->left, pRect->top, pRect->right, pRect->bottom, pSuffix));
 }
-
-# endif
 
 static VOID CALLBACK vboxVDbgTimerCb(__in PVOID lpParameter, __in BOOLEAN TimerOrWaitFired)
 {
@@ -672,7 +620,7 @@ HRESULT vboxVDbgTimerStop(HANDLE hTimerQueue, HANDLE hTimer)
 }
 #endif
 
-#if defined(VBOXWDDMDISP_DEBUG) || defined(VBOX_WDDMDISP_WITH_PROFILE)
+#if defined(VBOXWDDMDISP_DEBUG)
 BOOL vboxVDbgDoCheckExe(const char * pszName)
 {
     char *pszModule = vboxVDbgDoGetModuleName();
@@ -803,5 +751,16 @@ void vboxDispLogDrvF(char * szString, ...)
     va_end(pArgList);
 
     VBoxDispMpLoggerLog(szBuffer);
+}
+
+void vboxDispLogDbgPrintF(char * szString, ...)
+{
+    char szBuffer[4096] = { 0 };
+    va_list pArgList;
+    va_start(pArgList, szString);
+    vboxDispLogDbgFormatStringV(szBuffer, sizeof(szBuffer), szString, pArgList);
+    va_end(pArgList);
+
+    OutputDebugStringA(szBuffer);
 }
 #endif

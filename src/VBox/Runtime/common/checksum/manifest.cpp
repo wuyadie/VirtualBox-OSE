@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,7 +117,7 @@ RTR3DECL(int) RTManifestVerify(const char *pszManifestFile, PRTMANIFESTTEST paTe
     do
     {
         uint64_t cbSize;
-        rc = RTFileGetSize(file, &cbSize);
+        rc = RTFileQuerySize(file, &cbSize);
         if (RT_FAILURE(rc))
             break;
 

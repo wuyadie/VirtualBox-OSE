@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -170,7 +170,7 @@
 
 /* MEMP_NUM_SYS_TIMEOUT: the number of simultaneously active
    timeouts. */
-#define MEMP_NUM_SYS_TIMEOUT    256
+#define MEMP_NUM_SYS_TIMEOUT    16
 
 
 /* this is required for IPv6 and IGMP needs */

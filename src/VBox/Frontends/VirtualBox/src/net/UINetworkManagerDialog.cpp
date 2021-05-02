@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 
 /* GUI includes: */
 #include "QIDialogButtonBox.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIIconPool.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
@@ -166,7 +166,7 @@ void UINetworkManagerDialog::showEvent(QShowEvent *pShowEvent)
     resize(minimumSizeHint());
 
     /* Center according current main application window: */
-    vboxGlobal().centerWidget(this, windowManager().mainWindowShown(), false);
+    uiCommon().centerWidget(this, windowManager().mainWindowShown(), false);
 
     /* Pass event to the base-class: */
     QMainWindow::showEvent(pShowEvent);

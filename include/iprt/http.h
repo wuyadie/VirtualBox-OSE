@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -167,6 +167,11 @@ RTR3DECL(void) RTHttpFreeResponseText(char *pszNotUtf8);
  * @param   ppvResponse     Where to store the HTTP response data.  Use
  *                          RTHttpFreeResponse to free.
  * @param   pcb             Size of the returned buffer.
+ *
+ * @note    There is a limit on how much this function allows to be downloaded,
+ *          given that the return requires a single heap allocation and all
+ *          that.  Currently 32 MB on 32-bit hosts and 64 MB on 64-bit hosts.
+ *          Use RTHttpGetFile or RTHttpSetDownloadCallback for larger transfers.
  */
 RTR3DECL(int) RTHttpGetBinary(RTHTTP hHttp, const char *pszUrl, void **ppvResponse, size_t *pcb);
 
@@ -271,7 +276,7 @@ RTR3DECL(int) RTHttpUseSystemProxySettings(RTHTTP hHttp);
  * @param   hHttp           The HTTP client handle.
  * @param   pszUrl          The proxy URL (libproxy style):
  *
- *                          [{type}"://"][{userid}[@{password}]:]{server}[":"{port}]
+ *                          [{type}"://"][{userid}[\@{password}]:]{server}[":"{port}]
  *
  *                          Valid proxy types are: http (default), https, socks4, socks4a,
  *                          socks5, socks5h and direct.  Support for the socks and https
@@ -562,7 +567,8 @@ typedef FNRTHTTPDOWNLOADCALLBACK *PFNRTHTTPDOWNLOADCALLBACK;
  */
 RTR3DECL(int) RTHttpSetDownloadCallback(RTHTTP hHttp, uint32_t fFlags, PFNRTHTTPDOWNLOADCALLBACK pfnCallback, void *pvUser);
 
-/** @name RTHTTPDOWNLOAD_F_XXX */
+/** @name RTHTTPDOWNLOAD_F_XXX
+ * @{ */
 /** The lower 10 bits gives the HTTP status required by the callback.
  * For all other status codes, any body data will be returned via the
  * RTHttpPerform ppvBody/pcbBody return parameters. */
@@ -653,6 +659,62 @@ typedef FNRTHTTPHEADERCALLBACK *PFNRTHTTPHEADERCALLBACK;
  */
 RTR3DECL(int) RTHttpSetHeaderCallback(RTHTTP hHttp, PFNRTHTTPHEADERCALLBACK pfnCallback, void *pvUser);
 
+
+/**
+ * Supported proxy types.
+ */
+typedef enum RTHTTPPROXYTYPE
+{
+    RTHTTPPROXYTYPE_INVALID = 0,
+    RTHTTPPROXYTYPE_NOPROXY,
+    RTHTTPPROXYTYPE_HTTP,
+    RTHTTPPROXYTYPE_HTTPS,
+    RTHTTPPROXYTYPE_SOCKS4,
+    RTHTTPPROXYTYPE_SOCKS5,
+    RTHTTPPROXYTYPE_UNKNOWN,
+    RTHTTPPROXYTYPE_END,
+    RTHTTPPROXYTYPE_32BIT_HACK = 0x7fffffff
+} RTHTTPPROXYTYPE;
+
+/**
+ * Proxy information returned by RTHttpQueryProxyInfoForUrl.
+ */
+typedef struct RTHTTPPROXYINFO
+{
+    /** Proxy host name. */
+    char               *pszProxyHost;
+    /** Proxy port number (UINT32_MAX if not specified). */
+    uint32_t            uProxyPort;
+    /** The proxy type (RTHTTPPROXYTYPE_HTTP, RTHTTPPROXYTYPE_SOCKS5, ++). */
+    RTHTTPPROXYTYPE     enmProxyType;
+    /** Proxy username. */
+    char               *pszProxyUsername;
+    /** Proxy password. */
+    char               *pszProxyPassword;
+} RTHTTPPROXYINFO;
+/** A pointer to proxy information structure. */
+typedef RTHTTPPROXYINFO *PRTHTTPPROXYINFO;
+
+/**
+ * Retrieve system proxy information for the specified URL.
+ *
+ * @returns IPRT status code.
+ * @param   hHttp           The HTTP client handle.
+ * @param   pszUrl          The URL that needs to be accessed via proxy.
+ * @param   pProxyInfo      Where to return the proxy information.  This must be
+ *                          freed up by calling RTHttpFreeProxyInfo() when done.
+ */
+RTR3DECL(int) RTHttpQueryProxyInfoForUrl(RTHTTP hHttp, const char *pszUrl, PRTHTTPPROXYINFO pProxyInfo);
+
+/**
+ * Counter part to RTHttpQueryProxyInfoForUrl that releases any memory returned
+ * in the proxy info structure.
+ *
+ * @returns IPRT status code.
+ * @param   pProxyInfo      Pointer to proxy info returned by a successful
+ *                          RTHttpQueryProxyInfoForUrl() call.
+ */
+RTR3DECL(int) RTHttpFreeProxyInfo(PRTHTTPPROXYINFO pProxyInfo);
 
 /** @name thin wrappers for setting one or a few related curl options
  * @remarks Temporary. Will not be included in the 6.0 release!

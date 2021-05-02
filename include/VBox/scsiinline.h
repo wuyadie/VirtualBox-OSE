@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -183,7 +183,7 @@ DECLINLINE(void) scsiLBA2MSF(uint8_t *pbBuf, uint32_t iLBA)
  */
 DECLINLINE(uint32_t) scsiMSF2LBA(const uint8_t *pbBuf)
 {
-    return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2];
+    return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2] - 150;
 }
 
 

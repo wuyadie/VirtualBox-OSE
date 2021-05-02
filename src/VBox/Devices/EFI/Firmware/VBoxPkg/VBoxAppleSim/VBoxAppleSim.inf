@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2019 Oracle Corporation
+# Copyright (C) 2010-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -39,12 +39,11 @@
         VBoxAppleSim.c
         Cpu.c
         Console.c
+        DataHub.c
 
 [Packages]
         MdePkg/MdePkg.dec
         MdeModulePkg/MdeModulePkg.dec
-        IntelFrameworkPkg/IntelFrameworkPkg.dec
-        IntelFrameworkModulePkg/IntelFrameworkModulePkg.dec
         VBoxPkg/VBoxPkg.dec
 
 [LibraryClasses]
@@ -59,12 +58,8 @@
    PcdLib
    DevicePathLib
 
-[Guids]
-   gEfiProcessorSubClassGuid
-
 [Protocols]
    gEfiDevicePathToTextProtocolGuid
-   gEfiDataHubProtocolGuid
 
 [BuildOptions.common]
 

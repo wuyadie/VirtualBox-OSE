@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,9 +45,9 @@ public:
     /** Create the singleton UI starter instance. */
     static void destroy();
 
-    /** Init VBoxGlobal connections. */
+    /** Init UICommon connections. */
     void init();
-    /** Deinit VBoxGlobal connections. */
+    /** Deinit UICommon connections. */
     void deinit();
 
 private slots:

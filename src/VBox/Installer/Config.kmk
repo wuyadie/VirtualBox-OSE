@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2015-2019 Oracle Corporation
+# Copyright (C) 2015-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -72,6 +72,11 @@ ifdef VBOX_WITH_UNATTENDED
  	debian_postinstall.sh \
  	redhat_postinstall.sh \
  	win_postinstall.cmd
+ ifndef VBOX_OSE
+  VBOX_UNATTENDED_TEMPLATES += \
+ 	lgw_ks.cfg \
+ 	lgw_postinstall.sh
+ endif
 else
  VBOX_UNATTENDED_TEMPLATES :=
 endif

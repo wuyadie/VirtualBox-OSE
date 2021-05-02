@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,7 +86,7 @@ RTR3DECL(int) RTPathSetMode(const char *pszPath, RTFMODE fMode)
     AssertReturn(*pszPath, VERR_INVALID_PARAMETER);
 
     int rc;
-    fMode = rtFsModeNormalize(fMode, pszPath, 0);
+    fMode = rtFsModeNormalize(fMode, pszPath, 0, 0);
     if (rtFsModeIsValidPermissions(fMode))
     {
         char const *pszNativePath;

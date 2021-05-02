@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -812,10 +812,10 @@ HRESULT VRDEServer::getVRDEExtPack(com::Utf8Str &aExtPack)
         hrc = mParent->i_getVirtualBox()->COMGETTER(SystemProperties)(systemProperties.asOutParam());
         if (SUCCEEDED(hrc))
         {
-            BSTR bstr;
-            hrc = systemProperties->COMGETTER(DefaultVRDEExtPack)(&bstr);
+            Bstr bstr;
+            hrc = systemProperties->COMGETTER(DefaultVRDEExtPack)(bstr.asOutParam());
             if (SUCCEEDED(hrc))
-                aExtPack = Utf8Str(bstr);
+                aExtPack = bstr;
         }
     }
     return hrc;

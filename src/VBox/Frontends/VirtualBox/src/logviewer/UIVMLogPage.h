@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -115,9 +115,6 @@ public:
 
     QFont currentFont() const;
     void setCurrentFont(QFont font);
-
-    void setSearchResultOverlayShowHide(bool fShow);
-    void setSearchMatchCount(int iMatchCount);
 
 private slots:
 

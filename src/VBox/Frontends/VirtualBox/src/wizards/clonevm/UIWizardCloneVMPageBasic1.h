@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,7 +91,6 @@ protected:
     QLabel      *m_pPathLabel;
     QLabel      *m_pMACComboBoxLabel;
     QComboBox   *m_pMACComboBox;
-    QLabel      *m_pAdditionalOptionsLabel;
     QCheckBox   *m_pKeepDiskNamesCheckBox;
     QCheckBox   *m_pKeepHWUUIDsCheckBox;
 };
@@ -128,6 +127,7 @@ private:
 
     QIRichTextLabel *m_pMainLabel;
     QGridLayout     *m_pContainerLayout;
+    QLabel          *m_pAdditionalOptionsLabel;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageBasic1_h */

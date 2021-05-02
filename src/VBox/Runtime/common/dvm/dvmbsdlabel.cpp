@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -479,7 +479,15 @@ static DECLCALLBACK(RTDVMVOLTYPE) rtDvmFmtBsdLblVolumeGetType(RTDVMVOLUMEFMT hVo
 static DECLCALLBACK(uint64_t) rtDvmFmtBsdLblVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
 {
     NOREF(hVolFmt);
-    return 0;
+    return DVMVOLUME_F_CONTIGUOUS;
+}
+
+static DECLCALLBACK(int) rtDvmFmtBsdLblVolumeQueryRange(RTDVMVOLUMEFMT hVolFmt, uint64_t *poffStart, uint64_t *poffLast)
+{
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+    *poffStart = pVol->offStart;
+    *poffLast  = pVol->offStart + pVol->cbVolume - 1;
+    return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(bool) rtDvmFmtBsdLblVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
@@ -521,7 +529,7 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     /* pcszFmt */
     "BsdLabel",
     /* enmFormat, */
-    RTDVMFORMATTYPE_BSD_LABLE,
+    RTDVMFORMATTYPE_BSD_LABEL,
     /* pfnProbe */
     rtDvmFmtBsdLblProbe,
     /* pfnOpen */
@@ -550,6 +558,8 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblVolumeGetType,
     /* pfnVolumeGetFlags */
     rtDvmFmtBsdLblVolumeGetFlags,
+    /* pfnVolumeQueryRange */
+    rtDvmFmtBsdLblVolumeQueryRange,
     /* pfnVolumeIsRangeIntersecting */
     rtDvmFmtBsdLblVolumeIsRangeIntersecting,
     /* pfnVolumeRead */

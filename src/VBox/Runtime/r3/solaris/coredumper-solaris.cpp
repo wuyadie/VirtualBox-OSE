@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1502,7 +1502,7 @@ static int ElfWriteNoteSection(PRTSOLCORE pSolCore, RTSOLCORETYPE enmType)
 
 #ifdef RT_OS_SOLARIS
     typedef int (*PFNELFWRITENOTEHDR)(PRTSOLCORE pSolCore, uint_t, const void *pcv, size_t cb);
-    typedef struct ELFWRITENOTE
+    typedef struct
     {
         const char        *pszType;
         uint_t             Type;

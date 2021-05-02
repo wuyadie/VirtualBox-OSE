@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/win/windows.h>
-#include <Dbghelp.h>
+#include <iprt/win/dbghelp.h>
 
 #include <iprt/alloca.h>
 #include <iprt/dir.h>
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
 
 
             case 'V':
-                RTPrintf("$Revision: 127855 $");
+                RTPrintf("$Revision: 143400 $");
                 break;
 
             case 'h':

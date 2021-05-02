@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,8 @@ uint64_t __udivmoddi4(uint64_t u64A, uint64_t u64B, uint64_t *pu64R)
     RTUINT64U Reminder;
     Divident.u = u64A;
     Divisor.u  = u64B;
+    Quotient.u = 0; /* shut up gcc 10 */
+    Reminder.u = 0; /* shut up gcc 10 */
     RTUInt64DivRem(&Quotient, &Reminder, &Divident, &Divisor);
     if (pu64R)
         *pu64R = Reminder.u;

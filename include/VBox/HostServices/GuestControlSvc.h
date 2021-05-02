@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -136,20 +136,17 @@ enum eHostMsg
      */
     HOST_MSG_SESSION_CLOSE = 21,
     /**
-     * The host wants to execute something in the guest. This can be a command line
-     * or starting a program.
-     ** Note: Legacy (VBox < 4.3) message.
+     * The host wants to execute something in the guest. This can be a command
+     * line or starting a program.
      */
     HOST_MSG_EXEC_CMD = 100,
     /**
      * Sends input data for stdin to a running process executed by HOST_EXEC_CMD.
-     ** Note: Legacy (VBox < 4.3) message.
      */
     HOST_MSG_EXEC_SET_INPUT = 101,
     /**
      * Gets the current status of a running process, e.g.
      * new data on stdout/stderr, process terminated etc.
-     * @note Legacy (VBox < 4.3) message.
      */
     HOST_MSG_EXEC_GET_OUTPUT = 102,
     /**
@@ -168,25 +165,23 @@ enum eHostMsg
     /**
      * Closes a guest file.
      */
-    HOST_MSG_FILE_CLOSE = 241,
+    HOST_MSG_FILE_CLOSE,
     /**
      * Reads from an opened guest file.
      */
     HOST_MSG_FILE_READ = 250,
     /**
-     * Reads from an opened guest file at
-     * a specified offset.
+     * Reads from an opened guest file at a specified offset.
      */
-    HOST_MSG_FILE_READ_AT = 251,
+    HOST_MSG_FILE_READ_AT,
     /**
      * Write to an opened guest file.
      */
     HOST_MSG_FILE_WRITE = 260,
     /**
-     * Write to an opened guest file at
-     * a specified offset.
+     * Write to an opened guest file at a specified offset.
      */
-    HOST_MSG_FILE_WRITE_AT = 261,
+    HOST_MSG_FILE_WRITE_AT,
     /**
      * Changes the read & write position of an opened guest file.
      */
@@ -194,7 +189,7 @@ enum eHostMsg
     /**
      * Gets the current file position of an opened guest file.
      */
-    HOST_MSG_FILE_TELL = 271,
+    HOST_MSG_FILE_TELL,
     /**
      * Changes the file size.
      */
@@ -210,11 +205,14 @@ enum eHostMsg
     /**
      * Retrieves the user's documents directory.
      */
-    HOST_MSG_PATH_USER_DOCUMENTS = 331,
+    HOST_MSG_PATH_USER_DOCUMENTS,
     /**
      * Retrieves the user's home directory.
      */
-    HOST_MSG_PATH_USER_HOME = 332
+    HOST_MSG_PATH_USER_HOME,
+
+    /** Blow the type up to 32-bits. */
+    HOST_MSG_32BIT_HACK = 0x7fffffff
 };
 
 
@@ -249,6 +247,7 @@ DECLINLINE(const char *) GstCtrlHostMsgtoStr(enum eHostMsg enmMsg)
         RT_CASE_RET_STR(HOST_MSG_PATH_RENAME);
         RT_CASE_RET_STR(HOST_MSG_PATH_USER_DOCUMENTS);
         RT_CASE_RET_STR(HOST_MSG_PATH_USER_HOME);
+        RT_CASE_RET_STR(HOST_MSG_32BIT_HACK);
     }
     return "Unknown";
 }
@@ -689,10 +688,16 @@ enum GUEST_FILE_SEEKTYPE
  * @sa GUEST_MSG_REPORT_FEATURES
  * @{ */
 /** Supports HOST_MSG_FILE_SET_SIZE. */
-#define VBOX_GUESTCTRL_GF_0_SET_SIZE     RT_BIT_64(0)
+#define VBOX_GUESTCTRL_GF_0_SET_SIZE                RT_BIT_64(0)
+/** Supports (fixes) treating argv[0] separately from the actual execution command.
+ *  Without this flag the actual execution command is taken as argv[0]. */
+#define VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0           RT_BIT_64(1)
+/** Supports passing cmd / arguments / environment blocks bigger than
+ *  GUESTPROCESS_DEFAULT_CMD_LEN / GUESTPROCESS_DEFAULT_ARGS_LEN / GUESTPROCESS_DEFAULT_ENV_LEN (bytes, in total). */
+#define VBOX_GUESTCTRL_GF_0_PROCESS_DYNAMIC_SIZES   RT_BIT_64(2)
 /** Bit that must be set in the 2nd parameter, will be cleared if the host reponds
  * correctly (old hosts might not). */
-#define VBOX_GUESTCTRL_GF_1_MUST_BE_ONE RT_BIT_64(63)
+#define VBOX_GUESTCTRL_GF_1_MUST_BE_ONE             RT_BIT_64(63)
 /** @} */
 
 /** @name VBOX_GUESTCTRL_HF_XXX - Host features.
@@ -701,6 +706,10 @@ enum GUEST_FILE_SEEKTYPE
 /** Host supports the GUEST_FILE_NOTIFYTYPE_READ_OFFSET and
  *  GUEST_FILE_NOTIFYTYPE_WRITE_OFFSET notification types. */
 #define VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET      RT_BIT_64(0)
+/** Host supports sending (treating) argv[0] separately from the actual execution command.
+ *  Needed when newer Guest Additions which support VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0 run on an older
+ *  host which doesn't in turn support VBOX_GUESTCTRL_HF_0_PROCESS_ARGV0. */
+#define VBOX_GUESTCTRL_HF_0_PROCESS_ARGV0           RT_BIT_64(1)
 /** @} */
 
 

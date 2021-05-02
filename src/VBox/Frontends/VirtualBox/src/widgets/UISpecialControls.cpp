@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -97,8 +97,8 @@ UIHelpButton::UIHelpButton(QWidget *pParent /* = 0 */)
 {
 # ifdef VBOX_WS_MAC
     m_pButtonPressed = false;
-    m_pNormalPixmap = new QPixmap(":/help_button_normal_mac_22px.png");
-    m_pPressedPixmap = new QPixmap(":/help_button_pressed_mac_22px.png");
+    m_pNormalPixmap = new QPixmap(":/help_button_normal_mac_24px.png");
+    m_pPressedPixmap = new QPixmap(":/help_button_pressed_mac_24px.png");
     m_size = m_pNormalPixmap->size();
     m_pMask = new QImage(m_pNormalPixmap->mask().toImage());
     m_BRect = QRect(PushButtonLeftOffset,

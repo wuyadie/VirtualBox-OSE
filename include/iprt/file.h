@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,9 +93,9 @@ RTDECL(bool) RTFileExists(const char *pszPath);
  * @param   pszPath         The path to the file.
  * @param   pcbFile         Where to return the file size (bytes).
  *
- * @sa      RTFileGetSize, RTPathQueryInfoEx.
+ * @sa      RTFileQuerySize, RTPathQueryInfoEx.
  */
-RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
+RTDECL(int) RTFileQuerySizeByPath(const char *pszPath, uint64_t *pcbFile);
 
 
 /** @name Open flags
@@ -117,7 +117,9 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
 /** Open file in APPEND mode, so all writes to the file handle will
  * append data at the end of the file.
  * @remarks It is ignored if write access is not requested, that is
- *          RTFILE_O_WRITE is not set. */
+ *          RTFILE_O_WRITE is not set.
+ * @note    Behaviour of functions differ between hosts: See RTFileWriteAt, as
+ *          well as ticketref:19003 (RTFileSetSize). */
 #define RTFILE_O_APPEND                 UINT32_C(0x00000004)
                                      /* UINT32_C(0x00000008) is unused atm. */
 
@@ -559,7 +561,7 @@ RTDECL(int)  RTFileSetSize(RTFILE File, uint64_t cbSize);
  * @param   File        Handle to the file.
  * @param   pcbSize     Where to store the filesize.
  */
-RTDECL(int)  RTFileGetSize(RTFILE File, uint64_t *pcbSize);
+RTDECL(int)  RTFileQuerySize(RTFILE File, uint64_t *pcbSize);
 
 /**
  * Determine the maximum file size.
@@ -567,7 +569,7 @@ RTDECL(int)  RTFileGetSize(RTFILE File, uint64_t *pcbSize);
  * @returns The max size of the file.
  *          -1 on failure, the file position is undefined.
  * @param   File        Handle to the file.
- * @see     RTFileGetMaxSizeEx.
+ * @see     RTFileQueryMaxSizeEx.
  */
 RTDECL(RTFOFF) RTFileGetMaxSize(RTFILE File);
 
@@ -579,7 +581,7 @@ RTDECL(RTFOFF) RTFileGetMaxSize(RTFILE File);
  * @param   pcbMax      Where to store the max file size.
  * @see     RTFileGetMaxSize.
  */
-RTDECL(int) RTFileGetMaxSizeEx(RTFILE File, PRTFOFF pcbMax);
+RTDECL(int) RTFileQueryMaxSizeEx(RTFILE File, PRTFOFF pcbMax);
 
 /**
  * Determine the maximum file size depending on the file system the file is stored on.
@@ -981,6 +983,7 @@ RTDECL(int) RTFileCreateTemp(char *pszTemplate, RTFMODE fMode);
  * could manipulate; however the exact criteria will be specified on a
  * platform-by-platform basis as platform support is added.
  * @see RTPathIsSecure for the current list of criteria.
+ *
  * @returns iprt status code.
  * @returns VERR_NOT_SUPPORTED if the interface can not be supported on the
  *                             current platform at this time.

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -944,7 +944,11 @@ static void doQueuesLoop()
                 if (rv == 0)
                     continue; // timeout, not necessary to bother gsoap
                 // r < 0, errno
+#if GSOAP_VERSION >= 208103
+                if (soap_socket_errno == SOAP_EINTR)
+#else
                 if (soap_socket_errno(soap.master) == SOAP_EINTR)
+#endif
                     rv = 0; // re-check if we should terminate
                 break;
             }

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -125,7 +125,7 @@ my_query_status() {
     return $RETVAL;
 }
 
-## Starts detached daeamon in screen.
+## Starts detached daeamon in screen or tmux.
 # $1 = daemon-user; $2+ = daemon and its arguments
 my_start_daemon() {
     a_USER="$1"
@@ -138,7 +138,14 @@ my_start_daemon() {
             shift
         done
         ARGS="$ARGS --pidfile '$PIDFILE'";
-        su - "${a_USER}" -c "screen -S ${service_name} -d -m ${ARGS} ";
+        if type screen > /dev/null; then
+            su - "${a_USER}" -c "screen -S ${service_name} -d -m ${ARGS}";
+        elif type tmux > /dev/null; then
+            su - "${a_USER}" -c "tmux new-session -AdD -s ${service_name} ${ARGS}";
+        else
+            echo "Need screen or tmux, please install!"
+            exit 1
+        fi
         RETVAL=$?;
         if [ $RETVAL -eq 0 ]; then
             sleep 0.6;

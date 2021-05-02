@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,7 +138,7 @@ DECLHIDDEN(RTEXITCODE) autostartStartMain(PCFGAST pCfgAst)
                                                              machine.asOutParam()));
 
                 CHECK_ERROR_BREAK(machine, LaunchVMProcess(g_pSession, Bstr("headless").raw(),
-                                                           Bstr("").raw(), progress.asOutParam()));
+                                                           ComSafeArrayNullInParam(), progress.asOutParam()));
                 if (SUCCEEDED(rc) && !progress.isNull())
                 {
                     autostartSvcLogVerbose("Waiting for VM \"%ls\" to power on...\n", (*it).strId.raw());

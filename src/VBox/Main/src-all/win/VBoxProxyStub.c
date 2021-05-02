@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -570,6 +570,11 @@ static LSTATUS vbpsRegOpenInterfaceKeys(VBPSREGSTATE *pState)
         else
             rc = RegOpenKeyExW(pState->hkeyClassesRootDst, L"Interface", 0 /*fOptions*/, pState->fSamBoth,
                                &pState->hkeyClsidRootDst);
+        if (rc == ERROR_ACCESS_DENIED)
+        {
+            pState->hkeyInterfaceRootDst = NULL;
+            return pState->rc = rc;
+        }
         AssertLogRelMsgReturnStmt(rc == ERROR_SUCCESS, ("%u\n", rc), pState->hkeyInterfaceRootDst = NULL,  pState->rc = rc);
     }
 
@@ -1071,6 +1076,8 @@ LSTATUS VbpsRegisterAppId(VBPSREGSTATE *pState, const char *pszModuleName, const
         if (rc == ERROR_FILE_NOT_FOUND || rc == ERROR_ACCESS_DENIED)
             return ERROR_SUCCESS;
     }
+    if (rc == ERROR_ACCESS_DENIED)
+        return pState->rc = rc;
     AssertLogRelMsgReturn(rc == ERROR_SUCCESS, ("%u\n", rc), pState->rc = rc);
 
     if (pState->fDelete)

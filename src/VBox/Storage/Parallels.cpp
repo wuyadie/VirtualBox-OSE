@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -375,9 +375,9 @@ static int parallelsCreateImage(PPARALLELSIMAGE pImage, uint64_t cbSize,
 
 /** @copydoc VDIMAGEBACKEND::pfnProbe */
 static DECLCALLBACK(int) parallelsProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                        PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                        PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
-    RT_NOREF1(pVDIfsDisk);
+    RT_NOREF(pVDIfsDisk, enmDesiredType);
     int rc;
     PVDIOSTORAGE pStorage;
     ParallelsHeader parallelsHeader;

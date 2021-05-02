@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -399,7 +399,7 @@ RTDECL(int)  RTErrConvertFromErrno(int iNativeCode)
 # endif
 #endif
 #ifdef ESTALE
-        //case ESTALE           116     /* Stale NFS file handle */
+        case ESTALE:            return VERR_STALE_FILE_HANDLE; /* 116: Stale NFS file handle */
 #endif
 #ifdef EUCLEAN
         //case EUCLEAN          117     /* Structure needs cleaning */

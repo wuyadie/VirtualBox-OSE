@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -635,7 +635,11 @@ DECLINLINE(void) vhdxConvUuidEndianess(VHDXECONV enmConv, PRTUUID pUuidConv, PRT
 {
     RT_NOREF1(enmConv);
 #if 1
-    memcpy(pUuidConv, pUuid, sizeof(RTUUID));
+    /** @todo r=andy Code looks temporary disabled to me, fixes strict release builds:
+     *        "accessing 16 bytes at offsets 0 and 0 overlaps 16 bytes at offset 0 [-Werror=restrict]" */
+    RTUUID uuidTmp;
+    memcpy(&uuidTmp,  pUuid,    sizeof(RTUUID));
+    memcpy(pUuidConv, &uuidTmp, sizeof(RTUUID));
 #else
     pUuidConv->Gen.u32TimeLow              = SET_ENDIAN_U32(pUuid->Gen.u32TimeLow);
     pUuidConv->Gen.u16TimeMid              = SET_ENDIAN_U16(pUuid->Gen.u16TimeMid);
@@ -1769,9 +1773,9 @@ static int vhdxOpenImage(PVHDXIMAGE pImage, unsigned uOpenFlags)
 
 /** @copydoc VDIMAGEBACKEND::pfnProbe */
 static DECLCALLBACK(int) vhdxProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                   PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                   PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
-    RT_NOREF1(pVDIfsDisk);
+    RT_NOREF(pVDIfsDisk, enmDesiredType);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
     PVDIOSTORAGE pStorage = NULL;
     uint64_t cbFile;

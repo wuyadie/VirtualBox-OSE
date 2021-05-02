@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -152,6 +152,9 @@ public:
     RTCRestObjectBase() RT_NOEXCEPT;
     RTCRestObjectBase(RTCRestObjectBase const &a_rThat) RT_NOEXCEPT;
     virtual ~RTCRestObjectBase();
+
+    /** Copy assignment operator. */
+    RTCRestObjectBase &operator=(RTCRestObjectBase const &a_rThat) RT_NOEXCEPT;
 
     /**
      * Create a copy of this object.
@@ -890,6 +893,13 @@ public:
     virtual RTCRestObjectBase *baseClone() const RT_NOEXCEPT RT_OVERRIDE
     {
         return cloneWorker(new (std::nothrow) RTCRestStringEnum());
+    }
+
+    /** Copy assignment operator. */
+    RTCRestStringEnum &operator=(RTCRestStringEnum const &a_rThat) RT_NOEXCEPT
+    {
+        RTCRestStringEnumBase::operator=(a_rThat);
+        return *this;
     }
 
     /**

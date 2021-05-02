@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -134,8 +134,8 @@ private slots:
 
     /** @name Item stuff.
       * @{ */
-        /** Updates item appearance. */
-        void sltUpdateAppearance();
+        /** Handles enumerated signal for medium with @a uId. */
+        void sltMediumEnumerated(const QUuid &uId);
     /** @} */
 
 private:

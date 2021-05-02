@@ -6,7 +6,7 @@
 /*
  * Contributed by knut st. osmundsen, Andriy Gapon, Arto Huusko.
  *
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
  * --------------------------------------------------------------------
  *
  * Copyright (c) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
@@ -498,7 +497,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
 
 
 DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment,
-                                        unsigned fProt, RTR0PROCESS R0Process)
+                                        unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub)
 {
     printf("NativeMapUser\n");
     return VERR_NOT_SUPPORTED;

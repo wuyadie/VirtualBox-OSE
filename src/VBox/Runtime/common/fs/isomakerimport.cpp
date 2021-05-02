@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2520,7 +2520,7 @@ RTDECL(int) RTFsIsoMakerImport(RTFSISOMAKER hIsoMaker, RTVFSFILE hIsoFile, uint3
      * Get the file size.
      */
     uint64_t cbSrcFile = 0;
-    int rc = RTVfsFileGetSize(hIsoFile, &cbSrcFile);
+    int rc = RTVfsFileQuerySize(hIsoFile, &cbSrcFile);
     if (RT_SUCCESS(rc))
     {
         /*

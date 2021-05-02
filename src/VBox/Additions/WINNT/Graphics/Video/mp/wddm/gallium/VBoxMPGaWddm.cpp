@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#define GALOG_GROUP GALOG_GROUP_DXGK
 
 #include "VBoxMPGaWddm.h"
 #include "../VBoxMPVidPn.h"
@@ -33,6 +35,17 @@ void GaAdapterStop(PVBOXMP_DEVEXT pDevExt)
 
     if (pGaDevExt)
     {
+        if (!RTListIsEmpty(&pGaDevExt->listHwRenderData))
+        {
+            GAHWRENDERDATA *pIter, *pNext;
+            RTListForEachSafe(&pGaDevExt->listHwRenderData, pIter, pNext, GAHWRENDERDATA, node)
+            {
+                /* Delete the data. SvgaRenderComplete deallocates pIter. */
+                RTListNodeRemove(&pIter->node);
+                SvgaRenderComplete(pGaDevExt->hw.pSvga, pIter);
+            }
+        }
+
         /* Free fence objects. */
         GaFenceObjectsDestroy(pGaDevExt, NULL);
 
@@ -58,6 +71,8 @@ NTSTATUS GaAdapterStart(PVBOXMP_DEVEXT pDevExt)
         VBOXWDDM_EXT_GA *pGaDevExt = (VBOXWDDM_EXT_GA *)GaMemAllocZero(sizeof(*pGaDevExt));
         if (pGaDevExt)
         {
+            RTListInit(&pGaDevExt->listHwRenderData);
+
             /* Init fence objects. */
             pGaDevExt->fenceObjects.u32SeqNoSource = 0;
             RTListInit(&pGaDevExt->fenceObjects.list);
@@ -194,6 +209,37 @@ NTSTATUS GaUpdate(PVBOXWDDM_EXT_GA pGaDevExt,
     return SvgaUpdate(pSvga, u32X, u32Y, u32Width, u32Height);
 }
 
+NTSTATUS GaDefineCursor(PVBOXWDDM_EXT_GA pGaDevExt,
+                        uint32_t u32HotspotX,
+                        uint32_t u32HotspotY,
+                        uint32_t u32Width,
+                        uint32_t u32Height,
+                        uint32_t u32AndMaskDepth,
+                        uint32_t u32XorMaskDepth,
+                        void const *pvAndMask,
+                        uint32_t cbAndMask,
+                        void const *pvXorMask,
+                        uint32_t cbXorMask)
+{
+    VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
+    return SvgaDefineCursor(pSvga, u32HotspotX, u32HotspotY, u32Width, u32Height,
+                            u32AndMaskDepth, u32XorMaskDepth,
+                            pvAndMask, cbAndMask, pvXorMask, cbXorMask);
+}
+
+NTSTATUS GaDefineAlphaCursor(PVBOXWDDM_EXT_GA pGaDevExt,
+                             uint32_t u32HotspotX,
+                             uint32_t u32HotspotY,
+                             uint32_t u32Width,
+                             uint32_t u32Height,
+                             void const *pvImage,
+                             uint32_t cbImage)
+{
+    VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
+    return SvgaDefineAlphaCursor(pSvga, u32HotspotX, u32HotspotY, u32Width, u32Height,
+                                 pvImage, cbImage);
+}
+
 static NTSTATUS gaSurfaceDefine(PVBOXWDDM_EXT_GA pGaDevExt,
                                 GASURFCREATE *pCreateParms,
                                 GASURFSIZE *paSizes,
@@ -201,41 +247,14 @@ static NTSTATUS gaSurfaceDefine(PVBOXWDDM_EXT_GA pGaDevExt,
                                 uint32_t *pu32Sid)
 {
     VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
-
-    uint32_t u32Sid;
-    NTSTATUS Status = SvgaSurfaceIdAlloc(pSvga, &u32Sid);
-    if (NT_SUCCESS(Status))
-    {
-        Status = SvgaSurfaceDefine(pSvga, pCreateParms, paSizes, cSizes, u32Sid);
-        if (NT_SUCCESS(Status))
-        {
-            *pu32Sid = u32Sid;
-        }
-        else
-        {
-            SvgaSurfaceIdFree(pSvga, u32Sid);
-        }
-    }
-    else
-    {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    return Status;
+    return SvgaSurfaceCreate(pSvga, pCreateParms, paSizes, cSizes, pu32Sid);
 }
 
 static NTSTATUS gaSurfaceDestroy(PVBOXWDDM_EXT_GA pGaDevExt,
                                  uint32_t u32Sid)
 {
     VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
-
-    NTSTATUS Status = SvgaSurfaceDestroy(pSvga, u32Sid);
-    if (NT_SUCCESS(Status))
-    {
-        SvgaSurfaceIdFree(pSvga, u32Sid);
-    }
-
-    return Status;
+    return SvgaSurfaceUnref(pSvga, u32Sid);
 }
 
 NTSTATUS GaScreenDefine(PVBOXWDDM_EXT_GA pGaDevExt,
@@ -260,19 +279,15 @@ static NTSTATUS gaSharedSidInsert(PVBOXWDDM_EXT_GA pGaDevExt,
                                   uint32_t u32Sid,
                                   uint32_t u32SharedSid)
 {
-    GASHAREDSID *pNode = (GASHAREDSID *)GaMemAllocZero(sizeof(GASHAREDSID));
-    if (!pNode)
-        return STATUS_INSUFFICIENT_RESOURCES;
-    return SvgaSharedSidInsert(pGaDevExt->hw.pSvga, pNode, u32Sid, u32SharedSid);
+    VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
+    return SvgaSharedSidInsert(pSvga, u32Sid, u32SharedSid);
 }
 
 static NTSTATUS gaSharedSidRemove(PVBOXWDDM_EXT_GA pGaDevExt,
                                   uint32_t u32Sid)
 {
-    GASHAREDSID *pNode = SvgaSharedSidRemove(pGaDevExt->hw.pSvga, u32Sid);
-    if (pNode)
-        GaMemFree(pNode);
-    return STATUS_SUCCESS;
+    VBOXWDDM_EXT_VMSVGA *pSvga = pGaDevExt->hw.pSvga;
+    return SvgaSharedSidRemove(pSvga, u32Sid);
 }
 
 static NTSTATUS gaPresent(PVBOXWDDM_EXT_GA pGaDevExt,
@@ -402,6 +417,7 @@ typedef struct GARENDERDATA
     uint32_t      cbData;         /* How many bytes. */
     GAFENCEOBJECT *pFenceObject;  /* User mode fence associated with this command buffer. */
     void          *pvDmaBuffer;   /* Pointer to the DMA buffer. */
+    GAHWRENDERDATA *pHwRenderData; /* The hardware module private data. */
 } GARENDERDATA;
 
 #define GARENDERDATA_TYPE_RENDER   1
@@ -523,8 +539,9 @@ static NTSTATUS gaPresentBlt(DXGKARG_PRESENT *pPresent,
                 || pSrcAlloc->enmType == VBOXWDDM_ALLOC_TYPE_STD_STAGINGSURFACE)
             {
                 /* From GDI software drawing surface. */
-                GALOG(("Blt: SHADOWSURFACE(%d) 0x%08X -> SHAREDPRIMARYSURFACE 0x%08X\n",
-                       pSrcAlloc->enmType, pSrc->PhysicalAddress.LowPart, pDst->PhysicalAddress.LowPart));
+                GALOGG(GALOG_GROUP_PRESENT, ("Blt: %s(%d) 0x%08X -> SHAREDPRIMARYSURFACE 0x%08X\n",
+                    vboxWddmAllocTypeString(pSrcAlloc),
+                    pSrcAlloc->enmType, pSrc->PhysicalAddress.LowPart, pDst->PhysicalAddress.LowPart));
 
                 int32_t const xSrc = pPresent->pDstSubRects[iSubRect].left + dx;
                 int32_t const ySrc = pPresent->pDstSubRects[iSubRect].top  + dy;
@@ -537,8 +554,8 @@ static NTSTATUS gaPresentBlt(DXGKARG_PRESENT *pPresent,
             else if (pSrcAlloc->enmType == VBOXWDDM_ALLOC_TYPE_UMD_RC_GENERIC)
             {
                 /* From a surface. */
-                GALOG(("Blt: surface id 0x%08X -> SHAREDPRIMARYSURFACE 0x%08X\n",
-                       pSrcAlloc->AllocData.hostID, pDst->PhysicalAddress.LowPart));
+                GALOGG(GALOG_GROUP_PRESENT, ("Blt: surface sid=%u -> SHAREDPRIMARYSURFACE 0x%08X\n",
+                    pSrcAlloc->AllocData.hostID, pDst->PhysicalAddress.LowPart));
 
                 RECT const dstRect = pPresent->pDstSubRects[iSubRect];
                 RECT srcRect;
@@ -567,8 +584,10 @@ static NTSTATUS gaPresentBlt(DXGKARG_PRESENT *pPresent,
             if (pSrcAlloc->enmType == VBOXWDDM_ALLOC_TYPE_STD_SHAREDPRIMARYSURFACE)
             {
                 /* From screen. */
-                GALOG(("Blt: SHAREDPRIMARYSURFACE 0x%08X -> SHADOWSURFACE(%d) 0x%08X\n",
-                       pSrc->PhysicalAddress.LowPart, pDstAlloc->enmType, pDst->PhysicalAddress.LowPart));
+                GALOGG(GALOG_GROUP_PRESENT, ("Blt: SHAREDPRIMARYSURFACE 0x%08X -> %s(%d) 0x%08X\n",
+                    pSrc->PhysicalAddress.LowPart,
+                    vboxWddmAllocTypeString(pDstAlloc),
+                    pDstAlloc->enmType, pDst->PhysicalAddress.LowPart));
 
                 int32_t const xSrc = pPresent->pDstSubRects[iSubRect].left + dx;
                 int32_t const ySrc = pPresent->pDstSubRects[iSubRect].top  + dy;
@@ -582,8 +601,10 @@ static NTSTATUS gaPresentBlt(DXGKARG_PRESENT *pPresent,
             else if (pSrcAlloc->enmType == VBOXWDDM_ALLOC_TYPE_UMD_RC_GENERIC)
             {
                 /* From a surface. */
-                GALOG(("Blt: surface id 0x%08X -> SHADOWSURFACE(%d) %d:0x%08X\n",
-                       pSrcAlloc->AllocData.hostID, pDstAlloc->enmType, pDst->SegmentId, pDst->PhysicalAddress.LowPart));
+                GALOGG(GALOG_GROUP_PRESENT, ("Blt: surface sid=%u -> %s(%d) %d:0x%08X\n",
+                    pSrcAlloc->AllocData.hostID,
+                    vboxWddmAllocTypeString(pDstAlloc),
+                    pDstAlloc->enmType, pDst->SegmentId, pDst->PhysicalAddress.LowPart));
 
                 SVGAGuestImage guestImage;
                 guestImage.ptr.gmrId  = SVGA_GMR_FRAMEBUFFER;
@@ -658,12 +679,22 @@ NTSTATUS APIENTRY GaDxgkDdiPresent(const HANDLE hContext,
     DXGK_ALLOCATIONLIST *pSrc =  &pPresent->pAllocationList[DXGK_PRESENT_SOURCE_INDEX];
     DXGK_ALLOCATIONLIST *pDst =  &pPresent->pAllocationList[DXGK_PRESENT_DESTINATION_INDEX];
 
+    GALOGG(GALOG_GROUP_PRESENT, ("%s: [%ld, %ld, %ld, %ld] -> [%ld, %ld, %ld, %ld] (SubRectCnt=%u)\n",
+        pPresent->Flags.Blt ? "Blt" : (pPresent->Flags.Flip ? "Flip" : (pPresent->Flags.ColorFill ? "ColorFill" : "Unknown OP")),
+        pPresent->SrcRect.left, pPresent->SrcRect.top, pPresent->SrcRect.right, pPresent->SrcRect.bottom,
+        pPresent->DstRect.left, pPresent->DstRect.top, pPresent->DstRect.right, pPresent->DstRect.bottom,
+        pPresent->SubRectCnt));
+    if (GALOG_ENABLED(GALOG_GROUP_PRESENT))
+        for (unsigned int i = 0; i < pPresent->SubRectCnt; ++i)
+            GALOGG(GALOG_GROUP_PRESENT, ("   sub#%u = [%ld, %ld, %ld, %ld]\n",
+                    i, pPresent->pDstSubRects[i].left, pPresent->pDstSubRects[i].top, pPresent->pDstSubRects[i].right, pPresent->pDstSubRects[i].bottom));
+
     if (pPresent->Flags.Blt)
     {
         PVBOXWDDM_ALLOCATION pSrcAlloc = vboxWddmGetAllocationFromAllocList(pSrc);
         PVBOXWDDM_ALLOCATION pDstAlloc = vboxWddmGetAllocationFromAllocList(pDst);
 
-        GALOG(("Blt: sid=%x -> sid=%x\n", pSrcAlloc->AllocData.hostID, pDstAlloc->AllocData.hostID));
+        GALOGG(GALOG_GROUP_PRESENT, ("Blt: sid=%x -> sid=%x\n", pSrcAlloc->AllocData.hostID, pDstAlloc->AllocData.hostID));
 
         /** @todo Review standard allocations (DxgkDdiGetStandardAllocationDriverData, etc).
          *        Probably can be used more naturally with VMSVGA.
@@ -692,6 +723,7 @@ NTSTATUS APIENTRY GaDxgkDdiPresent(const HANDLE hContext,
             pRenderData->cbData       = u32TargetLength;
             pRenderData->pFenceObject = NULL; /* Not a user request, so no user accessible fence object. */
             pRenderData->pvDmaBuffer  = pPresent->pDmaBuffer;
+            pRenderData->pHwRenderData = NULL;
             cbPrivateData = sizeof(GARENDERDATA);
         }
         else
@@ -720,21 +752,9 @@ NTSTATUS APIENTRY GaDxgkDdiPresent(const HANDLE hContext,
     {
         PVBOXWDDM_ALLOCATION pSrcAlloc = vboxWddmGetAllocationFromAllocList(pSrc);
 
-        GALOG(("Flip: sid=%x %dx%d\n",
-               pSrcAlloc->AllocData.hostID, pSrcAlloc->AllocData.SurfDesc.width, pSrcAlloc->AllocData.SurfDesc.height));
-
-        GALOG(("Flip: %d,%d %d,%d -> %d,%d %d,%d subrects %d\n",
-               pPresent->SrcRect.left, pPresent->SrcRect.top, pPresent->SrcRect.right, pPresent->SrcRect.bottom,
-               pPresent->DstRect.left, pPresent->DstRect.top, pPresent->DstRect.right, pPresent->DstRect.bottom,
-               pPresent->SubRectCnt));
-        uint32_t iSubRect;
-        for (iSubRect = 0; iSubRect < pPresent->SubRectCnt; ++iSubRect)
-        {
-            GALOG(("Flip[%d]: %d,%d %d,%d\n",
-                   pPresent->pDstSubRects[iSubRect].left, pPresent->pDstSubRects[iSubRect].top,
-                   pPresent->pDstSubRects[iSubRect].right, pPresent->pDstSubRects[iSubRect].bottom,
-                   iSubRect));
-        }
+        GALOGG(GALOG_GROUP_PRESENT, ("Flip: %s sid=%u %dx%d\n",
+            vboxWddmAllocTypeString(pSrcAlloc),
+            pSrcAlloc->AllocData.hostID, pSrcAlloc->AllocData.SurfDesc.width, pSrcAlloc->AllocData.SurfDesc.height));
 
         /* Generate DMA buffer containing the present commands.
          * Store the command buffer descriptor to pDmaBufferPrivateData.
@@ -806,6 +826,7 @@ NTSTATUS APIENTRY GaDxgkDdiPresent(const HANDLE hContext,
             pRenderData->cbData       = u32TargetLength;
             pRenderData->pFenceObject = NULL; /* Not a user request, so no user accessible fence object. */
             pRenderData->pvDmaBuffer = pPresent->pDmaBuffer;
+            pRenderData->pHwRenderData = NULL;
             cbPrivateData = sizeof(GARENDERDATA);
         }
         else
@@ -850,6 +871,7 @@ NTSTATUS APIENTRY GaDxgkDdiPresent(const HANDLE hContext,
             pRenderData->cbData       = u32TargetLength;
             pRenderData->pFenceObject = NULL; /* Not a user request, so no user accessible fence object. */
             pRenderData->pvDmaBuffer  = pPresent->pDmaBuffer;
+            pRenderData->pHwRenderData = NULL;
             cbPrivateData = sizeof(GARENDERDATA);
         }
         else
@@ -934,10 +956,11 @@ NTSTATUS APIENTRY GaDxgkDdiRender(const HANDLE hContext, DXGKARG_RENDER *pRender
         {
             void *pvTarget          = pRender->pDmaBuffer;
             uint32_t const cbTarget = pRender->DmaSize;
+            GAHWRENDERDATA *pHwRenderData = NULL;
             if (cbTarget > GA_DMA_MIN_SUBMIT_SIZE)
             {
                 Status = SvgaRenderCommands(pGaDevExt->hw.pSvga, pvTarget, cbTarget, pvSource, cbSource,
-                                            &u32TargetLength, &u32ProcessedLength);
+                                            &u32TargetLength, &u32ProcessedLength, &pHwRenderData);
             }
             else
             {
@@ -972,6 +995,7 @@ NTSTATUS APIENTRY GaDxgkDdiRender(const HANDLE hContext, DXGKARG_RENDER *pRender
             pRenderData->cbData       = u32TargetLength;
             pRenderData->pFenceObject = pFO;
             pRenderData->pvDmaBuffer  = pRender->pDmaBuffer;
+            pRenderData->pHwRenderData = pHwRenderData;
             cbPrivateData = sizeof(GARENDERDATA);
         }
         else
@@ -1179,6 +1203,7 @@ NTSTATUS APIENTRY GaDxgkDdiBuildPagingBuffer(const HANDLE hAdapter,
         pRenderData->cbData       = u32TargetLength;
         pRenderData->pFenceObject = NULL; /* Not a user request, so no user accessible fence object. */
         pRenderData->pvDmaBuffer = pBuildPagingBuffer->pDmaBuffer;
+        pRenderData->pHwRenderData = NULL;
         cbPrivateData = sizeof(GARENDERDATA);
     }
     else
@@ -1359,6 +1384,18 @@ NTSTATUS APIENTRY GaDxgkDdiSubmitCommand(const HANDLE hAdapter, const DXGKARG_SU
             }
         }
 
+        if (pRenderData->pHwRenderData)
+        {
+            GAHWRENDERDATA * const pHwRenderData = pRenderData->pHwRenderData;
+            pHwRenderData->u32SubmissionFenceId = pSubmitCommand->SubmissionFenceId;
+            pHwRenderData->u32Reserved = 0;
+
+            KIRQL OldIrql;
+            SvgaHostObjectsLock(pGaDevExt->hw.pSvga, &OldIrql);
+            RTListAppend(&pGaDevExt->listHwRenderData, &pHwRenderData->node);
+            SvgaHostObjectsUnlock(pGaDevExt->hw.pSvga, OldIrql);
+        }
+
         ++pRenderData;
     }
 
@@ -1409,6 +1446,8 @@ BOOLEAN GaDxgkDdiInterruptRoutine(const PVOID MiniportDeviceContext,
         gaReportFence(pDevExt);
     }
 
+    pDevExt->u.primary.DxgkInterface.DxgkCbQueueDpc(pDevExt->u.primary.DxgkInterface.DeviceHandle);
+
     GALOG(("leave\n"));
     /* "Return TRUE as quickly as possible". */
     return TRUE;
@@ -1424,7 +1463,12 @@ VOID GaDxgkDdiDpcRoutine(const PVOID MiniportDeviceContext)
         return;
     }
 
-    // pDevExt->u.primary.DxgkInterface.DxgkCbNotifyDpc(pDevExt->u.primary.DxgkInterface.DeviceHandle);
+    PVBOXWDDM_EXT_VMSVGA pSvga = pGaDevExt->hw.pSvga;
+    if (!pSvga)
+    {
+        /* Device is not initialized yet. */
+        return;
+    }
 
     /* Scan fence objects and mark all with u32FenceId < u32LastCompletedFenceId as SIGNALED */
     const uint32_t u32LastCompletedFenceId = ASMAtomicReadU32(&pGaDevExt->u32LastCompletedFenceId);
@@ -1454,6 +1498,39 @@ VOID GaDxgkDdiDpcRoutine(const PVOID MiniportDeviceContext)
     }
 
     gaFenceObjectsUnlock(pGaDevExt);
+
+    KIRQL OldIrql;
+    SvgaHostObjectsLock(pSvga, &OldIrql);
+
+    /* Move the completed render data objects to the local list under the lock. */
+    RTLISTANCHOR listHwRenderData;
+    RTListInit(&listHwRenderData);
+
+    if (!RTListIsEmpty(&pGaDevExt->listHwRenderData))
+    {
+        GAHWRENDERDATA *pIter, *pNext;
+        RTListForEachSafe(&pGaDevExt->listHwRenderData, pIter, pNext, GAHWRENDERDATA, node)
+        {
+            if (gaFenceCmp(pIter->u32SubmissionFenceId, u32LastCompletedFenceId) <= 0)
+            {
+                RTListNodeRemove(&pIter->node);
+                RTListAppend(&listHwRenderData, &pIter->node);
+            }
+        }
+    }
+
+    SvgaHostObjectsUnlock(pSvga, OldIrql);
+
+    if (!RTListIsEmpty(&listHwRenderData))
+    {
+        GAHWRENDERDATA *pIter, *pNext;
+        RTListForEachSafe(&listHwRenderData, pIter, pNext, GAHWRENDERDATA, node)
+        {
+            /* Delete the data. SvgaRenderComplete deallocates pIter. */
+            RTListNodeRemove(&pIter->node);
+            SvgaRenderComplete(pSvga, pIter);
+        }
+    }
 }
 
 typedef struct GAPREEMPTCOMMANDCBCTX
@@ -1660,10 +1737,22 @@ NTSTATUS APIENTRY GaDxgkDdiEscape(const HANDLE hAdapter,
                 break;
             }
 
+            if (pGaSurfaceDefine->cbReq < sizeof(GASURFCREATE))
+            {
+                Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            uint32_t const cSizes = (pGaSurfaceDefine->cbReq - sizeof(GASURFCREATE)) / sizeof(GASURFSIZE);
+            if (cSizes != pGaSurfaceDefine->cSizes)
+            {
+                Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
             GASURFCREATE *pCreateParms = (GASURFCREATE *)&pGaSurfaceDefine[1];
             GASURFSIZE *paSizes = (GASURFSIZE *)&pCreateParms[1];
 
-            /// @todo verify the data
             Status = gaSurfaceDefine(pDevExt->pGa, pCreateParms, paSizes, pGaSurfaceDefine->cSizes, &pGaSurfaceDefine->u32Sid);
             break;
         }
@@ -1751,7 +1840,7 @@ NTSTATUS APIENTRY GaDxgkDdiEscape(const HANDLE hAdapter,
             }
 
             VBOXDISPIFESCAPE_GAFENCEUNREF *pFenceUnref = (VBOXDISPIFESCAPE_GAFENCEUNREF *)pEscapeHdr;
-            Status = GaFenceUnref(pDevExt->pGa, pFenceUnref->u32FenceHandle);
+            Status = GaFenceDelete(pDevExt->pGa, pFenceUnref->u32FenceHandle);
             break;
         }
         default:

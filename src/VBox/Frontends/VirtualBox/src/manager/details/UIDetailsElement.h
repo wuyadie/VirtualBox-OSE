@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 /* GUI includes: */
 #include "UIDetailsItem.h"
 #include "UIExtraDataDefs.h"
+#include "UITextTable.h"
 
 /* Forward declarations: */
 class QPropertyAnimation;
@@ -35,11 +36,8 @@ class QTextLayout;
 class UIDetailsSet;
 class UIGraphicsRotatorButton;
 class UIGraphicsTextPane;
-class UITextTableLine;
 class CMachine;
 
-/* Typedefs: */
-typedef QList<UITextTableLine> UITextTable;
 
 /** UIDetailsItem extension implementing element item. */
 class UIDetailsElement : public UIDetailsItem

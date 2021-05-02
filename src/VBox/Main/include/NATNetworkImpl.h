@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -110,7 +110,7 @@ private:
                                USHORT aGuestPort);
     HRESULT removePortForwardRule(BOOL aISipv6,
                                   const com::Utf8Str &aRuleName);
-    HRESULT start(const com::Utf8Str &aTrunkType);
+    HRESULT start();
     HRESULT stop();
 
     // Internal methods

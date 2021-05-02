@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -238,6 +238,13 @@ fwtcp_pmgr_listen(struct pollmgr_handler *handler, SOCKET fd, int revents)
         return POLLIN;
     }
 
+#ifdef RT_OS_LINUX
+    status = proxy_fixup_accepted_socket(newsock);
+    if (status < 0) {
+        proxy_reset_socket(newsock);
+        return POLLIN;
+    }
+#endif
 
     if (ss.ss_family == PF_INET) {
         struct sockaddr_in *peer4 = (struct sockaddr_in *)&ss;

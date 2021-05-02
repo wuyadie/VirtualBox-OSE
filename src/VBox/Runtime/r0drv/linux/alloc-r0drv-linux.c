@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@
 
 
 #if (defined(RT_ARCH_AMD64) || defined(DOXYGEN_RUNNING)) && !defined(RTMEMALLOC_EXEC_HEAP)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+# if RTLNX_VER_MIN(2,6,23) && RTLNX_VER_MAX(5,8,0)
 /**
  * Starting with 2.6.23 we can use __get_vm_area and map_vm_area to allocate
  * memory in the moduel range.  This is preferrable to the exec heap below.
@@ -196,13 +196,13 @@ static PRTMEMHDR rtR0MemAllocExecVmArea(size_t cb)
          * they provide a very convenient place for storing something we need
          * in the free function, if nothing else...
          */
-# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+# if RTLNX_VER_MAX(3,17,0)
         struct page **papPagesIterator = papPages;
 # endif
         pVmArea->nr_pages = cPages;
         pVmArea->pages    = papPages;
         if (!map_vm_area(pVmArea, PAGE_KERNEL_EXEC,
-# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+# if RTLNX_VER_MAX(3,17,0)
                          &papPagesIterator
 # else
                          papPages
@@ -215,7 +215,7 @@ static PRTMEMHDR rtR0MemAllocExecVmArea(size_t cb)
             return &pHdrEx->Hdr;
         }
         /* bail out */
-# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+# if RTLNX_VER_MAX(3,17,0)
         pVmArea->nr_pages = papPagesIterator - papPages;
 # endif
     }
@@ -443,9 +443,6 @@ RTR0DECL(void *) RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
             }
 
             SetPageReserved(&paPages[iPage]);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 20) /** @todo find the exact kernel where change_page_attr was introduced. */
-            MY_SET_PAGES_EXEC(&paPages[iPage], 1);
-#endif
         }
         *pPhys = page_to_phys(paPages);
         pvRet = phys_to_virt(page_to_phys(paPages));
@@ -491,9 +488,6 @@ RTR0DECL(void) RTMemContFree(void *pv, size_t cb)
         for (iPage = 0; iPage < cPages; iPage++)
         {
             ClearPageReserved(&paPages[iPage]);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 20) /** @todo find the exact kernel where change_page_attr was introduced. */
-            MY_SET_PAGES_NOEXEC(&paPages[iPage], 1);
-#endif
         }
         __free_pages(paPages, cOrder);
         IPRT_LINUX_RESTORE_EFL_AC();

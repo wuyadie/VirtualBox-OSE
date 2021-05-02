@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -84,6 +84,7 @@ RT_C_DECLS_BEGIN
  *
  * @remarks These defines also live in the 16-bit and assembly versions of this
  *          header.
+ * @{
  */
 #define VMMDEV_VERSION                      0x00010004
 #define VMMDEV_VERSION_MAJOR                (VMMDEV_VERSION >> 16)
@@ -200,6 +201,7 @@ typedef enum VMMDevRequestType
     VMMDevReq_GuestHeartbeat             = 219,
     VMMDevReq_HeartbeatConfigure         = 220,
     VMMDevReq_NtBugCheck                 = 221,
+    VMMDevReq_VideoUpdateMonitorPositions= 222,
     VMMDevReq_SizeHack                   = 0x7fffffff
 } VMMDevRequestType;
 
@@ -1349,6 +1351,23 @@ AssertCompileSize(RTRECT, 16);
 AssertCompileSize(VMMDevVideoSetVisibleRegion, 24+4+16);
 
 /**
+ * VBVA monitor positions update request structure.
+ *
+ * Used by VMMDevReq_VideoUpdateMonitorPositions.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Number of monitor positions (monitors) */
+    uint32_t cPositions;
+    /** Positions array.*/
+    RTPOINT aPositions[1];
+} VMMDevVideoUpdateMonitorPositions;
+AssertCompileSize(RTPOINT, 8);
+AssertCompileSize(VMMDevVideoUpdateMonitorPositions, 24+4+8);
+
+/**
  * CPU event types.
  */
 typedef enum
@@ -1820,6 +1839,8 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
             return sizeof(VMMDevReqHeartbeat);
         case VMMDevReq_GuestHeartbeat:
             return sizeof(VMMDevRequestHeader);
+        case VMMDevReq_VideoUpdateMonitorPositions:
+            return sizeof(VMMDevVideoUpdateMonitorPositions);
         default:
             break;
     }
@@ -1852,7 +1873,6 @@ DECLINLINE(int) vmmdevInitRequest(VMMDevRequestHeader *req, VMMDevRequestType ty
     return VINF_SUCCESS;
 }
 
-/** @} */
 
 /** @name VBVA ring defines.
  *
@@ -1871,7 +1891,7 @@ DECLINLINE(int) vmmdevInitRequest(VMMDevRequestHeader *req, VMMDevRequestType ty
  * off32Head. After that on each flush the host continues fetching the data
  * until the record is completed.
  *
- */
+ * @{ */
 #define VMMDEV_VBVA_RING_BUFFER_SIZE        (_4M - _1K)
 #define VMMDEV_VBVA_RING_BUFFER_THRESHOLD   (4 * _1K)
 
@@ -1964,8 +1984,8 @@ AssertCompileMemberOffset(VMMDevMemory, vbvaMemory, 16);
 
 /** @} */
 
+/** @} */
 RT_C_DECLS_END
 #pragma pack()
 
 #endif /* !VBOX_INCLUDED_VMMDev_h */
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
 #ifndef VBOX_WITH_GUEST_CONTROL
 # error "VBOX_WITH_GUEST_CONTROL must defined in this file"
 #endif
+#include "GuestImpl.h"
 #include "GuestProcessImpl.h"
 #include "GuestSessionImpl.h"
 #include "GuestCtrlImplPrivate.h"
@@ -485,62 +486,48 @@ inline int GuestProcess::i_checkPID(uint32_t uPID)
     return rc;
 }
 
+/**
+ * Converts a given guest process error to a string.
+ *
+ * @returns Error as a string.
+ * @param   rcGuest             Guest process error to return string for.
+ * @param   pcszWhat            Hint of what was involved when the error occurred.
+ */
 /* static */
-Utf8Str GuestProcess::i_guestErrorToString(int rcGuest)
+Utf8Str GuestProcess::i_guestErrorToString(int rcGuest, const char *pcszWhat)
 {
-    Utf8Str strError;
+    AssertPtrReturn(pcszWhat, "");
+
+    Utf8Str strErr;
+
+#define CASE_MSG(a_iRc, ...) \
+    case a_iRc: strErr = Utf8StrFmt( __VA_ARGS__); break;
 
     /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
     switch (rcGuest)
     {
-        case VERR_FILE_NOT_FOUND: /* This is the most likely error. */
-            RT_FALL_THROUGH();
-        case VERR_PATH_NOT_FOUND:
-            strError += Utf8StrFmt(tr("No such file or directory on guest"));
-            break;
-
-        case VERR_INVALID_VM_HANDLE:
-            strError += Utf8StrFmt(tr("VMM device is not available (is the VM running?)"));
-            break;
-
-        case VERR_HGCM_SERVICE_NOT_FOUND:
-            strError += Utf8StrFmt(tr("The guest execution service is not available"));
-            break;
-
-        case VERR_BAD_EXE_FORMAT:
-            strError += Utf8StrFmt(tr("The specified file is not an executable format on guest"));
-            break;
-
-        case VERR_AUTHENTICATION_FAILURE:
-            strError += Utf8StrFmt(tr("The specified user was not able to logon on guest"));
-            break;
-
-        case VERR_INVALID_NAME:
-            strError += Utf8StrFmt(tr("The specified file is an invalid name"));
-            break;
-
-        case VERR_TIMEOUT:
-            strError += Utf8StrFmt(tr("The guest did not respond within time"));
-            break;
-
-        case VERR_CANCELLED:
-            strError += Utf8StrFmt(tr("The execution operation was canceled"));
-            break;
-
-        case VERR_GSTCTL_MAX_CID_OBJECTS_REACHED:
-            strError += Utf8StrFmt(tr("Maximum number of concurrent guest processes has been reached"));
-            break;
-
-        case VERR_NOT_FOUND:
-            strError += Utf8StrFmt(tr("The guest execution service is not ready (yet)"));
-            break;
-
+        CASE_MSG(VERR_FILE_NOT_FOUND,                 tr("No such file or directory \"%s\" on guest"), pcszWhat); /* This is the most likely error. */
+        CASE_MSG(VERR_PATH_NOT_FOUND,                 tr("No such file or directory \"%s\" on guest"), pcszWhat);
+        CASE_MSG(VERR_INVALID_VM_HANDLE,              tr("VMM device is not available (is the VM running?)"));
+        CASE_MSG(VERR_HGCM_SERVICE_NOT_FOUND,         tr("The guest execution service is not available"));
+        CASE_MSG(VERR_BAD_EXE_FORMAT,                 tr("The file \"%s\" is not an executable format on guest"), pcszWhat);
+        CASE_MSG(VERR_AUTHENTICATION_FAILURE,         tr("The user \"%s\" was not able to logon on guest"), pcszWhat);
+        CASE_MSG(VERR_INVALID_NAME,                   tr("The file \"%s\" is an invalid name"), pcszWhat);
+        CASE_MSG(VERR_TIMEOUT,                        tr("The guest did not respond within time"));
+        CASE_MSG(VERR_CANCELLED,                      tr("The execution operation for \"%s\" was canceled"), pcszWhat);
+        CASE_MSG(VERR_GSTCTL_MAX_CID_OBJECTS_REACHED, tr("Maximum number of concurrent guest processes has been reached"));
+        CASE_MSG(VERR_NOT_FOUND,                      tr("The guest execution service is not ready (yet)"));
         default:
-            strError += Utf8StrFmt("%Rrc", rcGuest);
+        {
+            strErr = Utf8StrFmt("Error \"%s\" (%Rrc) for guest process \"%s\" occurred\n",
+                                RTErrGetFull(rcGuest), rcGuest, pcszWhat);
             break;
+        }
     }
 
-    return strError;
+#undef CASE_MSG
+
+    return strErr;
 }
 
 /**
@@ -972,7 +959,7 @@ int GuestProcess::i_setProcessStatus(ProcessStatus_T procStatus, int procRc)
         {
             hr = errorInfo->initEx(VBOX_E_IPRT_ERROR, mData.mLastError,
                                    COM_IIDOF(IGuestProcess), getComponentName(),
-                                   i_guestErrorToString(mData.mLastError));
+                                   i_guestErrorToString(mData.mLastError, mData.mProcess.mExecutable.c_str()));
             ComAssertComRC(hr);
         }
 
@@ -1001,15 +988,6 @@ int GuestProcess::i_setProcessStatus(ProcessStatus_T procStatus, int procRc)
     }
 
     return rc;
-}
-
-/* static */
-HRESULT GuestProcess::i_setErrorExternal(VirtualBoxBase *pInterface, int rcGuest)
-{
-    AssertPtr(pInterface);
-    AssertMsg(RT_FAILURE(rcGuest), ("Guest rc does not indicate a failure when setting error\n"));
-
-    return pInterface->setErrorBoth(VBOX_E_IPRT_ERROR, rcGuest, GuestProcess::i_guestErrorToString(rcGuest).c_str());
 }
 
 int GuestProcess::i_startProcess(uint32_t cMsTimeout, int *prcGuest)
@@ -1056,12 +1034,12 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
 
     const GuestCredentials &sessionCreds = pSession->i_getCredentials();
 
-
     /* Prepare arguments. */
     size_t cArgs = mData.mProcess.mArguments.size();
     if (cArgs >= 128*1024)
         return VERR_BUFFER_OVERFLOW;
 
+    size_t cbArgs = 0;
     char *pszArgs = NULL;
     int vrc = VINF_SUCCESS;
     if (cArgs)
@@ -1076,29 +1054,37 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
         }
         papszArgv[cArgs] = NULL;
 
-        if (uProtocol < UINT32_C(0xdeadbeef) ) /** @todo implement a way of sending argv[0], best idea is a new command. */
+        Guest *pGuest = mSession->i_getParent();
+        AssertPtr(pGuest);
+
+        const uint64_t fGuestControlFeatures0 = pGuest->i_getGuestControlFeatures0();
+
+        /* If the Guest Additions don't support using argv[0] correctly (< 6.1.x), don't supply it. */
+        if (!(fGuestControlFeatures0 & VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0))
             vrc = RTGetOptArgvToString(&pszArgs, papszArgv + 1, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
-        else
+        else /* ... else send the whole argv, including argv[0]. */
             vrc = RTGetOptArgvToString(&pszArgs, papszArgv, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
 
         RTMemFree(papszArgv);
         if (RT_FAILURE(vrc))
             return vrc;
 
-        /* Note! No returns after this. */
+        /* Note! No direct returns after this. */
     }
 
     /* Calculate arguments size (in bytes). */
-    size_t cbArgs = pszArgs ? strlen(pszArgs) + 1 : 0; /* Include terminating zero. */
+    AssertPtr(pszArgs);
+    cbArgs = strlen(pszArgs) + 1; /* Include terminating zero. */
 
     /* Prepare environment.  The guest service dislikes the empty string at the end, so drop it. */
-    size_t  cbEnvBlock;
-    char   *pszzEnvBlock;
+    size_t  cbEnvBlock   = 0;    /* Shut up MSVC. */
+    char   *pszzEnvBlock = NULL; /* Ditto. */
     vrc = mData.mProcess.mEnvironmentChanges.queryUtf8Block(&pszzEnvBlock, &cbEnvBlock);
     if (RT_SUCCESS(vrc))
     {
         Assert(cbEnvBlock > 0);
         cbEnvBlock--;
+        AssertPtr(pszzEnvBlock);
 
         /* Prepare HGCM call. */
         VBOXHGCMSVCPARM paParms[16];
@@ -1163,35 +1149,27 @@ int GuestProcess::i_startProcessAsync(void)
 {
     LogFlowThisFuncEnter();
 
-    int vrc = VINF_SUCCESS;
-    HRESULT hr = S_OK;
-
-    GuestProcessStartTask* pTask = NULL;
+    /* Create the task: */
+    GuestProcessStartTask *pTask = NULL;
     try
     {
         pTask = new GuestProcessStartTask(this);
-        if (!pTask->i_isOk())
-        {
-            delete pTask;
-            LogFlowThisFunc(("Could not create GuestProcessStartTask object\n"));
-            throw VERR_MEMOBJ_INIT_FAILED;
-        }
-        LogFlowThisFunc(("Successfully created GuestProcessStartTask object\n"));
-        //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
-        hr = pTask->createThread();
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
-        vrc = VERR_NO_MEMORY;
+        LogFlowThisFunc(("out of memory\n"));
+        return VERR_NO_MEMORY;
     }
-    catch(int eVRC)
-    {
-        vrc = eVRC;
-        LogFlowThisFunc(("Could not create thread for GuestProcessStartTask task %Rrc\n", vrc));
-    }
+    AssertReturnStmt(pTask->i_isOk(), delete pTask, E_FAIL); /* cannot fail for GuestProcessStartTask. */
+    LogFlowThisFunc(("Successfully created GuestProcessStartTask object\n"));
 
-    LogFlowFuncLeaveRC(vrc);
-    return vrc;
+    /* Start the thread (always consumes the task): */
+    HRESULT hrc = pTask->createThread();
+    pTask = NULL;
+    if (SUCCEEDED(hrc))
+        return VINF_SUCCESS;
+    LogFlowThisFunc(("Failed to create thread for GuestProcessStartTask\n"));
+    return VERR_GENERAL_FAILURE;
 }
 
 /* static */
@@ -1349,12 +1327,12 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
 
     if (newStatus == ProcessStatus_Started)
     {
-        /**
+        /*
          * Filter out waits which are *not* supported using
          * older guest control Guest Additions.
          *
-         ** @todo ProcessWaitForFlag_Std* flags are not implemented yet.
          */
+        /** @todo ProcessWaitForFlag_Std* flags are not implemented yet. */
         if (uProtocol < 99) /* See @todo above. */
         {
             if (   waitResult == ProcessWaitResult_None
@@ -1609,6 +1587,12 @@ int GuestProcess::i_waitForOutput(GuestWaitEvent *pEvent, uint32_t uHandle, uint
     return vrc;
 }
 
+/**
+ * Undocumented, you guess what it does.
+ *
+ * @note Similar code in GuestFile::i_waitForStatusChange() and
+ *       GuestSession::i_waitForStatusChange().
+ */
 int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
                                         ProcessStatus_T *pProcessStatus, int *prcGuest)
 {
@@ -1649,11 +1633,16 @@ int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeou
         if (prcGuest)
             *prcGuest = (int)lGuestRc;
     }
+    /* waitForEvent may also return VERR_GSTCTL_GUEST_ERROR like we do above, so make prcGuest is set. */
+    else if (vrc == VERR_GSTCTL_GUEST_ERROR && prcGuest)
+        *prcGuest = pEvent->GuestResult();
+    Assert(vrc != VERR_GSTCTL_GUEST_ERROR || !prcGuest || *prcGuest != (int)0xcccccccc);
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
+#if 0 /* Unused */
 /* static */
 bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProtocol)
 {
@@ -1684,6 +1673,7 @@ bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult, Process
 
     return fImplies;
 }
+#endif /* unused */
 
 int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
                               void *pvData, size_t cbData, uint32_t uTimeoutMS, uint32_t *puWritten, int *prcGuest)
@@ -1780,7 +1770,8 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
 
     HRESULT hr = S_OK;
 
-    uint32_t cbRead; int rcGuest;
+    uint32_t cbRead;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_readData(aHandle, aToRead, aTimeoutMS, &aData.front(), aToRead, &cbRead, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1794,11 +1785,12 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+                hr = setErrorExternal(this, Utf8StrFmt("Reading %RU32 bytes from guest process handle %RU32 failed", aToRead, aHandle),
+                                      GuestErrorInfo(GuestErrorInfo::Type_Process, rcGuest, mData.mProcess.mExecutable.c_str()));
                 break;
 
             default:
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading from process \"%s\" (PID %RU32) failed: %Rrc"),
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading from guest process \"%s\" (PID %RU32) failed: %Rrc"),
                                   mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
@@ -1819,24 +1811,25 @@ HRESULT GuestProcess::terminate()
 
     HRESULT hr = S_OK;
 
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_terminateProcess(30 * 1000 /* Timeout in ms */, &rcGuest);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
            case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+                hr = setErrorExternal(this, "Terminating guest process failed",
+                                      GuestErrorInfo(GuestErrorInfo::Type_Process, rcGuest, mData.mProcess.mExecutable.c_str()));
                 break;
 
             case VERR_NOT_SUPPORTED:
                 hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                  tr("Terminating process \"%s\" (PID %RU32) not supported by installed Guest Additions"),
+                                  tr("Terminating guest process \"%s\" (PID %RU32) not supported by installed Guest Additions"),
                                   mData.mProcess.mExecutable.c_str(), mData.mPID);
                 break;
 
             default:
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Terminating process \"%s\" (PID %RU32) failed: %Rrc"),
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Terminating guest process \"%s\" (PID %RU32) failed: %Rrc"),
                                   mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
@@ -1860,12 +1853,19 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, ProcessWaitResul
 
     LogFlowThisFuncEnter();
 
+    /* Validate flags: */
+    static ULONG const s_fValidFlags = ProcessWaitForFlag_None   | ProcessWaitForFlag_Start  | ProcessWaitForFlag_Terminate
+                                     | ProcessWaitForFlag_StdIn  | ProcessWaitForFlag_StdOut | ProcessWaitForFlag_StdErr;
+    if (aWaitFor & ~s_fValidFlags)
+        return setErrorBoth(E_INVALIDARG, VERR_INVALID_FLAGS, tr("Flags value %#x, invalid: %#x"),
+                            aWaitFor, aWaitFor & ~s_fValidFlags);
+
     /*
      * Note: Do not hold any locks here while waiting!
      */
     HRESULT hr = S_OK;
 
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     ProcessWaitResult_T waitResult;
     int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &rcGuest);
     if (RT_SUCCESS(vrc))
@@ -1877,7 +1877,8 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, ProcessWaitResul
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+                hr = setErrorExternal(this, Utf8StrFmt("Waiting for guest process (flags %#x) failed", aWaitFor),
+                                      GuestErrorInfo(GuestErrorInfo::Type_Process, rcGuest, mData.mProcess.mExecutable.c_str()));
                 break;
 
             case VERR_TIMEOUT:
@@ -1885,7 +1886,7 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, ProcessWaitResul
                 break;
 
             default:
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Waiting for process \"%s\" (PID %RU32) failed: %Rrc"),
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Waiting for guest process \"%s\" (PID %RU32) failed: %Rrc"),
                                   mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
@@ -1908,6 +1909,11 @@ HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWai
 HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE> &aData,
                             ULONG aTimeoutMS, ULONG *aWritten)
 {
+    static ULONG const s_fValidFlags = ProcessInputFlag_None | ProcessInputFlag_EndOfFile;
+    if (aFlags & ~s_fValidFlags)
+        return setErrorBoth(E_INVALIDARG, VERR_INVALID_FLAGS, tr("Flags value %#x, invalid: %#x"),
+                            aFlags, aFlags & ~s_fValidFlags);
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -1915,20 +1921,22 @@ HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE>
 
     HRESULT hr = S_OK;
 
-    uint32_t cbWritten; int rcGuest;
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    uint32_t cbWritten;
+    int      rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
+    uint32_t cbData  = (uint32_t)aData.size();
+    void    *pvData  = cbData > 0 ? (void *)&aData.front() : NULL;
     int vrc = i_writeData(aHandle, aFlags, pvData, cbData, aTimeoutMS, &cbWritten, &rcGuest);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
+                hr = setErrorExternal(this, Utf8StrFmt("Writing %RU32 bytes (flags %#x) to guest process failed", cbData, aFlags),
+                                      GuestErrorInfo(GuestErrorInfo::Type_Process, rcGuest, mData.mProcess.mExecutable.c_str()));
                 break;
 
             default:
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing to process \"%s\" (PID %RU32) failed: %Rrc"),
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing to guest process \"%s\" (PID %RU32) failed: %Rrc"),
                                   mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
@@ -1995,10 +2003,11 @@ int GuestProcessTool::init(GuestSession *pGuestSession, const GuestProcessStartu
             && RT_FAILURE(vrcGuest)
            )
         {
-            if (prcGuest)
-                *prcGuest = vrcGuest;
             vrc = VERR_GSTCTL_GUEST_ERROR;
         }
+
+        if (prcGuest)
+            *prcGuest = vrcGuest;
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -2103,9 +2112,9 @@ int GuestProcessTool::run(      GuestSession              *pGuestSession,
                           const GuestProcessStartupInfo   &startupInfo,
                                 int                       *prcGuest /* = NULL */)
 {
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
 
-    GuestProcessToolErrorInfo errorInfo;
+    GuestProcessToolErrorInfo errorInfo = { VERR_IPE_UNINITIALIZED_STATUS, INT32_MAX };
     int vrc = runErrorInfo(pGuestSession, startupInfo, errorInfo);
     if (RT_SUCCESS(vrc))
     {
@@ -2164,9 +2173,9 @@ int GuestProcessTool::runEx(      GuestSession              *pGuestSession,
                                   uint32_t                   cStrmOutObjects,
                                   int                       *prcGuest /* = NULL */)
 {
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
 
-    GuestProcessToolErrorInfo errorInfo;
+    GuestProcessToolErrorInfo errorInfo = { VERR_IPE_UNINITIALIZED_STATUS, INT32_MAX };
     int vrc = GuestProcessTool::runExErrorInfo(pGuestSession, startupInfo, paStrmOutObjects, cStrmOutObjects, errorInfo);
     if (RT_SUCCESS(vrc))
     {
@@ -2235,6 +2244,9 @@ int GuestProcessTool::runExErrorInfo(      GuestSession              *pGuestSess
             {
                 vrc = VERR_NO_MEMORY;
             }
+
+            if (RT_FAILURE(vrc))
+                break;
         }
     }
 
@@ -2537,6 +2549,15 @@ int GuestProcessTool::exitCodeToRc(const char *pszTool, int32_t iExitCode)
             default:                                                break;
         }
     }
+    else if (!RTStrICmp(pszTool, VBOXSERVICE_TOOL_LS))
+    {
+        switch (iExitCode)
+        {
+            /** @todo Handle access denied? */
+            case RTEXITCODE_FAILURE: return VERR_PATH_NOT_FOUND;
+            default:                 break;
+        }
+    }
     else if (!RTStrICmp(pszTool, VBOXSERVICE_TOOL_STAT))
     {
         switch (iExitCode)
@@ -2568,7 +2589,8 @@ int GuestProcessTool::exitCodeToRc(const char *pszTool, int32_t iExitCode)
     {
         switch (iExitCode)
         {
-            case RTEXITCODE_FAILURE: return VERR_ACCESS_DENIED;
+            case RTEXITCODE_FAILURE: return VERR_FILE_NOT_FOUND;
+            /** @todo RTPathRmCmd does not yet distinguish between not found and access denied yet. */
             default:                 break;
         }
     }
@@ -2578,5 +2600,69 @@ int GuestProcessTool::exitCodeToRc(const char *pszTool, int32_t iExitCode)
     if (iExitCode == RTEXITCODE_SYNTAX)
         return VERR_INTERNAL_ERROR_5;
     return VERR_GENERAL_FAILURE;
+}
+
+/* static */
+Utf8Str GuestProcessTool::guestErrorToString(const char *pszTool, const GuestErrorInfo& guestErrorInfo)
+{
+    Utf8Str strErr;
+
+    /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
+    switch (guestErrorInfo.getRc())
+    {
+        case VERR_ACCESS_DENIED:
+            strErr = Utf8StrFmt(Guest::tr("Access to \"%s\" denied"), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case VERR_FILE_NOT_FOUND: /* This is the most likely error. */
+            RT_FALL_THROUGH();
+        case VERR_PATH_NOT_FOUND:
+            strErr = Utf8StrFmt(Guest::tr("No such file or directory \"%s\""), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case VERR_INVALID_VM_HANDLE:
+            strErr = Utf8StrFmt(Guest::tr("VMM device is not available (is the VM running?)"));
+            break;
+
+        case VERR_HGCM_SERVICE_NOT_FOUND:
+            strErr = Utf8StrFmt(Guest::tr("The guest execution service is not available"));
+            break;
+
+        case VERR_BAD_EXE_FORMAT:
+            strErr = Utf8StrFmt(Guest::tr("The file \"%s\" is not an executable format"),
+                                guestErrorInfo.getWhat().c_str());
+            break;
+
+        case VERR_AUTHENTICATION_FAILURE:
+            strErr = Utf8StrFmt(Guest::tr("The user \"%s\" was not able to logon"), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case VERR_INVALID_NAME:
+            strErr = Utf8StrFmt(Guest::tr("The file \"%s\" is an invalid name"), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case VERR_TIMEOUT:
+            strErr = Utf8StrFmt(Guest::tr("The guest did not respond within time"));
+            break;
+
+        case VERR_CANCELLED:
+            strErr = Utf8StrFmt(Guest::tr("The execution operation was canceled"));
+            break;
+
+        case VERR_GSTCTL_MAX_CID_OBJECTS_REACHED:
+            strErr = Utf8StrFmt(Guest::tr("Maximum number of concurrent guest processes has been reached"));
+            break;
+
+        case VERR_NOT_FOUND:
+            strErr = Utf8StrFmt(Guest::tr("The guest execution service is not ready (yet)"));
+            break;
+
+        default:
+            strErr = Utf8StrFmt(Guest::tr("Unhandled error %Rrc for \"%s\" occurred for tool \"%s\" on guest -- please file a bug report"),
+                                guestErrorInfo.getRc(), guestErrorInfo.getWhat().c_str(), pszTool);
+            break;
+    }
+
+    return strErr;
 }
 

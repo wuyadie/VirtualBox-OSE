@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,9 @@ extern const PDMDEVREG g_DeviceE1000;
 #ifdef VBOX_WITH_VIRTIO
 extern const PDMDEVREG g_DeviceVirtioNet;
 #endif
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+extern const PDMDEVREG g_DeviceVirtioNet_1_0;
+#endif
 #ifdef VBOX_WITH_INIP
 extern const PDMDEVREG g_DeviceINIP;
 #endif
@@ -85,6 +88,9 @@ extern const PDMDEVREG g_DeviceLsiLogicSAS;
 #endif
 #ifdef VBOX_WITH_NVME_IMPL
 extern const PDMDEVREG g_DeviceNVMe;
+#endif
+#ifdef VBOX_WITH_VIRTIO_SCSI
+extern const PDMDEVREG g_DeviceVirtioSCSI;
 #endif
 #ifdef VBOX_WITH_EFI
 extern const PDMDEVREG g_DeviceEFI;
@@ -185,6 +191,7 @@ extern const PDMUSBREG g_DevWebcam;
 extern const PDMDRVREG g_DrvSCSI;
 #endif
 
+extern const PDMDRVREG g_DrvIfTrace;
 
 /* VBoxAcpi.cpp */
 int acpiPrepareDsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbDsdt);

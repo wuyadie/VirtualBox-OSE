@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,10 @@
 
 #include "PDMAsyncCompletionFileInternal.h"
 
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The update period for the I/O load statistics in ms. */
 #define PDMACEPFILEMGR_LOAD_UPDATE_PERIOD   1000
 /** Maximum number of requests a manager will handle. */

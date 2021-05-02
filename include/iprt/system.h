@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -258,6 +258,71 @@ RTDECL(int) RTSystemShutdown(RTMSINTERVAL cMsDelay, uint32_t fFlags, const char 
  *          version and such, add one or two new APIs.
  */
 RTDECL(bool) RTSystemIsInsideVM(void);
+
+/**
+ * System firmware types.
+ */
+typedef enum RTSYSFWTYPE
+{
+    /** Invalid zero value. */
+    RTSYSFWTYPE_INVALID = 0,
+    /** Unknown firmware. */
+    RTSYSFWTYPE_UNKNOWN,
+    /** Firmware is BIOS. */
+    RTSYSFWTYPE_BIOS,
+    /** Firmware is UEFI. */
+    RTSYSFWTYPE_UEFI,
+    /** End valid firmware values (exclusive).  */
+    RTSYSFWTYPE_END,
+    /** The usual 32-bit hack.  */
+    RTSYSFWTYPE_32_BIT_HACK = 0x7fffffff
+} RTSYSFWTYPE;
+/** Pointer to a system firmware type. */
+typedef RTSYSFWTYPE *PRTSYSFWTYPE;
+
+/**
+ * Queries the system's firmware type.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if not supported or implemented.
+ * @param   penmType    Where to return the firmware type on success.
+ */
+RTDECL(int) RTSystemQueryFirmwareType(PRTSYSFWTYPE penmType);
+
+/**
+ * Translates the @a enmType value to a string.
+ *
+ * @returns Read-only name.
+ * @param   enmType     The firmware type to convert to string.
+ */
+RTDECL(const char *) RTSystemFirmwareTypeName(RTSYSFWTYPE enmType);
+
+/**
+ * Boolean firmware values queriable via RTSystemQueryFirmwareBoolean().
+ */
+typedef enum RTSYSFWBOOL
+{
+    /** Invalid property, do not use. */
+    RTSYSFWBOOL_INVALID = 0,
+    /** Whether Secure Boot is enabled or not (type: boolean). */
+    RTSYSFWBOOL_SECURE_BOOT,
+    /** End of valid    */
+    RTSYSFWBOOL_END,
+    /** The usual 32-bit hack.  */
+    RTSYSFWBOOL_32_BIT_HACK = 0x7fffffff
+} RTSYSFWBOOL;
+
+/**
+ * Queries the value of a firmware property.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if we cannot query firmware properties on the host.
+ * @retval  VERR_SYS_UNSUPPORTED_FIRMWARE_PROPERTY if @a enmBoolean isn't
+ *          supported.
+ * @param   enmBoolean  The value to query.
+ * @param   pfValue     Where to return the value.
+ */
+RTDECL(int) RTSystemQueryFirmwareBoolean(RTSYSFWBOOL enmBoolean, bool *pfValue);
 
 #ifdef RT_OS_WINDOWS
 

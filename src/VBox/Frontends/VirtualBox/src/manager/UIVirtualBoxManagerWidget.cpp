@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,8 @@
 #include "UIVirtualBoxManagerWidget.h"
 #include "UITabBar.h"
 #include "UIToolBar.h"
-#include "UIVirtualMachineItem.h"
+#include "UIVirtualMachineItemCloud.h"
+#include "UIVirtualMachineItemLocal.h"
 #include "UITools.h"
 #ifndef VBOX_WS_MAC
 # include "UIMenuBar.h"
@@ -48,6 +49,8 @@ UIVirtualBoxManagerWidget::UIVirtualBoxManagerWidget(UIVirtualBoxManager *pParen
     , m_pPaneToolsMachine(0)
     , m_pSlidingAnimation(0)
     , m_pPaneTools(0)
+    , m_enmSelectionType(SelectionType_Invalid)
+    , m_fSelectedMachineItemAccessible(false)
 {
     prepare();
 }
@@ -203,7 +206,7 @@ void UIVirtualBoxManagerWidget::sltHandleContextMenuRequest(const QPoint &positi
 void UIVirtualBoxManagerWidget::retranslateUi()
 {
     /* Make sure chosen item fetched: */
-    sltHandleChooserPaneIndexChange(false /* update details? */, false /* update snapshots? */, false /* update the logviewer? */);
+    sltHandleChooserPaneIndexChange();
 
 #ifdef VBOX_WS_MAC
     // WORKAROUND:
@@ -215,9 +218,7 @@ void UIVirtualBoxManagerWidget::retranslateUi()
 #endif
 }
 
-void UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChange(bool fUpdateDetails /* = true */,
-                                                                bool fUpdateSnapshots /* = true */,
-                                                                bool fUpdateLogs /* = true */)
+void UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChange()
 {
     /* Let the parent know: */
     emit sigChooserPaneIndexChange();
@@ -246,48 +247,31 @@ void UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChange(bool fUpdateDeta
         return;
     }
 
-    /* If that was machine or group item selected: */
+    /* Recache current item info if machine or group item selected: */
     if (isMachineItemSelected() || isGroupItemSelected())
-    {
-        /* Get current item: */
-        UIVirtualMachineItem *pItem = currentItem();
-        const bool fCurrentItemIsOk = pItem && pItem->accessible();
+        recacheCurrentItemInformation();
 
-        /* Update machine tools availability: */
-        m_pPaneTools->setToolsEnabled(UIToolClass_Machine, fCurrentItemIsOk);
+    /* Calculate selection type: */
+    const SelectionType enmSelectedItemType = isSingleGroupSelected()
+                                            ? SelectionType_SingleGroupItem
+                                            : isGlobalItemSelected()
+                                            ? SelectionType_FirstIsGlobalItem
+                                            : isMachineItemSelected()
+                                            ? SelectionType_FirstIsMachineItem
+                                            : SelectionType_Invalid;
+    /* Acquire current item: */
+    UIVirtualMachineItem *pItem = currentItem();
+    const bool fCurrentItemIsOk = pItem && pItem->accessible();
 
-        /* Propagate current item anyway: */
-        m_pPaneToolsMachine->setCurrentItem(pItem);
+    /* Update toolbar if selection type or item accessibility got changed: */
+    if (   m_enmSelectionType != enmSelectedItemType
+        || m_fSelectedMachineItemAccessible != fCurrentItemIsOk)
+        updateToolbar();
 
-        /* If current item is Ok: */
-        if (fCurrentItemIsOk)
-        {
-            /* If Error-pane is chosen currently => open tool currently chosen in Tools-pane: */
-            if (m_pPaneToolsMachine->currentTool() == UIToolType_Error)
-                sltHandleToolsPaneIndexChange();
-
-            /* Propagate current items to update the Details-pane (if requested): */
-            if (fUpdateDetails)
-                m_pPaneToolsMachine->setItems(currentItems());
-            /* Propagate current machine to update the Snapshots-pane or/and Logviewer-pane (if requested): */
-            if (fUpdateSnapshots || fUpdateLogs)
-                m_pPaneToolsMachine->setMachine(pItem->machine());
-        }
-        else
-        {
-            /* Make sure Error pane raised: */
-            m_pPaneToolsMachine->openTool(UIToolType_Error);
-
-            /* Propagate last access error to update the Error-pane (if machine selected but inaccessible): */
-            if (pItem)
-                m_pPaneToolsMachine->setErrorDetails(UIErrorString::formatErrorInfo(pItem->accessError()));
-
-            /* Propagate current items to update the Details-pane (in any case): */
-            m_pPaneToolsMachine->setItems(currentItems());
-            /* Propagate current machine to update the Snapshots-pane or/and Logviewer-pane (in any case): */
-            m_pPaneToolsMachine->setMachine(CMachine());
-        }
-    }
+    /* Remember the last selection type: */
+    m_enmSelectionType = enmSelectedItemType;
+    /* Remember whether the last selected item was accessible: */
+    m_fSelectedMachineItemAccessible = fCurrentItemIsOk;
 }
 
 void UIVirtualBoxManagerWidget::sltHandleSlidingAnimationComplete(SlidingDirection enmDirection)
@@ -309,7 +293,20 @@ void UIVirtualBoxManagerWidget::sltHandleSlidingAnimationComplete(SlidingDirecti
         }
     }
     /* Then handle current item change (again!): */
-    sltHandleChooserPaneIndexChangeDefault();
+    sltHandleChooserPaneIndexChange();
+}
+
+void UIVirtualBoxManagerWidget::sltHandleCloudMachineStateChange(const QString &strId)
+{
+    /* Acquire current item: */
+    UIVirtualMachineItem *pItem = currentItem();
+
+    /* repeat the task only if we are still on the same item: */
+    if (pItem && pItem->id() == strId)
+        pItem->toCloud()->updateStateAsync(true /* delayed? */);
+
+    /* Pass the signal further: */
+    emit sigCloudMachineStateChange(strId);
 }
 
 void UIVirtualBoxManagerWidget::sltHandleToolMenuRequested(UIToolClass enmClass, const QPoint &position)
@@ -399,6 +396,9 @@ void UIVirtualBoxManagerWidget::prepareWidgets()
             m_pPaneChooser = new UIChooser(this);
             if (m_pPaneChooser)
             {
+                /* Configure Chooser-pane: */
+                connect(m_pPaneChooser, &UIChooser::sigCloudMachineStateChange,
+                        this, &UIVirtualBoxManagerWidget::sltHandleCloudMachineStateChange);
                 /* Add into splitter: */
                 m_pSplitter->addWidget(m_pPaneChooser);
             }
@@ -528,9 +528,9 @@ void UIVirtualBoxManagerWidget::prepareConnections()
 
     /* Chooser-pane connections: */
     connect(m_pPaneChooser, &UIChooser::sigSelectionChanged,
-            this, &UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChangeDefault);
-    connect(m_pPaneChooser, &UIChooser::sigSlidingStarted,
-            m_pPaneToolsMachine, &UIToolPaneMachine::sigSlidingStarted);
+            this, &UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChange);
+    connect(m_pPaneChooser, &UIChooser::sigSelectionInvalidated,
+            this, &UIVirtualBoxManagerWidget::sltHandleChooserPaneSelectionInvalidated);
     connect(m_pPaneChooser, &UIChooser::sigToggleStarted,
             m_pPaneToolsMachine, &UIToolPaneMachine::sigToggleStarted);
     connect(m_pPaneChooser, &UIChooser::sigToggleFinished,
@@ -600,6 +600,7 @@ void UIVirtualBoxManagerWidget::updateToolbar()
                     m_pToolBar->addSeparator();
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+                    //m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_File_S_NewCloudVM)); // later
                     m_pToolBar->addSeparator();
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Welcome_S_New));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Welcome_S_Add));
@@ -608,11 +609,13 @@ void UIVirtualBoxManagerWidget::updateToolbar()
                 case UIToolType_Media:
                 {
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Add));
+                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Create));
                     m_pToolBar->addSeparator();
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Copy));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Move));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Remove));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Release));
+                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_T_Search));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_T_Details));
                     m_pToolBar->addSeparator();
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Medium_S_Refresh));
@@ -651,10 +654,19 @@ void UIVirtualBoxManagerWidget::updateToolbar()
             {
                 case UIToolType_Details:
                 {
-                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
-                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
-                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
-                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+                    if (isSingleGroupSelected())
+                    {
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Group_S_New));
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Discard));
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow));
+                    }
+                    else
+                    {
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
+                        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+                    }
                     break;
                 }
                 case UIToolType_Snapshots:
@@ -682,6 +694,13 @@ void UIVirtualBoxManagerWidget::updateToolbar()
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
                     m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+                    break;
+                }
+                case UIToolType_Error:
+                {
+                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
+                    m_pToolBar->addSeparator();
+                    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh));
                     break;
                 }
                 default:
@@ -733,4 +752,65 @@ void UIVirtualBoxManagerWidget::cleanup()
 {
     /* Save settings: */
     saveSettings();
+
+    /* TEMPORARY, reworked in trunk: */
+    disconnect(m_pPaneChooser, &UIChooser::sigSelectionChanged,
+               this, &UIVirtualBoxManagerWidget::sltHandleChooserPaneIndexChange);
+}
+
+void UIVirtualBoxManagerWidget::recacheCurrentItemInformation(bool fDontRaiseErrorPane /* = false */)
+{
+    /* Get current item: */
+    UIVirtualMachineItem *pItem = currentItem();
+    const bool fCurrentItemIsOk = pItem && pItem->accessible();
+
+    /* Update machine tools restrictions: */
+    QList<UIToolType> retrictedTypes;
+    if (pItem && pItem->itemType() != UIVirtualMachineItem::ItemType_Local)
+    {
+        retrictedTypes << UIToolType_Snapshots << UIToolType_Logs;
+        if (retrictedTypes.contains(m_pPaneTools->toolsType()))
+            m_pPaneTools->setToolsType(UIToolType_Details);
+    }
+    m_pPaneTools->setRestrictedToolTypes(retrictedTypes);
+    /* Update machine tools availability: */
+    m_pPaneTools->setToolsEnabled(UIToolClass_Machine, fCurrentItemIsOk);
+
+    /* Propagate current item anyway: */
+    m_pPaneToolsMachine->setCurrentItem(pItem);
+
+    /* If current item is Ok: */
+    if (fCurrentItemIsOk)
+    {
+        /* If Error-pane is chosen currently => open tool currently chosen in Tools-pane: */
+        if (m_pPaneToolsMachine->currentTool() == UIToolType_Error)
+            sltHandleToolsPaneIndexChange();
+
+        /* Propagate current items to update the Details-pane: */
+        m_pPaneToolsMachine->setItems(currentItems());
+        /* Propagate current machine to update the Snapshots-pane or/and Logviewer-pane: */
+        if (pItem->itemType() == UIVirtualMachineItem::ItemType_Local)
+            m_pPaneToolsMachine->setMachine(pItem->toLocal()->machine());
+        /* Update current cloud machine state: */
+        if (pItem->itemType() == UIVirtualMachineItem::ItemType_CloudReal)
+            pItem->toCloud()->updateStateAsync(false /* delayed? */);
+    }
+    else
+    {
+        /* If we were not asked separately: */
+        if (!fDontRaiseErrorPane)
+        {
+            /* Make sure Error pane raised: */
+            m_pPaneToolsMachine->openTool(UIToolType_Error);
+
+            /* Propagate last access error to update the Error-pane (if machine selected but inaccessible): */
+            if (pItem)
+                m_pPaneToolsMachine->setErrorDetails(UIErrorString::formatErrorInfo(pItem->accessError()));
+        }
+
+        /* Propagate current items to update the Details-pane (in any case): */
+        m_pPaneToolsMachine->setItems(currentItems());
+        /* Propagate current machine to update the Snapshots-pane or/and Logviewer-pane (in any case): */
+        m_pPaneToolsMachine->setMachine(CMachine());
+    }
 }

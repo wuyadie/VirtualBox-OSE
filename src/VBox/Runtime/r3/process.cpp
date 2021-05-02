@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,6 +109,12 @@ RTR3DECL(char *) RTProcGetExecutablePath(char *pszExecPath, size_t cbExecPath)
 
     AssertMsgFailed(("Buffer too small (%zu <= %zu)\n", cbExecPath, cch));
     return NULL;
+}
+
+
+RTR3DECL(const char *) RTProcExecutablePath(void)
+{
+    return g_szrtProcExePath;
 }
 
 

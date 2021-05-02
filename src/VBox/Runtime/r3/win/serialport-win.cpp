@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -158,12 +158,25 @@ static int rtSerialPortSetDefaultCfg(PRTSERIALPORTINTERNAL pThis)
     if (!GetCommState(pThis->hDev, &pThis->PortCfg))
         return RTErrConvertFromWin32(GetLastError());
 
-    pThis->PortCfg.BaudRate    = CBR_9600;
-    pThis->PortCfg.fBinary     = TRUE;
-    pThis->PortCfg.fParity     = TRUE;
-    pThis->PortCfg.fDtrControl = DTR_CONTROL_DISABLE;
-    pThis->PortCfg.ByteSize    = 8;
-    pThis->PortCfg.Parity      = NOPARITY;
+    pThis->PortCfg.BaudRate          = CBR_9600;
+    pThis->PortCfg.fBinary           = TRUE;
+    pThis->PortCfg.fParity           = TRUE;
+    pThis->PortCfg.fDtrControl       = DTR_CONTROL_DISABLE;
+    pThis->PortCfg.ByteSize          = 8;
+    pThis->PortCfg.Parity            = NOPARITY;
+    pThis->PortCfg.fOutxCtsFlow      = FALSE;
+    pThis->PortCfg.fOutxDsrFlow      = FALSE;
+    pThis->PortCfg.fDsrSensitivity   = FALSE;
+    pThis->PortCfg.fTXContinueOnXoff = TRUE;
+    pThis->PortCfg.fOutX             = FALSE;
+    pThis->PortCfg.fInX              = FALSE;
+    pThis->PortCfg.fErrorChar        = FALSE;
+    pThis->PortCfg.fNull             = FALSE;
+    pThis->PortCfg.fRtsControl       = RTS_CONTROL_DISABLE;
+    pThis->PortCfg.fAbortOnError     = FALSE;
+    pThis->PortCfg.wReserved         = 0;
+    pThis->PortCfg.XonLim            = 5;
+    pThis->PortCfg.XoffLim           = 5;
 
     int rc = VINF_SUCCESS;
     if (!SetCommState(pThis->hDev, &pThis->PortCfg))
@@ -920,16 +933,17 @@ RTDECL(int) RTSerialPortEvtPoll(RTSERIALPORT hSerialPort, uint32_t fEvtMask, uin
                 if (dwRet == ERROR_IO_PENDING)
                     rc = VINF_SUCCESS;
                 else
+                {
                     rc = RTErrConvertFromWin32(GetLastError());
+                    pThis->fEvtQueryPending = false;
+                }
             }
             else
                 pThis->fEvtQueryPending = false;
         }
 
-        Assert(RT_FAILURE(rc) || pThis->fEvtQueryPending);
-
         if (   RT_SUCCESS(rc)
-            || pThis->fEvtQueryPending)
+            && pThis->fEvtQueryPending)
             rc = rtSerialPortEvtWaitWorker(pThis, msTimeout);
 
         if (RT_SUCCESS(rc))

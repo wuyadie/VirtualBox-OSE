@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,9 @@
 #include "UIDetailsItem.h"
 
 /* Forward declarations: */
+class QGraphicsLinearLayout;
 class QGraphicsScene;
+class UIGraphicsScrollArea;
 class UIVirtualMachineItem;
 
 /** UIDetailsItem extension implementing group item. */
@@ -39,8 +41,6 @@ signals:
       * @{ */
         /** Notifies listeners about @a iMinimumWidthHint changed. */
         void sigMinimumWidthHintChanged(int iMinimumWidthHint);
-        /** Notifies listeners about @a iMinimumHeightHint changed. */
-        void sigMinimumHeightHintChanged(int iMinimumHeightHint);
     /** @} */
 
 public:
@@ -61,6 +61,9 @@ public:
         void rebuildGroup();
         /** Stops currently building group. */
         void stopBuildingGroup();
+
+        /** Installs event-filter for @a pSource object. */
+        virtual void installEventFilterHelper(QObject *pSource) /* override */;
     /** @} */
 
     /** @name Children stuff.
@@ -150,6 +153,13 @@ private:
 
     /** @name Children stuff.
       * @{ */
+        /** Holds the children scroll-area instance. */
+        UIGraphicsScrollArea  *m_pScrollArea;
+        /** Holds the children container instance. */
+        QIGraphicsWidget      *m_pContainer;
+        /** Holds the children layout instance. */
+        QGraphicsLinearLayout *m_pLayout;
+
         /** Holds the cached machine item list. */
         QList<UIVirtualMachineItem*> m_machineItems;
 
@@ -159,8 +169,8 @@ private:
 
     /** @name Layout stuff.
       * @{ */
+        /** Holds previous minimum width hint. */
         int m_iPreviousMinimumWidthHint;
-        int m_iPreviousMinimumHeightHint;
     /** @} */
 };
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -842,6 +842,7 @@ typedef struct GstCtrlPreparedSession
     /** The key size. */
     uint32_t    cbKey;
     /** The key bytes. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     uint8_t     abKey[RT_FLEXIBLE_ARRAY];
 } GstCtrlPreparedSession;
 
@@ -933,8 +934,8 @@ private:
 
 
 /** Host feature mask for GUEST_MSG_REPORT_FEATURES/GUEST_MSG_QUERY_FEATURES. */
-static uint64_t const g_fGstCtrlHostFeatures0 = VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET;
-
+static uint64_t const g_fGstCtrlHostFeatures0 = VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET
+                                              | VBOX_GUESTCTRL_HF_0_PROCESS_ARGV0;
 
 
 /**
@@ -1127,8 +1128,12 @@ int GstCtrlService::clientMakeMeMaster(ClientState *pClient, VBOXHGCMCALLHANDLE 
     ASSERT_GUEST_RETURN(cParms == 0, VERR_WRONG_PARAMETER_COUNT);
 
     uint32_t fRequestor = mpHelpers->pfnGetRequestor(hCall);
+    /* The next assertion triggers upgrading GAs on some linux guests. Problem is that VBoxService is
+       restarted after installation but the kernel module hasn't been reloaded, so things are out
+       of wack.  Just reboot. */
     ASSERT_GUEST_LOGREL_MSG_RETURN(fRequestor != VMMDEV_REQUESTOR_LEGACY,
-                                   ("Outdated VBoxGuest w/o requestor support. Please update!\n"),
+                                   ("Guest is using outdated VBoxGuest w/o requestor support.\n"
+                                    "Please update guest additions (or restart guest if you just did)!\n"),
                                    VERR_VERSION_MISMATCH);
     ASSERT_GUEST_LOGREL_MSG_RETURN(!(fRequestor & VMMDEV_REQUESTOR_USER_DEVICE), ("fRequestor=%#x\n", fRequestor),
                                    VERR_ACCESS_DENIED);

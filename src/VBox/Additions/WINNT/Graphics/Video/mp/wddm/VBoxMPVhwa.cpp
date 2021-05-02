@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,10 +18,8 @@
 #include "VBoxMPWddm.h"
 #include "VBoxMPVhwa.h"
 
-#ifndef VBOXVHWA_WITH_SHGSMI
-# include <iprt/semaphore.h>
-# include <iprt/asm.h>
-#endif
+#include <iprt/semaphore.h>
+#include <iprt/asm.h>
 
 #define VBOXVHWA_PRIMARY_ALLOCATION(_pSrc) ((_pSrc)->pPrimaryAllocation)
 
@@ -40,18 +38,9 @@ DECLINLINE(void) vboxVhwaHdrInit(VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pHdr,
     pHdr->iDisplay = srcId;
     pHdr->rc = VERR_GENERAL_FAILURE;
     pHdr->enmCmd = enmCmd;
-#ifndef VBOXVHWA_WITH_SHGSMI
     pHdr->cRefs = 1;
-#endif
 }
 
-#ifdef VBOXVHWA_WITH_SHGSMI
-static int vboxVhwaCommandSubmitHgsmi(struct _DEVICE_EXTENSION *pDevExt, HGSMIOFFSET offDr)
-{
-    VBoxHGSMIGuestWrite(pDevExt, offDr);
-    return VINF_SUCCESS;
-}
-#else
 DECLINLINE(void) vbvaVhwaCommandRelease(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd)
 {
     uint32_t cRefs = ASMAtomicDecU32(&pCmd->cRefs);
@@ -101,7 +90,6 @@ void vboxVhwaCommandSubmitAsynchByEvent(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_U
 {
     vboxVhwaCommandSubmitAsynch(pDevExt, pCmd, vboxVhwaCompletionSetEvent, hEvent);
 }
-#endif
 
 void vboxVhwaCommandCheckCompletion(PVBOXMP_DEVEXT pDevExt)
 {
@@ -114,17 +102,10 @@ VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *vboxVhwaCommandCreate(PVBOXMP_DEVEXT pDe
 {
     vboxVhwaCommandCheckCompletion(pDevExt);
     VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pHdr;
-#ifdef VBOXVHWA_WITH_SHGSMI
-    pHdr = (VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *)VBoxSHGSMICommandAlloc(&pDevExt->u.primary.hgsmiAdapterHeap,
-                                                                            cbCmd + VBOXVHWACMD_HEADSIZE(),
-                                                                            HGSMI_CH_VBVA,
-                                                                            VBVA_VHWA_CMD);
-#else
     pHdr = (VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *)VBoxHGSMIBufferAlloc(&VBoxCommonFromDeviceExt(pDevExt)->guestCtx,
                                                                           cbCmd + VBOXVHWACMD_HEADSIZE(),
                                                                           HGSMI_CH_VBVA,
                                                                           VBVA_VHWA_CMD);
-#endif
     Assert(pHdr);
     if (!pHdr)
         LOGREL(("VBoxHGSMIBufferAlloc failed"));
@@ -136,46 +117,11 @@ VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *vboxVhwaCommandCreate(PVBOXMP_DEVEXT pDe
 
 void vboxVhwaCommandFree(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd)
 {
-#ifdef VBOXVHWA_WITH_SHGSMI
-    VBoxSHGSMICommandFree(&pDevExt->u.primary.hgsmiAdapterHeap, pCmd);
-#else
     vbvaVhwaCommandRelease(pDevExt, pCmd);
-#endif
 }
 
 int vboxVhwaCommandSubmit(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd)
 {
-#ifdef VBOXVHWA_WITH_SHGSMI
-    const VBOXSHGSMIHEADER* pHdr = VBoxSHGSMICommandPrepSynch(&pDevExt->u.primary.hgsmiAdapterHeap, pCmd);
-    Assert(pHdr);
-    int rc = VERR_GENERAL_FAILURE;
-    if (pHdr)
-    {
-        do
-        {
-            HGSMIOFFSET offCmd = VBoxSHGSMICommandOffset(&pDevExt->u.primary.hgsmiAdapterHeap, pHdr);
-            Assert(offCmd != HGSMIOFFSET_VOID);
-            if (offCmd != HGSMIOFFSET_VOID)
-            {
-                rc = vboxVhwaCommandSubmitHgsmi(pDevExt, offCmd);
-                AssertRC(rc);
-                if (RT_SUCCESS(rc))
-                {
-                    VBoxSHGSMICommandDoneSynch(&pDevExt->u.primary.hgsmiAdapterHeap, pHdr);
-                    AssertRC(rc);
-                    break;
-                }
-            }
-            else
-                rc = VERR_INVALID_PARAMETER;
-            /* fail to submit, cancel it */
-            VBoxSHGSMICommandCancelSynch(&pDevExt->u.primary.hgsmiAdapterHeap, pHdr);
-        } while (0);
-    }
-    else
-        rc = VERR_INVALID_PARAMETER;
-    return rc;
-#else
     RTSEMEVENT hEvent;
     int rc = RTSemEventCreate(&hEvent);
     AssertRC(rc);
@@ -189,10 +135,8 @@ int vboxVhwaCommandSubmit(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLAT
             RTSemEventDestroy(hEvent);
     }
     return rc;
-#endif
 }
 
-#ifndef VBOXVHWA_WITH_SHGSMI
 /** @callback_method_impl{FNVBOXVHWACMDCOMPLETION} */
 static DECLCALLBACK(void)
 vboxVhwaCompletionFreeCmd(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd, void *pvContext)
@@ -215,17 +159,12 @@ void vboxVhwaCompletionListProcess(PVBOXMP_DEVEXT pDevExt, VBOXVTLIST *pList)
     }
 }
 
-#endif
 
 void vboxVhwaCommandSubmitAsynchAndComplete(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd)
 {
-#ifdef VBOXVHWA_WITH_SHGSMI
-# error "port me"
-#else
     pCmd->Flags |= VBOXVHWACMD_FLAG_GH_ASYNCH_NOCOMPLETION;
 
     vboxVhwaCommandSubmitAsynch(pDevExt, pCmd, vboxVhwaCompletionFreeCmd, NULL);
-#endif
 }
 
 static void vboxVhwaFreeHostInfo1(PVBOXMP_DEVEXT pDevExt, VBOXVHWACMD_QUERYINFO1 RT_UNTRUSTED_VOLATILE_HOST *pInfo)
@@ -873,47 +812,6 @@ AssertCompile(RT_OFFSETOF(RECT, left) == RT_OFFSETOF(VBOXVHWA_RECTL, left));
 AssertCompile(RT_OFFSETOF(RECT, right) == RT_OFFSETOF(VBOXVHWA_RECTL, right));
 AssertCompile(RT_OFFSETOF(RECT, top) == RT_OFFSETOF(VBOXVHWA_RECTL, top));
 AssertCompile(RT_OFFSETOF(RECT, bottom) == RT_OFFSETOF(VBOXVHWA_RECTL, bottom));
-
-int vboxVhwaHlpColorFill(PVBOXWDDM_OVERLAY pOverlay, PVBOXWDDM_DMA_PRIVATEDATA_CLRFILL pCF)
-{
-    PVBOXWDDM_ALLOCATION pAlloc = pCF->ClrFill.Alloc.pAlloc;
-    Assert(pAlloc->pResource == pOverlay->pResource);
-
-    if (pAlloc->AllocData.Addr.SegmentId != 1)
-    {
-        WARN(("invalid segment id on color fill"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    Assert(pAlloc->hHostHandle);
-    Assert(pAlloc->pResource);
-    Assert(pAlloc->AllocData.Addr.offVram != VBOXVIDEOOFFSET_VOID);
-
-    int rc;
-    VBOXVHWACMD RT_UNTRUSTED_VOLATILE_HOST *pCmd =
-        vboxVhwaCommandCreate(pOverlay->pDevExt, pOverlay->VidPnSourceId, VBOXVHWACMD_TYPE_SURF_FLIP,
-                              RT_OFFSETOF(VBOXVHWACMD_SURF_COLORFILL, u.in.aRects[pCF->ClrFill.Rects.cRects]));
-    Assert(pCmd);
-    if(pCmd)
-    {
-        VBOXVHWACMD_SURF_COLORFILL RT_UNTRUSTED_VOLATILE_HOST *pBody = VBOXVHWACMD_BODY(pCmd, VBOXVHWACMD_SURF_COLORFILL);
-
-        memset((void *)pBody, 0, sizeof(VBOXVHWACMD_SURF_COLORFILL));
-
-        pBody->u.in.hSurf = pAlloc->hHostHandle;
-        pBody->u.in.offSurface = pAlloc->AllocData.Addr.offVram;
-        pBody->u.in.cRects = pCF->ClrFill.Rects.cRects;
-        memcpy((void *)&pBody->u.in.aRects[0], pCF->ClrFill.Rects.aRects,
-               pCF->ClrFill.Rects.cRects * sizeof (pCF->ClrFill.Rects.aRects[0]));
-        vboxVhwaCommandSubmitAsynchAndComplete(pOverlay->pDevExt, pCmd);
-
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = VERR_OUT_OF_RESOURCES;
-
-    return rc;
-}
 
 static void vboxVhwaHlpOverlayDstRectSet(PVBOXMP_DEVEXT pDevExt, PVBOXWDDM_OVERLAY pOverlay, const RECT *pRect)
 {

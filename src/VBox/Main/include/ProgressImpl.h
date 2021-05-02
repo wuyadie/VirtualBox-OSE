@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,6 +138,18 @@ public:
                               const char *pcszComponent,
                               const char *aText,
                               va_list va);
+    HRESULT i_notifyCompleteBoth(HRESULT aResultCode,
+                                 int vrc,
+                                 const GUID &aIID,
+                                 const char *pcszComponent,
+                                 const char *aText,
+                                 ...);
+    HRESULT i_notifyCompleteBothV(HRESULT aResultCode,
+                                  int vrc,
+                                  const GUID &aIID,
+                                  const char *pcszComponent,
+                                  const char *aText,
+                                  va_list va);
 
     bool i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
 

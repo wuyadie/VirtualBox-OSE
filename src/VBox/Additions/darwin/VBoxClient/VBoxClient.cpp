@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,9 @@ static PRTLOGGER            g_pLogger = NULL;
 
 static VBOXCLIENTSERVICE    g_aServices[] =
 {
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
     g_ClipboardService
+#endif
 };
 
 
@@ -63,7 +65,7 @@ static int vbclInitLogger(char *pszLogFileName)
                            pszLogFileName ? 10 : 0 /*cHistory*/,
                            pszLogFileName ? 100 * _1M : 0 /*cbHistoryFileMax*/,
                            pszLogFileName ? RT_SEC_1DAY : 0 /*cSecsHistoryTimeSlot*/,
-                           NULL /*pErrInfo*/, "%s", pszLogFileName);
+                           NULL /*pErrInfo*/, "%s", pszLogFileName ? pszLogFileName : "");
 
     AssertRCReturn(rc, rc);
 
@@ -197,9 +199,9 @@ static void vbclStopServices(void)
 static void usage(char *sProgName)
 {
     RTPrintf("usage: %s [-fvl]\n", sProgName);
-    RTPrintf("       -f\tRun in foreground (default: no)\n", sProgName);
-    RTPrintf("       -v\tIncrease verbosity level (default: no verbosity)\n", sProgName);
-    RTPrintf("       -l\tSpecify log file name (default: no log file)\n", sProgName);
+    RTPrintf("       -f\tRun in foreground (default: no)\n");
+    RTPrintf("       -v\tIncrease verbosity level (default: no verbosity)\n");
+    RTPrintf("       -l\tSpecify log file name (default: no log file)\n");
     exit(1);
 }
 
@@ -210,6 +212,13 @@ int main(int argc, char *argv[])
 
     bool         fDemonize     = true;
     static char *szLogFileName = NULL;
+
+    rc = RTR3InitExe(argc, &argv, 0);
+    if (RT_FAILURE(rc))
+    {
+        RTPrintf("RTR3InitExe() failed: (%Rrc)\n", rc);
+        return RTMsgInitFailure(rc);
+    }
 
     /* Parse command line */
     while((c = getopt(argc, argv, "fvl:")) != -1)
@@ -242,13 +251,6 @@ int main(int argc, char *argv[])
             RTPrintf("failed to run into background\n");
             return 1;
         }
-    }
-
-    rc = RTR3InitExe(argc, &argv, 0);
-    if (RT_FAILURE(rc))
-    {
-        RTPrintf("RTR3InitExe() failed: (%Rrc)\n", rc);
-        return RTMsgInitFailure(rc);
     }
 
     rc = VbglR3Init();

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -532,7 +532,7 @@ int main()
      * Relies heavily on correct behavior of RTTimeNormalize and does limited sanity checking.
      */
     RTTestSub(hTest, "Wraparound 3 year (UTC+local), silent");
-    RTTimeSpecSetNano(&Ts1, 1420070400000000000);
+    RTTimeSpecSetNano(&Ts1, INT64_C(1420070400000000000));
     RTTIME Tcheck;
     memset(&Tcheck, 0, sizeof(Tcheck));
     Tcheck.i32Year = 2015;
@@ -706,6 +706,13 @@ int main()
     RTTESTI_CHECK_FROM(RTTimeFromRfc2822(&T2, "Thu, 00006 Sep 2018 04:09:08 GMT"));
     RTTESTI_CHECK_FROM(RTTimeFromRfc2822(&T2, " 00006 Sep 2018 04:09:08 GMT "));
 
+    /*
+     * Check that RTTimeZoneGetCurrent works (not really timespec, but whatever).
+     */
+    RTTestSub(hTest, "RTTimeZoneGetCurrent");
+    szValue[0] = '\0';
+    RTTESTI_CHECK_RC(RTTimeZoneGetCurrent(szValue, sizeof(szValue)), VINF_SUCCESS);
+    RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "TimeZone: %s", szValue);
 
     /*
      * Summary

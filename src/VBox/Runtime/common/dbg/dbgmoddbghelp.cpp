@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,7 @@
 #include "internal/dbgmod.h"
 
 #include <iprt/win/windows.h>
-#include <Dbghelp.h>
+#include <iprt/win/dbghelp.h>
 #include <iprt/win/lazy-dbghelp.h>
 
 

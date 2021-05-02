@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #define DBG_DIGGER_ELF_FUNNY_SHDRS          RT_BIT_32(1)
 /** Valid bit mask. */
 #define DBG_DIGGER_ELF_MASK                 UINT32_C(0x00000003)
-/* @} */
+/** @} */
 
 int DBGDiggerCommonParseElf32Mod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                  Elf32_Ehdr const *pEhdr, Elf32_Shdr const *paShdrs,

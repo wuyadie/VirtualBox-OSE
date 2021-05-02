@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,8 +64,11 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
      * No returning prior to setting magics!
      */
     pVM->nem.s.u32Magic = NEM_MAGIC;
-    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
-        pVM->aCpus[iCpu].nem.s.u32Magic = NEMCPU_MAGIC;
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        pVCpu->nem.s.u32Magic = NEMCPU_MAGIC;
+    }
 
     /*
      * Read configuration.
@@ -79,6 +82,7 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
                                   "/NEM/",
                                   "Enabled"
                                   "|Allow64BitGuests"
+                                  "|LovelyMesaDrvWorkaround"
 #ifdef RT_OS_WINDOWS
                                   "|UseRing0Runloop"
 #endif
@@ -103,6 +107,18 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
 #else
     pVM->nem.s.fAllow64BitGuests = false;
 #endif
+
+    /** @cfgm{/NEM/LovelyMesaDrvWorkaround, bool, false}
+     * Workaround for mesa vmsvga 3d driver making incorrect assumptions about
+     * the hypervisor it is running under. */
+    bool f;
+    rc = CFGMR3QueryBoolDef(pCfgNem, "LovelyMesaDrvWorkaround", &f, false);
+    AssertLogRelRCReturn(rc, rc);
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        pVCpu->nem.s.fTrapXcptGpForLovelyMesaDrv = f;
+    }
 
 #ifdef RT_OS_WINDOWS
     /** @cfgm{/NEM/UseRing0Runloop, bool, true}
@@ -192,7 +208,8 @@ VMMR3_INT_DECL(int) NEMR3InitAfterCPUM(PVM pVM)
          * native backend can make check capabilities and adjust as needed.
          */
         CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
-        if (CPUMGetGuestCpuVendor(pVM) == CPUMCPUVENDOR_AMD)
+        if (   CPUMGetGuestCpuVendor(pVM) == CPUMCPUVENDOR_AMD
+            || CPUMGetGuestCpuVendor(pVM) == CPUMCPUVENDOR_HYGON)
             CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);            /* 64 bits only on Intel CPUs */
         if (pVM->nem.s.fAllow64BitGuests)
         {
@@ -232,8 +249,11 @@ VMMR3_INT_DECL(int) NEMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
      * Check if GIM needs #UD, since that applies to everyone.
      */
     if (enmWhat == VMINITCOMPLETED_RING3)
-        for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
-            pVM->aCpus[iCpu].nem.s.fGIMTrapXcptUD = GIMShouldTrapXcptUD(&pVM->aCpus[iCpu]);
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        {
+            PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+            pVCpu->nem.s.fGIMTrapXcptUD = GIMShouldTrapXcptUD(pVCpu);
+        }
 
     /*
      * Call native code.
@@ -257,8 +277,8 @@ VMMR3_INT_DECL(int) NEMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
 VMMR3_INT_DECL(int) NEMR3Term(PVM pVM)
 {
     AssertReturn(pVM->nem.s.u32Magic == NEM_MAGIC, VERR_WRONG_ORDER);
-    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
-        AssertReturn(pVM->aCpus[iCpu].nem.s.u32Magic == NEMCPU_MAGIC, VERR_WRONG_ORDER);
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        AssertReturn(pVM->apCpusR3[idCpu]->nem.s.u32Magic == NEMCPU_MAGIC, VERR_WRONG_ORDER);
 
     /* Do native termination. */
     int rc = VINF_SUCCESS;
@@ -268,8 +288,11 @@ VMMR3_INT_DECL(int) NEMR3Term(PVM pVM)
 #endif
 
     /* Mark it as terminated. */
-    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
-        pVM->aCpus[iCpu].nem.s.u32Magic = NEMCPU_MAGIC_DEAD;
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        pVCpu->nem.s.u32Magic = NEMCPU_MAGIC_DEAD;
+    }
     pVM->nem.s.u32Magic = NEM_MAGIC_DEAD;
     return rc;
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,8 +60,12 @@ public:
 
 protected:
 
-    /* Create VM stuff: */
+    /* Creates a new VM: */
     bool createVM();
+    /* Configures the newly created VM: */
+    void configureVM(const QString &strGuestTypeId, const CGuestOSType &comGuestType);
+    /* Attaches default devices: */
+    bool attachDefaultDevices(const CGuestOSType &comGuestType);
 
     /* Who will be able to create virtual-machine: */
     friend class UIWizardNewVMPageBasic3;

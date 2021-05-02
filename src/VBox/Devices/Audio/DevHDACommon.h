@@ -1,10 +1,13 @@
-/* $Id: DevHDACommon.h $ */
+/* $Id: DevHdaCommon.h $ */
 /** @file
- * DevHDACommon.h - Shared HDA device defines / functions.
+ * Intel HD Audio Controller Emulation - Common stuff.
+ *
+ * @todo r=bird: Wtf is this?   Do we have some other HDA implementations
+ *               that I'm not aware of that shares this code?
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +18,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Audio_DevHDACommon_h
-#define VBOX_INCLUDED_SRC_Audio_DevHDACommon_h
+#ifndef VBOX_INCLUDED_SRC_Audio_DevHdaCommon_h
+#define VBOX_INCLUDED_SRC_Audio_DevHdaCommon_h
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
@@ -24,32 +27,47 @@
 #include "AudioMixer.h"
 #include <VBox/log.h> /* LOG_ENABLED */
 
-/** See 302349 p 6.2. */
+/** Pointer to an HDA stream (SDI / SDO).  */
+typedef struct HDASTREAMR3 *PHDASTREAMR3;
+
+
+
+/** Read callback. */
+typedef VBOXSTRICTRC FNHDAREGREAD(PPDMDEVINS pDevIns, PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value);
+/** Write callback. */
+typedef VBOXSTRICTRC FNHDAREGWRITE(PPDMDEVINS pDevIns, PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+
+/**
+ * HDA register descriptor.
+ *
+ * See 302349 p 6.2.
+ */
 typedef struct HDAREGDESC
 {
     /** Register offset in the register space. */
-    uint32_t    offset;
+    uint32_t        offset;
     /** Size in bytes. Registers of size > 4 are in fact tables. */
-    uint32_t    size;
+    uint32_t        size;
     /** Readable bits. */
-    uint32_t    readable;
+    uint32_t        readable;
     /** Writable bits. */
-    uint32_t    writable;
-    /** Register descriptor (RD) flags of type HDA_RD_FLAG_.
-     *  These are used to specify the handling (read/write)
-     *  policy of the register. */
-    uint32_t    fFlags;
+    uint32_t        writable;
+    /** Register descriptor (RD) flags of type HDA_RD_F_XXX. These are used to
+     *  specify the handling (read/write) policy of the register. */
+    uint32_t        fFlags;
     /** Read callback. */
-    int       (*pfnRead)(PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value);
+    FNHDAREGREAD   *pfnRead;
     /** Write callback. */
-    int       (*pfnWrite)(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+    FNHDAREGWRITE  *pfnWrite;
     /** Index into the register storage array. */
-    uint32_t    mem_idx;
+    uint32_t        mem_idx;
     /** Abbreviated name. */
-    const char *abbrev;
+    const char     *abbrev;
     /** Descripton. */
-    const char *desc;
-} HDAREGDESC, *PHDAREGDESC;
+    const char     *desc;
+} HDAREGDESC;
+/** Pointer to a a const HDA register descriptor. */
+typedef HDAREGDESC const *PCHDAREGDESC;
 
 /**
  * HDA register aliases (HDA spec 3.3.45).
@@ -61,7 +79,7 @@ typedef struct HDAREGALIAS
     uint32_t    offReg;
     /** The register index. */
     int         idxAlias;
-} HDAREGALIAS, *PHDAREGALIAS;
+} HDAREGALIAS;
 
 /**
  * At the moment we support 4 input + 4 output streams max, which is 8 in total.
@@ -87,17 +105,13 @@ AssertCompile(HDA_MAX_SDI <= HDA_MAX_SDO);
  * Formula: size - 1
  * Other values not listed are not supported.
  */
-/** Maximum FIFO size (in bytes). */
-#define HDA_FIFO_MAX                256
 
 /** Default timer frequency (in Hz).
  *
- * Lowering this value can ask for trouble, as backends then can run
- * into data underruns.
- *
- * Note: For handling surround setups (e.g. 5.1 speaker setups) we need
- *       a higher Hz rate, as the device emulation otherwise will come into
- *       timing trouble, making the output (DMA reads) crackling. */
+ *  20 Hz now seems enough for most setups, even with load on the guest.
+ *  Raising the rate will produce more I/O load on the guest and therefore
+ *  also will affect the performance.
+ */
 #define HDA_TIMER_HZ_DEFAULT        100
 
 /** Default position adjustment (in audio samples).
@@ -520,34 +534,17 @@ extern const HDAREGDESC g_aHdaRegMap[HDA_NUM_REGS];
      | ( (_aChan)     & HDA_SDFMT_CHANNELS_MASK))
 
 /** Interrupt on completion (IOC) flag. */
-#define HDA_BDLE_FLAG_IOC           RT_BIT(0)
+#define HDA_BDLE_F_IOC              RT_BIT(0)
 
 
 
-/** The HDA controller. */
+/** Pointer to a shared HDA state. */
 typedef struct HDASTATE *PHDASTATE;
-/** The HDA stream. */
+/** Pointer to a HDA stream state. */
 typedef struct HDASTREAM *PHDASTREAM;
-
+/** Pointer to a mixer sink. */
 typedef struct HDAMIXERSINK *PHDAMIXERSINK;
 
-
-/**
- * Internal state of a Buffer Descriptor List Entry (BDLE),
- * needed to keep track of the data needed for the actual device
- * emulation.
- */
-typedef struct HDABDLESTATE
-{
-    /** Own index within the BDL (Buffer Descriptor List). */
-    uint32_t     u32BDLIndex;
-    /** Number of bytes below the stream's FIFO watermark (SDFIFOW).
-     *  Used to check if we need fill up the FIFO again. */
-    uint32_t     cbBelowFIFOW;
-    /** Current offset in DMA buffer (in bytes).*/
-    uint32_t     u32BufOff;
-    uint32_t     Padding;
-} HDABDLESTATE, *PHDABDLESTATE;
 
 /**
  * BDL description structure.
@@ -568,60 +565,36 @@ typedef struct HDABDLEDESC
 } HDABDLEDESC, *PHDABDLEDESC;
 AssertCompileSize(HDABDLEDESC, 16); /* Always 16 byte. Also must be aligned on 128-byte boundary. */
 
-/**
- * Buffer Descriptor List Entry (BDLE) (3.6.3).
- */
-typedef struct HDABDLE
-{
-    /** The actual BDL description. */
-    HDABDLEDESC  Desc;
-    /** Internal state of this BDLE.
-     *  Not part of the actual BDLE registers. */
-    HDABDLESTATE State;
-} HDABDLE;
-AssertCompileSizeAlignment(HDABDLE, 8);
-/** Pointer to a buffer descriptor list entry (BDLE). */
-typedef HDABDLE *PHDABDLE;
 
 /** @name Object lookup functions.
  * @{
  */
 #ifdef IN_RING3
-PHDAMIXERSINK hdaR3GetDefaultSink(PHDASTATE pThis, uint8_t uSD);
+PHDAMIXERSINK hdaR3GetDefaultSink(PHDASTATER3 pThisCC, uint8_t uSD);
 #endif
 PDMAUDIODIR   hdaGetDirFromSD(uint8_t uSD);
-PHDASTREAM    hdaGetStreamFromSD(PHDASTATE pThis, uint8_t uSD);
+//PHDASTREAM    hdaGetStreamFromSD(PHDASTATER3 pThisCC, uint8_t uSD);
 #ifdef IN_RING3
-PHDASTREAM    hdaR3GetStreamFromSink(PHDASTATE pThis, PHDAMIXERSINK pSink);
+PHDASTREAMR3  hdaR3GetR3StreamFromSink(PHDAMIXERSINK pSink);
+PHDASTREAM    hdaR3GetSharedStreamFromSink(PHDAMIXERSINK pSink);
 #endif
 /** @} */
 
 /** @name Interrupt functions.
  * @{
  */
-#ifdef LOG_ENABLED
-int           hdaProcessInterrupt(PHDASTATE pThis, const char *pszSource);
+#if defined(LOG_ENABLED) || defined(DOXYGEN_RUNNING)
+void          hdaProcessInterrupt(PPDMDEVINS pDevIns, PHDASTATE pThis, const char *pszSource);
+# define HDA_PROCESS_INTERRUPT(a_pDevIns, a_pThis)  hdaProcessInterrupt((a_pDevIns), (a_pThis), __FUNCTION__)
 #else
-int           hdaProcessInterrupt(PHDASTATE pThis);
+void          hdaProcessInterrupt(PPDMDEVINS pDevIns, PHDASTATE pThis);
+# define HDA_PROCESS_INTERRUPT(a_pDevIns, a_pThis)  hdaProcessInterrupt((a_pDevIns), (a_pThis))
 #endif
 /** @} */
 
-/** @name Wall clock (WALCLK) functions.
- * @{
- */
-uint64_t      hdaWalClkGetCurrent(PHDASTATE pThis);
-#ifdef IN_RING3
-bool          hdaR3WalClkSet(PHDASTATE pThis, uint64_t u64WalClk, bool fForce);
-#endif
-/** @} */
-
-/** @name DMA utility functions.
- * @{
- */
-#ifdef IN_RING3
-int           hdaR3DMARead(PHDASTATE pThis, PHDASTREAM pStream, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead);
-int           hdaR3DMAWrite(PHDASTATE pThis, PHDASTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten);
-#endif
+/** @name Register utility functions.
+ * @{  */
+uint8_t       hdaSDFIFOWToBytes(uint16_t u16RegFIFOW);
 /** @} */
 
 /** @name Register functions.
@@ -638,21 +611,10 @@ int           hdaR3SDFMTToPCMProps(uint16_t u16SDFMT, PPDMAUDIOPCMPROPS pProps);
  */
 #ifdef IN_RING3
 # ifdef LOG_ENABLED
-void          hdaR3BDLEDumpAll(PHDASTATE pThis, uint64_t u64BDLBase, uint16_t cBDLE);
+void          hdaR3BDLEDumpAll(PPDMDEVINS pDevIns, PHDASTATE pThis, uint64_t u64BDLBase, uint16_t cBDLE);
 # endif
-int           hdaR3BDLEFetch(PHDASTATE pThis, PHDABDLE pBDLE, uint64_t u64BaseDMA, uint16_t u16Entry);
-bool          hdaR3BDLEIsComplete(PHDABDLE pBDLE);
-bool          hdaR3BDLENeedsInterrupt(PHDABDLE pBDLE);
 #endif /* IN_RING3 */
 /** @} */
 
-/** @name Device timer functions.
- * @{
- */
-#ifdef IN_RING3
-bool          hdaR3TimerSet(PHDASTATE pThis, PHDASTREAM pStream, uint64_t u64Expire, bool fForce);
-#endif /* IN_RING3 */
-/** @} */
-
-#endif /* !VBOX_INCLUDED_SRC_Audio_DevHDACommon_h */
+#endif /* !VBOX_INCLUDED_SRC_Audio_DevHdaCommon_h */
 

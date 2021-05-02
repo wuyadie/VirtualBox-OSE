@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -418,6 +418,7 @@ int RTProcExecToString(const char *pszExec, const char * const *papszArgs, RTENV
                                 phChildStdErr,
                                 NULL /*pszAsUser*/,
                                 NULL /*pszPassword*/,
+                                NULL /*pvExtraData*/,
                                 &hProc);
             rc2 = RTHandleClose(&hChildStdErr); AssertRC(rc2);
             rc2 = RTHandleClose(&hChildStdOut); AssertRC(rc2);
@@ -555,6 +556,7 @@ int RTProcExec(const char *pszExec, const char * const *papszArgs, RTENV hEnv, u
                             aph[2],
                             NULL /*pszAsUser*/,
                             NULL /*pszPassword*/,
+                            NULL /*pvExtraData*/,
                             &hProc);
 
     for (uint32_t i = 0; i < 3; i++)
@@ -714,6 +716,13 @@ static void scmSvnTryResolveFunctions(void)
 # else
             { "../lib/lib", ".so" },
             { "../lib/lib", "-1.so" },
+#  if ARCH_BITS == 32
+            { "../lib32/lib", ".so" },
+            { "../lib32/lib", "-1.so" },
+#  else
+            { "../lib64/lib", ".so" },
+            { "../lib64/lib", "-1.so" },
+#  endif
 #  ifdef RT_ARCH_X86
             { "../lib/i386-linux-gnu/lib", ".so" },
             { "../lib/i386-linux-gnu/lib", "-1.so" },
@@ -1128,7 +1137,7 @@ bool ScmSvnIsInWorkingCopy(PSCMRWSTATE pState)
     }
     else
     {
-        const char *apszArgs[] = { g_szSvnPath, "propget", "svn:no-such-property", pState->pszFilename, NULL };
+        const char *apszArgs[] = { g_szSvnPath, "proplist", pState->pszFilename, NULL };
         char       *pszValue;
         int rc = scmSvnRunAndGetOutput(pState, apszArgs, true, &pszValue);
         if (RT_SUCCESS(rc))

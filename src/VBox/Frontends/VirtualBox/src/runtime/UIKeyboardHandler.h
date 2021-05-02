@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -231,8 +231,6 @@ protected:
     /** The root window at the time we grab the mouse buttons. */
     xcb_window_t m_hButtonGrabWindow;
 #endif /* VBOX_WS_X11 */
-
-    ULONG m_cMonitors;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_runtime_UIKeyboardHandler_h */

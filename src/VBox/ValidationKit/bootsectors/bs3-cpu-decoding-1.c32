@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -881,7 +881,7 @@ void DecodeUdEdgeTest(PCCPUDECODE1UDTST paTests, unsigned cTests)
      */
     bool fIsAmd = false;
     if (g_uBs3CpuDetected & BS3CPU_F_CPUID)
-        fIsAmd = ASMIsAmdCpu();
+        fIsAmd = ASMIsAmdCpu() || ASMIsHygonCpu();
     Bs3TestPrintf("fIsAmd=%d\n", fIsAmd);
 
     /*

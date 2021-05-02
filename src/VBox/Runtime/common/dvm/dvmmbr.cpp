@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -640,11 +640,19 @@ static DECLCALLBACK(uint64_t) rtDvmFmtMbrVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
 {
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
 
-    uint64_t fFlags = 0;
-    if (pVol->pEntry->bType & 0x80)
+    uint64_t fFlags = DVMVOLUME_F_CONTIGUOUS;
+    if (pVol->pEntry->fFlags & 0x80)
         fFlags |= DVMVOLUME_FLAGS_BOOTABLE | DVMVOLUME_FLAGS_ACTIVE;
 
     return fFlags;
+}
+
+static DECLCALLBACK(int) rtDvmFmtMbrVolumeQueryRange(RTDVMVOLUMEFMT hVolFmt, uint64_t *poffStart, uint64_t *poffLast)
+{
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+    *poffStart = pVol->pEntry->offPart;
+    *poffLast  = pVol->pEntry->offPart + pVol->pEntry->cbPart - 1;
+    return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt, uint64_t offStart, size_t cbRange,
@@ -711,6 +719,8 @@ RTDVMFMTOPS g_rtDvmFmtMbr =
     rtDvmFmtMbrVolumeGetType,
     /* pfnVolumeGetFlags */
     rtDvmFmtMbrVolumeGetFlags,
+    /* pfnVolumeQueryRange */
+    rtDvmFmtMbrVolumeQueryRange,
     /* pfnVOlumeIsRangeIntersecting */
     rtDvmFmtMbrVolumeIsRangeIntersecting,
     /* pfnVolumeRead */

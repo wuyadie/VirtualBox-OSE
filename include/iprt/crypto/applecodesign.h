@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,6 +147,7 @@ typedef struct RTCRAPLCSSUPERBLOB
     /** Number of slots.  Big endian. */
     uint32_t            cSlots;
     /** Slots. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     RTCRAPLCSBLOBSLOT   aSlots[RT_FLEXIBLE_ARRAY];
 } RTCRAPLCSSUPERBLOB;
 AssertCompileMemberOffset(RTCRAPLCSSUPERBLOB, aSlots, 12);

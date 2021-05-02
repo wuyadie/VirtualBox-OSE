@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 
 #include <VBox/types.h>
 #include <VBox/vmm/cpumctx.h>
-#include <iprt/assert.h>
+#include <iprt/assertcompile.h>
 
 
 RT_C_DECLS_BEGIN

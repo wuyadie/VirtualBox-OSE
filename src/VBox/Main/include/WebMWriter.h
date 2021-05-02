@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,13 @@
 #endif
 
 #include "EBMLWriter.h"
+#include "EBML_MKV.h"
 
 #include <queue>
 #include <map>
 #include <list>
 
+#include <iprt/mem.h>
 #include <iprt/rand.h>
 
 #ifdef VBOX_WITH_LIBVPX

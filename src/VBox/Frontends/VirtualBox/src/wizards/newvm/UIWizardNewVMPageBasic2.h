@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #include "UIWizardPage.h"
 
 /* Forward declarations: */
-class UIGuestRAMSlider;
+class UIBaseMemorySlider;
 class QSpinBox;
 class QLabel;
 class QIRichTextLabel;
@@ -43,7 +43,7 @@ protected:
     void onRamEditorValueChanged();
 
     /* Widgets: */
-    UIGuestRAMSlider *m_pRamSlider;
+    UIBaseMemorySlider *m_pRamSlider;
     QSpinBox *m_pRamEditor;
     QLabel *m_pRamMin;
     QLabel *m_pRamMax;

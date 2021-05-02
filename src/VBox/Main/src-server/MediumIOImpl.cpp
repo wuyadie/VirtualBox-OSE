@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -159,7 +159,7 @@ public:
 protected:
     HRESULT         mRC;
 
-    DataStream      *m_pDataStream;
+    ComObjPtr<DataStream> m_pDataStream;
     MediumVariant_T m_fMediumVariant;
     Utf8Str         m_strFormat;
 
@@ -835,7 +835,7 @@ HRESULT MediumIO::convertToStream(const com::Utf8Str &aFormat,
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
         {
             pDataStream.queryInterfaceTo(aStream.asOutParam());

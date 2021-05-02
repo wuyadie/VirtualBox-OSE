@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,8 @@ extern int testRTDirQueryInfo(RTDIR hDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD 
 extern int testRTDirRemove(const char *pszPath);
 #define RTDirReadEx          testRTDirReadEx
 extern int testRTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags);
+#define RTDirSetMode         testRTDirSetMode
+extern int testRTDirSetMode(RTDIR hDir, RTFMODE fMode);
 #define RTDirSetTimes        testRTDirSetTimes
 extern int testRTDirSetTimes(RTDIR hDir, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime, PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime);
 #define RTFileClose          testRTFileClose

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -99,8 +99,6 @@ private:
     void prepare();
     /** Prepares 'Basic' tab. */
     void prepareTabBasic();
-    /** Prepares 'Advanced' tab. */
-    void prepareTabAdvanced();
     /** Prepares 'Description' tab. */
     void prepareTabDescription();
     /** Prepares 'Encryption' tab. */
@@ -109,6 +107,11 @@ private:
     void prepareConnections();
     /** Cleanups all. */
     void cleanup();
+
+    /** Repopulates Clipboard mode combo-box. */
+    void repopulateComboClipboardMode();
+    /** Repopulates DnD mode combo-box. */
+    void repopulateComboDnDMode();
 
     /** Saves existing general data from the cache. */
     bool saveGeneralData();

@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #include <VBox/VBoxGuestCoreTypes.h> /* for VBGLIOCHGCMCALL */
 
 /* One would increase this whenever definitions in this file are changed */
-#define VBOXVIDEOIF_VERSION 21
+#define VBOXVIDEOIF_VERSION 22
 
 /** @todo VBOXVIDEO_HWTYPE probably needs to be in VBoxVideo.h */
 typedef enum VBOXVIDEO_HWTYPE
@@ -253,12 +253,12 @@ typedef enum
     /* system-created context (for GDI rendering) */
     VBOXWDDM_CONTEXT_TYPE_SYSTEM,
     /* context created by the D3D User-mode driver when crogl IS available */
-    VBOXWDDM_CONTEXT_TYPE_CUSTOM_3D,
+    obsolete_VBOXWDDM_CONTEXT_TYPE_CUSTOM_3D,
     /* context created by the D3D User-mode driver when crogl is NOT available or for ddraw overlay acceleration */
-    VBOXWDDM_CONTEXT_TYPE_CUSTOM_2D,
+    obsolete_VBOXWDDM_CONTEXT_TYPE_CUSTOM_2D,
     /* contexts created by the cromium HGSMI transport for HGSMI commands submission */
-    VBOXWDDM_CONTEXT_TYPE_CUSTOM_UHGSMI_3D,
-    VBOXWDDM_CONTEXT_TYPE_CUSTOM_UHGSMI_GL,
+    obsolete_VBOXWDDM_CONTEXT_TYPE_CUSTOM_UHGSMI_3D,
+    obsolete_VBOXWDDM_CONTEXT_TYPE_CUSTOM_UHGSMI_GL,
     /* context created by the kernel->user communication mechanism for visible rects reporting, etc.  */
     VBOXWDDM_CONTEXT_TYPE_CUSTOM_SESSION,
     /* context created by VBoxTray to handle resize operations */
@@ -357,26 +357,6 @@ typedef struct VBOXVIDEOCM_CMD_RECTS
     VBOXWDDM_RECTS_INFO RectsInfo;
 } VBOXVIDEOCM_CMD_RECTS, *PVBOXVIDEOCM_CMD_RECTS;
 
-typedef struct VBOXVIDEOCM_CMD_RECTS_INTERNAL
-{
-    union
-    {
-        VBOXDISP_UMHANDLE hSwapchainUm;
-        uint64_t hWnd;
-        uint64_t u64Value;
-    };
-    VBOXVIDEOCM_CMD_RECTS Cmd;
-} VBOXVIDEOCM_CMD_RECTS_INTERNAL, *PVBOXVIDEOCM_CMD_RECTS_INTERNAL;
-
-typedef struct VBOXVIDEOCM_CMD_RECTS_HDR
-{
-    VBOXVIDEOCM_CMD_HDR Hdr;
-    VBOXVIDEOCM_CMD_RECTS_INTERNAL Data;
-} VBOXVIDEOCM_CMD_RECTS_HDR, *PVBOXVIDEOCM_CMD_RECTS_HDR;
-
-#define VBOXVIDEOCM_CMD_RECTS_INTERNAL_SIZE4CRECTS(_cRects) (RT_UOFFSETOF_DYN(VBOXVIDEOCM_CMD_RECTS_INTERNAL, Cmd.RectsInfo.aRects[(_cRects)]))
-#define VBOXVIDEOCM_CMD_RECTS_INTERNAL_SIZE(_pCmd) (VBOXVIDEOCM_CMD_RECTS_INTERNAL_SIZE4CRECTS((_pCmd)->cRects))
-
 typedef struct VBOXWDDM_GETVBOXVIDEOCMCMD_HDR
 {
     uint32_t cbCmdsReturned;
@@ -431,40 +411,6 @@ typedef struct VBOXDISPIFESCAPE_DBGDUMPBUF
 } VBOXDISPIFESCAPE_DBGDUMPBUF, *PVBOXDISPIFESCAPE_DBGDUMPBUF;
 AssertCompile(RT_OFFSETOF(VBOXDISPIFESCAPE_DBGDUMPBUF, EscapeHdr) == 0);
 
-typedef struct VBOXSCREENLAYOUT_ELEMENT
-{
-    D3DDDI_VIDEO_PRESENT_SOURCE_ID VidPnSourceId;
-    POINT pos;
-} VBOXSCREENLAYOUT_ELEMENT, *PVBOXSCREENLAYOUT_ELEMENT;
-
-typedef struct VBOXSCREENLAYOUT
-{
-    uint32_t cScreens;
-    VBOXSCREENLAYOUT_ELEMENT aScreens[1];
-} VBOXSCREENLAYOUT, *PVBOXSCREENLAYOUT;
-
-typedef struct VBOXDISPIFESCAPE_SCREENLAYOUT
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBOXSCREENLAYOUT ScreenLayout;
-} VBOXDISPIFESCAPE_SCREENLAYOUT, *PVBOXDISPIFESCAPE_SCREENLAYOUT;
-
-typedef struct VBOXSWAPCHAININFO
-{
-    VBOXDISP_KMHANDLE hSwapchainKm; /* in, NULL if new is being created */
-    VBOXDISP_UMHANDLE hSwapchainUm; /* in, UMD private data */
-    int32_t winHostID;
-    RECT Rect;
-    UINT u32Reserved;
-    UINT cAllocs;
-    D3DKMT_HANDLE ahAllocs[1];
-}VBOXSWAPCHAININFO, *PVBOXSWAPCHAININFO;
-typedef struct VBOXDISPIFESCAPE_SWAPCHAININFO
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBOXSWAPCHAININFO SwapchainInfo;
-} VBOXDISPIFESCAPE_SWAPCHAININFO, *PVBOXDISPIFESCAPE_SWAPCHAININFO;
-
 typedef struct VBOXVIDEOCM_UM_ALLOC
 {
     VBOXDISP_KMHANDLE hAlloc;
@@ -474,36 +420,6 @@ typedef struct VBOXVIDEOCM_UM_ALLOC
     VBOXUHGSMI_BUFFER_TYPE_FLAGS fUhgsmiType;
 } VBOXVIDEOCM_UM_ALLOC, *PVBOXVIDEOCM_UM_ALLOC;
 
-typedef struct VBOXDISPIFESCAPE_UHGSMI_ALLOCATE
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBOXVIDEOCM_UM_ALLOC Alloc;
-} VBOXDISPIFESCAPE_UHGSMI_ALLOCATE, *PVBOXDISPIFESCAPE_UHGSMI_ALLOCATE;
-
-typedef struct VBOXDISPIFESCAPE_UHGSMI_DEALLOCATE
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBOXDISP_KMHANDLE hAlloc;
-} VBOXDISPIFESCAPE_UHGSMI_DEALLOCATE, *PVBOXDISPIFESCAPE_UHGSMI_DEALLOCATE;
-
-typedef struct VBOXWDDM_UHGSMI_BUFFER_UI_INFO_ESCAPE
-{
-    VBOXDISP_KMHANDLE hAlloc;
-    VBOXWDDM_UHGSMI_BUFFER_UI_SUBMIT_INFO Info;
-} VBOXWDDM_UHGSMI_BUFFER_UI_INFO_ESCAPE, *PVBOXWDDM_UHGSMI_BUFFER_UI_INFO_ESCAPE;
-
-typedef struct VBOXDISPIFESCAPE_UHGSMI_SUBMIT
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBOXWDDM_UHGSMI_BUFFER_UI_INFO_ESCAPE aBuffers[1];
-} VBOXDISPIFESCAPE_UHGSMI_SUBMIT, *PVBOXDISPIFESCAPE_UHGSMI_SUBMIT;
-
-typedef struct VBOXDISPIFESCAPE_SHRC_REF
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    uint64_t hAlloc;
-} VBOXDISPIFESCAPE_SHRC_REF, *PVBOXDISPIFESCAPE_SHRC_REF;
-
 typedef struct VBOXDISPIFESCAPE_SETALLOCHOSTID
 {
     VBOXDISPIFESCAPE EscapeHdr;
@@ -512,12 +428,6 @@ typedef struct VBOXDISPIFESCAPE_SETALLOCHOSTID
     uint64_t hAlloc;
 
 } VBOXDISPIFESCAPE_SETALLOCHOSTID, *PVBOXDISPIFESCAPE_SETALLOCHOSTID;
-
-typedef struct VBOXDISPIFESCAPE_CRHGSMICTLCON_CALL
-{
-    VBOXDISPIFESCAPE EscapeHdr;
-    VBGLIOCHGCMCALL CallInfo;
-} VBOXDISPIFESCAPE_CRHGSMICTLCON_CALL, *PVBOXDISPIFESCAPE_CRHGSMICTLCON_CALL;
 
 #ifdef VBOX_WITH_MESA3D
 
@@ -658,12 +568,18 @@ typedef struct VBOXDISPIFESCAPE_GAFENCEUNREF
 #include <VBoxGaHWInfo.h>
 #endif /* VBOX_WITH_MESA3D */
 
+#define VBOXWDDM_QAI_CAP_3D     0x00000001 /* 3D is enabled in the VM settings. */
+#define VBOXWDDM_QAI_CAP_DXVA   0x00000002 /* DXVA is not disabled in the guest registry. */
+#define VBOXWDDM_QAI_CAP_DXVAHD 0x00000004 /* DXVA-HD is not disabled in the guest registry. */
+#define VBOXWDDM_QAI_CAP_WIN7   0x00000008 /* User mode driver can report D3D_UMD_INTERFACE_VERSION_WIN7. */
+
 /* D3DDDICB_QUERYADAPTERINFO::pPrivateDriverData */
 typedef struct VBOXWDDM_QAI
 {
     uint32_t            u32Version;      /* VBOXVIDEOIF_VERSION */
     uint32_t            u32Reserved;     /* Must be 0. */
     VBOXVIDEO_HWTYPE    enmHwType;       /* Hardware type. Determines what kind of data is returned. */
+    uint32_t            u32AdapterCaps;  /* VBOXWDDM_QAI_CAP_* */
     uint32_t            cInfos;          /* Number of initialized elements in aInfos (equal to number of guest
                                           * displays). 0 if VBOX_WITH_VIDEOHWACCEL is not defined. */
     VBOXVHWA_INFO       aInfos[VBOX_VIDEO_MAX_SCREENS]; /* cInfos elements are initialized. */

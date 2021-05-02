@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,6 +59,8 @@ struct socket
     struct tcpiphdr *so_ti;      /* Pointer to the original ti within
                                   * so_mconn, for non-blocking connections */
     uint8_t         *so_ohdr;    /* unmolested IP header of the datagram in so_m */
+    caddr_t         so_optp;     /* tcp options in so_m */
+    int             so_optlen;   /* length of options in so_m */
     int             so_urgc;
     struct in_addr  so_faddr;    /* foreign host table entry */
     struct in_addr  so_laddr;    /* local host table entry */

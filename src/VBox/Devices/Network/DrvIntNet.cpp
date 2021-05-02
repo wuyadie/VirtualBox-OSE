@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -498,9 +498,6 @@ PDMBOTHCBDECL(int) drvIntNetUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGAT
 
     if (pSgBuf->pvUser)
         STAM_COUNTER_INC(&pThis->StatSentGso);
-
-    /* Set an FTM checkpoint as this operation changes the state permanently. */
-    PDMDrvHlpFTSetCheckpoint(pThis->CTX_SUFF(pDrvIns), FTMCHECKPOINTTYPE_NETWORK);
 
     /*
      * Commit the frame and push it thru the switch.

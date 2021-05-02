@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -114,7 +114,6 @@ CXX64=""
 YASM="yasm"
 IASL="iasl"
 XSLTPROC="xsltproc"
-GENISOIMAGE="genisoimage"
 INCCRYPTO=""
 LIBCRYPTO="-lssl -lcrypto"
 LIBPTHREAD="-lpthread"
@@ -131,6 +130,8 @@ MAKESELF="makeself"
 MESA="-lGL"
 INCZ=""
 LIBZ="-lz"
+INCLZF="/usr/include/liblzf"
+LIBLZF="-llzf"
 INCVNCSERVER=""
 LIBVNCSERVER="-lvncserver"
 INCDEVMAPPER=""
@@ -242,6 +243,11 @@ strip_L()
   echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g'
 }
 
+L_to_PATH()
+{
+  echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g; s| |:|g'
+}
+
 strip_I()
 {
   echo "$1"|$KBUILD_SED 's|-I\([^ ]\+\)|\1|g; s|^-[^I][^ ]*||g; s| -[^I][^ ]*||g; s|^ ||; s| *$||g'
@@ -308,7 +314,7 @@ test_compile()
 test_execute()
 {
   echo "executing the binary" >> $LOG
-  $ODIR.tmp_out > $ODIR.test_execute.log
+  $ODIR.tmp_out > $ODIR.test_execute.log 2>&1
   rc=$?
   cat $ODIR.test_execute.log | tee -a $LOG
   if [ $rc -ne 0 ]; then
@@ -328,8 +334,8 @@ test_execute_path()
   local_path="${1}"
   ## Set this to non-empty to make this test non-fatal.
   local_nofail="${2}"
-  echo "executing the binary (LD_LIBRARY_PATH=$1)" >> $LOG
-  LD_LIBRARY_PATH="${local_path}" $ODIR.tmp_out > $ODIR.test_execute.log
+  echo "executing the binary (LD_LIBRARY_PATH=$1:$LD_LIBRARY_PATH)" >> $LOG
+  LD_LIBRARY_PATH="${local_path}:$LD_LIBRARY_PATH" $ODIR.tmp_out > $ODIR.test_execute.log 2>&1
   rc=$?
   cat $ODIR.test_execute.log | tee -a $LOG
   if [ $rc -ne 0 ]; then
@@ -929,6 +935,41 @@ EOF
 
 
 #
+# Check for liblzf, needed by VBoxSVC, Runtime, ...
+#
+check_lzf()
+{
+  test_header liblzf
+  cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <lzf.h>
+extern "C" int main(void)
+{
+  printf("found LZF API version %u.%u", LZF_VERSION >> 8, LZF_VERSION & 0xff);
+#if LZF_VERSION >= 0x0105
+  printf(", OK.\n");
+  return 0;
+#else
+  printf(", expected version 1.5 or higher\n");
+  return 1;
+#endif
+}
+EOF
+  [ -n "$INCLZF" ] && I_INCLZF=`prefix_I "$INCLZF"`
+  if test_compile "$LIBLZF $I_INCLZF" liblzf liblzf nofatal; then
+    if test_execute; then
+      echo "if1of (\$(KBUILD_TARGET),darwin freebsd haiku linux)" >> $CNF
+      cnf_append " SDK_VBOX_LZF_LIBS" "`strip_l "$LIBLZF"`"
+      cnf_append " SDK_VBOX_LZF_INCS" "$INCLZF"
+      echo "endif" >> $CNF
+    fi
+  else
+    echo "not found -- builing liblzf from in-tree code."
+  fi
+}
+
+
+#
 # Check for libpng, needed by kchmviewer
 #
 check_png()
@@ -1244,8 +1285,14 @@ extern "C" int main(void)
 #endif
 }
 EOF
-  if test_compile "$INCPULSE $LIBPULSE -lpulse" pulse pulse; then
-    test_execute
+  if test_compile "$INCPULSE $LIBPULSE -lpulse" pulse pulse nofatal; then
+    if test_execute nofatal; then
+      cnf_append "VBOX_WITH_AUDIO_PULSE" "1"
+    else
+      cnf_append "VBOX_WITH_AUDIO_PULSE" ""
+    fi
+  else
+    cnf_append "VBOX_WITH_AUDIO_PULSE" ""
   fi
 }
 
@@ -1336,7 +1383,7 @@ EOF
 
 
 #
-# Check for the Xinerama library, needed by the Qt GUI
+# Check for the XRandR library, needed by the Qt GUI
 #
 check_xrandr()
 {
@@ -1373,7 +1420,6 @@ check_opengl()
   if [ "$OS" = "darwin" ]; then
     test_header "OpenGL support"
     echo "enabled"
-    cnf_append "VBOX_WITH_CROGL"     "1"
   else
     check_xmu
     check_mesa
@@ -1526,7 +1572,7 @@ EOF
           TOOLQT5=`pkg-config Qt5Core --variable=prefix`
           TOOLQT5BIN=`pkg-config Qt5Core --variable=host_bins`
           if test_compile "$LIBQT5 $LIBPTHREAD $FLGQT5" qt5 qt5 nofatal; then
-            test_execute_path "`strip_L "$LIBQT5"`" nofatal && foundqt5=3 # pkg-config
+            test_execute_path "`L_to_PATH "$LIBQT5"`" nofatal && foundqt5=3 # pkg-config
           fi
         fi
       else
@@ -1544,13 +1590,13 @@ EOF
         LIBQT5="-L$q/lib -lQt5CoreVBox"
         TOOLQT5="$q"
         if test_compile "$LIBQT5 $LIBPTHREAD $I_INCQT5 $FLGQT5" qt5 qt5 nofatal &&
-            test_execute_path "`strip_L "$LIBQT5"`" nofatal; then
+            test_execute_path "`L_to_PATH "$LIBQT5"`" nofatal; then
           foundqt5=2 # internal
           break;
         fi
         LIBQT5="-L$q/lib -lQt5Core"
         if test_compile "$LIBQT5 $LIBPTHREAD $I_INCQT5 $FLGQT5" qt5 qt5 nofatal &&
-            test_execute_path "`strip_L "$LIBQT5"`" nofatal; then
+            test_execute_path "`L_to_PATH "$LIBQT5"`" nofatal; then
           foundqt5=1 # no pkg-config, Qt directory
           break;
         fi
@@ -1580,7 +1626,7 @@ echo "  printf(\", expected version $QT5MAJ.$QT5MIN or higher\\\\n\");" >> $ODIR
 EOF
     [ -n "$INCQT5" ] && I_INCQT5=`prefix_I "$INCQT5"`
     if test_compile "$LIBQT5 $LIBPTHREAD $I_INCQT5 $FLGQT5" qt5 qt5 nofatal; then
-      if test_execute_path "`strip_L "$LIBQT5"`"; then
+      if test_execute_path "`L_to_PATH "$LIBQT5"`"; then
         if [ "$OS" = "darwin" ]; then
           # Successful build & run the test application so add the necessary
           # params to AutoConfig.kmk:
@@ -1982,7 +2028,7 @@ extern "C" int main(void)
 }
 EOF
   found=
-  SUPPYTHONLIBS="python2.7 python2.6 python3.1 python3.2 python3.3 python3.4 python3.4m python3.5 python3.5m python3.6 python3.6m"
+  SUPPYTHONLIBS="python2.7 python2.6 python3.1 python3.2 python3.3 python3.4 python3.4m python3.5 python3.5m python3.6 python3.6m python3.7 python3.7m python3.8 python3.8m python3.9 python3.9m"
   for p in $PYTHONDIR; do
     for d in $SUPPYTHONLIBS; do
       for b in lib/x86_64-linux-gnu lib/i386-linux-gnu lib64 lib/64 lib; do
@@ -2743,7 +2789,8 @@ fi
 
 # emit disable directives corresponding to any --disable-xxx options.
 if [ $WITH_OPENGL -eq 0 ]; then
-  cnf_append "VBOX_WITH_CROGL" ""
+  cnf_append "VBOX_WITH_VMSVGA3D" ""
+  cnf_append "VBOX_WITH_3D_ACCELERATION" ""
   cnf_append "VBOX_WITH_VIDEOHWACCEL" ""
   cnf_append "VBOX_GUI_USE_QGL" ""
 fi
@@ -2784,6 +2831,7 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
   [ "$OS" != "darwin"  ] && check_pthread
   check_libxml2
   [ $WITH_LIBIDL -eq 1 ] && check_libidl
+  check_lzf
   check_ssl
   check_curl
   [ $WITH_LIBVPX -eq 1 ] && check_vpx
@@ -2809,13 +2857,13 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
   [ $WITH_JAVA   -eq 1 ] && check_java
 
   # PulseAudio
-  if [ "$OS" = "linux" -o "$OS" = "freebsd" -o "$OS" = "netbsd" ]; then
-    if [ $WITH_PULSE -eq 1 ]; then
-      check_pulse
-    elif [ $WITH_PULSE -eq 0 ]; then
-      cnf_append "VBOX_WITH_AUDIO_PULSE" ""
-    fi
- fi
+  if [ $WITH_PULSE -eq 1 ]; then
+    check_pulse
+  elif [ $WITH_PULSE -eq 0 ]; then # Force disabling PulseAudio.
+    cnf_append "VBOX_WITH_AUDIO_PULSE" ""
+  elif [ $WITH_PULSE -eq 2 ]; then # --enable-pulse was passed, force PulseAudio.
+    cnf_append "VBOX_WITH_AUDIO_PULSE" "1"
+  fi
 fi
 
 # Linux-specific

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,6 +51,8 @@
    @endcode
  *
  * @sa createThreadWithType
+ *
+ * @note Always consumes @a this!
  */
 HRESULT ThreadTask::createThread(void)
 {
@@ -62,6 +64,8 @@ HRESULT ThreadTask::createThread(void)
  * Same ThreadTask::createThread(), except it takes a thread type parameter.
  *
  * @param   enmType     The thread type.
+ *
+ * @note Always consumes @a this!
  */
 HRESULT ThreadTask::createThreadWithType(RTTHREADTYPE enmType)
 {

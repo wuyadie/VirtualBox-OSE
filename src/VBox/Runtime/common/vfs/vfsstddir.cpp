@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,6 +74,7 @@ typedef struct RTVFSSTDSYMLINK
     /** Pointer to the VFS directory where the symbolic link lives . */
     PRTVFSSTDDIR    pDir;
     /** The symbolic link name. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
     char            szSymlink[RT_FLEXIBLE_ARRAY];
 } RTVFSSTDSYMLINK;
 /** Pointer to the private data of a standard symbolic link. */

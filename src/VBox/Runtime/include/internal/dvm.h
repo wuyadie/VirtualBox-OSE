@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -213,6 +213,18 @@ typedef struct RTDVMFMTOPS
      * @param   hVolFmt         The format specific volume handle.
      */
     DECLCALLBACKMEMBER(uint64_t, pfnVolumeGetFlags)(RTDVMVOLUMEFMT hVolFmt);
+
+    /**
+     * Queries the range of the given volume on the underyling medium.
+     *
+     * @returns IPRT status code.
+     * @param   hVolFmt         The format specific volume handle.
+     * @param   poffStart       Where to store the start byte offset on the
+     *                          underlying medium.
+     * @param   poffLast        Where to store the last byte offset on the
+     *                          underlying medium (inclusive).
+     */
+    DECLCALLBACKMEMBER(int, pfnVolumeQueryRange)(RTDVMVOLUMEFMT hVolFmt, uint64_t *poffStart, uint64_t *poffLast);
 
     /**
      * Returns whether the supplied range is at least partially intersecting

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -156,6 +156,7 @@ typedef enum RTMEMTYPE
     RTMEMTYPE_RTMEMALLOCZ,
     RTMEMTYPE_RTMEMREALLOC,
     RTMEMTYPE_RTMEMFREE,
+    RTMEMTYPE_RTMEMFREEZ,
 
     RTMEMTYPE_NEW,
     RTMEMTYPE_NEW_ARRAY,
@@ -200,7 +201,7 @@ RTDECL(void *)  rtR3MemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cbUnal
                              const char *pszTag, void *pvCaller, RT_SRC_POS_DECL);
 RTDECL(void *)  rtR3MemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbNew,
                                const char *pszTag, void *pvCaller, RT_SRC_POS_DECL);
-RTDECL(void)    rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, RT_SRC_POS_DECL);
+RTDECL(void)    rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, size_t cbUser, void *pvCaller, RT_SRC_POS_DECL);
 RT_C_DECLS_END
 
 

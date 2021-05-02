@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2019 Oracle Corporation
+# Copyright (C) 2011-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,27 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
  tstClipboardServiceHost_DEFS     = VBOX_WITH_HGCM UNIT_TEST
  tstClipboardServiceHost_SOURCES  = \
 	../VBoxSharedClipboardSvc.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp \
+	$(PATH_ROOT)/src/VBox/HostServices/common/message.cpp \
 	tstClipboardServiceHost.cpp
 
+ if defined(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS)
+  tstClipboardServiceHost_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+  tstClipboardServiceHost_SOURCES += \
+	../VBoxSharedClipboardSvc-transfers.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardArea.cpp
+ endif
+
+ if defined(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS)
+  PROGRAMS += tstClipboardTransfers
+  tstClipboardTransfers_TEMPLATE = VBOXR3TSTEXE
+  tstClipboardTransfers_DEFS     = VBOX_WITH_HGCM UNIT_TEST VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+  tstClipboardTransfers_SOURCES  = \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp \
+	tstClipboardTransfers.cpp
+ endif
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)

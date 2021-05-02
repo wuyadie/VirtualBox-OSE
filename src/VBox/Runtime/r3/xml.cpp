@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2289,7 +2289,7 @@ void XmlFileWriter::write(const char *pcszFilename, bool fSafe)
 
         /* Make a backup of any existing file (ignore failure). */
         uint64_t cbPrevFile;
-        rc = RTFileQuerySize(pcszFilename, &cbPrevFile);
+        rc = RTFileQuerySizeByPath(pcszFilename, &cbPrevFile);
         if (RT_SUCCESS(rc) && cbPrevFile >= 16)
             RTFileRename(pcszFilename, szPrevFilename, RTPATHRENAME_FLAGS_REPLACE);
 

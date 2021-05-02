@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 
 /* GUI includes: */
 #include "QIDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 
 QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
@@ -123,5 +123,5 @@ void QIDialog::polishEvent(QShowEvent *)
 #endif /* VBOX_WS_MAC */
 
     /* Explicit centering according to our parent: */
-    VBoxGlobal::centerWidget(this, parentWidget(), false);
+    UICommon::centerWidget(this, parentWidget(), false);
 }

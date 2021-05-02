@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -134,15 +134,28 @@ enum eProcessStatus
 #define PATHRENAME_FLAG_VALID_MASK          UINT32_C(0x00000003)
 /** @} */
 
-/** @name Defines for guest process array lengths.
+/** @name Defines for default (initial) guest process buffer lengths.
+ * Note: These defaults were the maximum values before; so be careful when raising those in order to
+ *       not break running with older Guest Additions.
  * @{
  */
-#define GUESTPROCESS_MAX_CMD_LEN            _1K
-#define GUESTPROCESS_MAX_ARGS_LEN           _1K
-#define GUESTPROCESS_MAX_ENV_LEN            _64K
-#define GUESTPROCESS_MAX_USER_LEN           128
-#define GUESTPROCESS_MAX_PASSWORD_LEN       128
-#define GUESTPROCESS_MAX_DOMAIN_LEN         256
+#define GUESTPROCESS_DEFAULT_CMD_LEN        _1K
+#define GUESTPROCESS_DEFAULT_ARGS_LEN       _1K
+#define GUESTPROCESS_DEFAULT_ENV_LEN        _1K
+#define GUESTPROCESS_DEFAULT_USER_LEN       128
+#define GUESTPROCESS_DEFAULT_PASSWORD_LEN   128
+#define GUESTPROCESS_DEFAULT_DOMAIN_LEN     256
+/** @} */
+
+/** @name Defines for maximum guest process buffer lengths.
+ * @{
+ */
+#define GUESTPROCESS_MAX_CMD_LEN            _1M
+#define GUESTPROCESS_MAX_ARGS_LEN           _2M
+#define GUESTPROCESS_MAX_ENV_LEN            _4M
+#define GUESTPROCESS_MAX_USER_LEN           _64K
+#define GUESTPROCESS_MAX_PASSWORD_LEN       _64K
+#define GUESTPROCESS_MAX_DOMAIN_LEN         _64K
 /** @} */
 
 /** @name Internal tools built into VBoxService which are used in order
@@ -176,6 +189,7 @@ typedef enum VBOXSERVICETOOLBOX_STAT_EXITCODE
     VBOXSERVICETOOLBOX_STAT_EXITCODE_FILE_NOT_FOUND,
     VBOXSERVICETOOLBOX_STAT_EXITCODE_PATH_NOT_FOUND,
     VBOXSERVICETOOLBOX_STAT_EXITCODE_NET_PATH_NOT_FOUND,
+    VBOXSERVICETOOLBOX_STAT_EXITCODE_INVALID_NAME,
     /** The usual 32-bit type hack. */
     VBOXSERVICETOOLBOX_STAT_32BIT_HACK = 0x7fffffff
 } VBOXSERVICETOOLBOX_STAT_EXITCODE;

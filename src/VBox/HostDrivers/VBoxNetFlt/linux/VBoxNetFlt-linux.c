@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,10 +34,13 @@
 #include "version-generated.h"
 #include "revision-generated.h"
 #include "product-generated.h"
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-#include <linux/nsproxy.h>
+#if RTLNX_VER_MIN(2,6,24)
+# include <linux/nsproxy.h>
 #endif
 #include <linux/netdevice.h>
+#if RTLNX_VER_MAX(2,6,29) || RTLNX_VER_MIN(5,11,0)
+# include <linux/ethtool.h>
+#endif
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
 #include <linux/miscdevice.h>
@@ -45,8 +48,8 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/if_vlan.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-#include <uapi/linux/pkt_cls.h>
+#if RTLNX_VER_MIN(4,5,0)
+# include <uapi/linux/pkt_cls.h>
 #endif
 #include <net/ipv6.h>
 #include <net/if_inet6.h>
@@ -89,17 +92,17 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # define VBOX_FLT_XT_TO_INST(pXT)   RT_FROM_MEMBER(pXT, VBOXNETFLTINS, u.s.XmitTask)
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if RTLNX_VER_MIN(3,11,0)
 # define VBOX_NETDEV_NOTIFIER_INFO_TO_DEV(ptr) netdev_notifier_info_to_dev(ptr)
 #else
 # define VBOX_NETDEV_NOTIFIER_INFO_TO_DEV(ptr) ((struct net_device *)ptr)
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+#if RTLNX_VER_MIN(3,5,0)
 # define VBOX_SKB_KMAP_FRAG(frag) kmap_atomic(skb_frag_page(frag))
 # define VBOX_SKB_KUNMAP_FRAG(vaddr) kunmap_atomic(vaddr)
 #else
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+# if RTLNX_VER_MIN(3,2,0)
 #  define VBOX_SKB_KMAP_FRAG(frag) kmap_atomic(skb_frag_page(frag), KM_SKB_DATA_SOFTIRQ)
 #  define VBOX_SKB_KUNMAP_FRAG(vaddr) kunmap_atomic(vaddr, KM_SKB_DATA_SOFTIRQ)
 # else
@@ -108,13 +111,13 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#if RTLNX_VER_MIN(2,6,34)
 # define VBOX_NETDEV_NAME(dev)              netdev_name(dev)
 #else
 # define VBOX_NETDEV_NAME(dev)              ((dev)->reg_state != NETREG_REGISTERED ? "(unregistered net_device)" : (dev)->name)
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if RTLNX_VER_MIN(2,6,25)
 # define VBOX_IPV4_IS_LOOPBACK(addr)        ipv4_is_loopback(addr)
 # define VBOX_IPV4_IS_LINKLOCAL_169(addr)   ipv4_is_linklocal_169(addr)
 #else
@@ -122,7 +125,7 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # define VBOX_IPV4_IS_LINKLOCAL_169(addr)   ((addr & htonl(IN_CLASSB_NET)) == htonl(0xa9fe0000))
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+#if RTLNX_VER_MIN(2,6,22)
 # define VBOX_SKB_RESET_NETWORK_HDR(skb)    skb_reset_network_header(skb)
 # define VBOX_SKB_RESET_MAC_HDR(skb)        skb_reset_mac_header(skb)
 # define VBOX_SKB_CSUM_OFFSET(skb)          skb->csum_offset
@@ -132,14 +135,14 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # define VBOX_SKB_CSUM_OFFSET(skb)          skb->csum
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+#if RTLNX_VER_MIN(2,6,19)
 # define VBOX_SKB_CHECKSUM_HELP(skb)        skb_checksum_help(skb)
 #else
 # define CHECKSUM_PARTIAL                   CHECKSUM_HW
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 10)
+# if RTLNX_VER_MIN(2,6,10)
 #  define VBOX_SKB_CHECKSUM_HELP(skb)       skb_checksum_help(skb, 0)
 # else
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 7)
+#  if RTLNX_VER_MIN(2,6,7)
 #   define VBOX_SKB_CHECKSUM_HELP(skb)      skb_checksum_help(&skb, 0)
 #  else
 #   define VBOX_SKB_CHECKSUM_HELP(skb)      (!skb_checksum_help(skb))
@@ -150,15 +153,8 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 20, 0)
+#if RTLNX_VER_MIN(3,20,0) || RTLNX_RHEL_RANGE(7,2,  8,0) || RTLNX_RHEL_RANGE(6,8,  7,0)
 # define VBOX_HAVE_SKB_VLAN
-#else
-# ifdef RHEL_RELEASE_CODE
-#  if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)) || \
-      (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6, 8) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 0))
-#   define VBOX_HAVE_SKB_VLAN
-#  endif
-# endif
 #endif
 
 #ifdef VBOX_HAVE_SKB_VLAN
@@ -176,7 +172,7 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # define VBOXNETFLT_SG_SUPPORT 1
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+#if RTLNX_VER_MIN(2,6,18)
 
 /** Indicates that the linux kernel may send us GSO frames. */
 # define VBOXNETFLT_WITH_GSO                1
@@ -195,9 +191,9 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
  *  to the internal network.  */
 # define VBOXNETFLT_WITH_GSO_RECV           1
 
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18) */
+#endif /* RTLNX_VER_MIN(2,6,18) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#if RTLNX_VER_MIN(2,6,29)
 /** This enables or disables handling of GSO frames coming from the wire (GRO). */
 # define VBOXNETFLT_WITH_GRO                1
 #endif
@@ -205,10 +201,8 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 /*
  * GRO support was backported to RHEL 5.4
  */
-#ifdef RHEL_RELEASE_CODE
-# if RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(5, 4)
-#  define VBOXNETFLT_WITH_GRO               1
-# endif
+#if RTLNX_RHEL_MAJ_PREREQ(5, 4)
+# define VBOXNETFLT_WITH_GRO                1
 #endif
 
 
@@ -239,7 +233,7 @@ MODULE_VERSION(VBOX_VERSION_STRING " r" RT_XSTR(VBOX_SVN_REV) " (" RT_XSTR(INTNE
 #endif
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12) && defined(LOG_ENABLED)
+#if RTLNX_VER_MAX(2,6,12) && defined(LOG_ENABLED)
 unsigned dev_get_flags(const struct net_device *dev)
 {
     unsigned flags;
@@ -255,7 +249,7 @@ unsigned dev_get_flags(const struct net_device *dev)
 
     return flags;
 }
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12) */
+#endif /* RTLNX_VER_MAX(2,6,12) */
 
 
 /**
@@ -337,21 +331,19 @@ static void __exit VBoxNetFltLinuxUnload(void)
 
 #ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-
-# include <linux/ethtool.h>
+# if RTLNX_VER_MAX(2,6,29)
 
 typedef struct ethtool_ops OVR_OPSTYPE;
 # define OVR_OPS  ethtool_ops
 # define OVR_XMIT pfnStartXmit
 
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+# else /* RTLNX_VER_MIN(2,6,29) */
 
 typedef struct net_device_ops OVR_OPSTYPE;
 # define OVR_OPS  netdev_ops
 # define OVR_XMIT pOrgOps->ndo_start_xmit
 
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MIN(2,6,29) */
 
 /**
  * The overridden net_device_ops of the device we're attached to.
@@ -372,10 +364,10 @@ typedef struct VBoxNetDeviceOpsOverride
     uint32_t                        u32Magic;
     /** Pointer to the original ops. */
     OVR_OPSTYPE const              *pOrgOps;
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+# if RTLNX_VER_MAX(2,6,29)
     /** Pointer to the original hard_start_xmit function. */
     int (*pfnStartXmit)(struct sk_buff *pSkb, struct net_device *pDev);
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MAX(2,6,29) */
     /** Pointer to the net filter instance. */
     PVBOXNETFLTINS                  pVBoxNetFlt;
     /** The number of filtered packages. */
@@ -412,9 +404,9 @@ static int vboxNetFltLinuxStartXmitFilter(struct sk_buff *pSkb, struct net_devic
      */
     if (   !VALID_PTR(pOverride)
         || pOverride->u32Magic != VBOXNETDEVICEOPSOVERRIDE_MAGIC
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+# if RTLNX_VER_MIN(2,6,29)
         || !VALID_PTR(pOverride->pOrgOps)
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MIN(2,6,29) */
         )
     {
         printk("vboxNetFltLinuxStartXmitFilter: bad override %p\n", pOverride);
@@ -472,11 +464,11 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
         return;
     pOverride->pOrgOps              = pDev->OVR_OPS;
     pOverride->Ops                  = *pDev->OVR_OPS;
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+# if RTLNX_VER_MAX(2,6,29)
     pOverride->pfnStartXmit         = pDev->hard_start_xmit;
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+# else /* RTLNX_VER_MIN(2,6,29) */
     pOverride->Ops.ndo_start_xmit   = vboxNetFltLinuxStartXmitFilter;
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MIN(2,6,29) */
     pOverride->u32Magic             = VBOXNETDEVICEOPSOVERRIDE_MAGIC;
     pOverride->cTotal               = 0;
     pOverride->cFiltered            = 0;
@@ -484,9 +476,9 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
 
     RTSpinlockAcquire(pThis->hSpinlock); /* (this isn't necessary, but so what) */
     ASMAtomicWritePtr((void * volatile *)&pDev->OVR_OPS, pOverride);
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+# if RTLNX_VER_MAX(2,6,29)
     ASMAtomicXchgPtr((void * volatile *)&pDev->hard_start_xmit, vboxNetFltLinuxStartXmitFilter);
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MAX(2,6,29) */
     RTSpinlockRelease(pThis->hSpinlock);
 }
 
@@ -512,9 +504,9 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
             &&  VALID_PTR(pOverride->pOrgOps)
            )
         {
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+# if RTLNX_VER_MAX(2,6,29)
             ASMAtomicWritePtr((void * volatile *)&pDev->hard_start_xmit, pOverride->pfnStartXmit);
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
+# endif /* RTLNX_VER_MAX(2,6,29) */
             ASMAtomicWritePtr((void const * volatile *)&pDev->OVR_OPS, pOverride->pOrgOps);
             ASMAtomicWriteU32(&pOverride->u32Magic, 0);
         }
@@ -559,7 +551,7 @@ DECLINLINE(struct net_device *) vboxNetFltLinuxRetainNetDev(PVBOXNETFLTINS pThis
             dev_hold(pDev);
             Log(("vboxNetFltLinuxRetainNetDev: Device %p(%s) retained. ref=%d\n",
                  pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if RTLNX_VER_MIN(2,6,37)
                  netdev_refcnt_read(pDev)
 #else
                  atomic_read(&pDev->refcnt)
@@ -595,7 +587,7 @@ DECLINLINE(void) vboxNetFltLinuxReleaseNetDev(PVBOXNETFLTINS pThis, struct net_d
         dev_put(pDev);
         Log(("vboxNetFltLinuxReleaseNetDev: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if RTLNX_VER_MIN(2,6,37)
              netdev_refcnt_read(pDev)
 #else
              atomic_read(&pDev->refcnt)
@@ -766,7 +758,7 @@ static struct sk_buff *vboxNetFltLinuxSkBufFromSG(PVBOXNETFLTINS pThis, PINTNETS
          */
         Assert(skb_headlen(pPkt) >= pSG->GsoCtx.cbHdrsTotal);
         pPkt->ip_summed  = CHECKSUM_PARTIAL;
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+# if RTLNX_VER_MIN(2,6,22)
         pPkt->csum_start = skb_headroom(pPkt) + pSG->GsoCtx.offHdr2;
         if (fGsoType & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6))
             pPkt->csum_offset = RT_UOFFSETOF(RTNETTCP, th_sum);
@@ -810,9 +802,13 @@ static struct sk_buff *vboxNetFltLinuxSkBufFromSG(PVBOXNETFLTINS pThis, PINTNETS
  */
 DECLINLINE(unsigned) vboxNetFltLinuxGetChecksumStartOffset(struct sk_buff *pBuf)
 {
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 21)
+#if RTLNX_VER_MIN(2,6,38)
+    return skb_checksum_start_offset(pBuf);
+#elif RTLNX_VER_MIN(2,6,22)
+    return pBuf->csum_start - skb_headroom(pBuf);
+#else
     unsigned char *pTransportHdr = pBuf->h.raw;
-#  if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+# if RTLNX_VER_MAX(2,6,19)
     /*
      * Try to work around the problem with CentOS 4.7 and 5.2 (2.6.9
      * and 2.6.18 kernels), they pass wrong 'h' pointer down. We take IP
@@ -821,15 +817,9 @@ DECLINLINE(unsigned) vboxNetFltLinuxGetChecksumStartOffset(struct sk_buff *pBuf)
      */
     if (pBuf->h.raw == pBuf->nh.raw && pBuf->protocol == htons(ETH_P_IP))
         pTransportHdr = pBuf->nh.raw + pBuf->nh.iph->ihl * 4;
-#  endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18) */
+# endif
     return pTransportHdr - pBuf->data;
-# else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 21) */
-#  if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
-    return pBuf->csum_start - skb_headroom(pBuf);
-#  else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) */
-    return skb_checksum_start_offset(pBuf);
-#  endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) */
-# endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 21) */
+#endif
 }
 
 
@@ -860,7 +850,7 @@ static void vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf,
     unsigned cbConsumed = 0;
     unsigned cbProduced = 0;
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+# if RTLNX_VER_MIN(2,6,27)
     /* Restore VLAN tag stripped by host hardware */
     if (vlan_tx_tag_present(pBuf))
     {
@@ -875,7 +865,7 @@ static void vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf,
         pVHdr->h_vlan_encapsulated_proto = *(uint16_t*)(pMac + ETH_ALEN * 2);
         cbProduced += VLAN_ETH_HLEN;
     }
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
+# endif /* RTLNX_VER_MIN(2,6,27) */
 
     if (pBuf->ip_summed == CHECKSUM_PARTIAL && pBuf->pkt_type == PACKET_OUTGOING)
     {
@@ -924,8 +914,13 @@ static void vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf,
     for (i = 0; i < skb_shinfo(pBuf)->nr_frags; i++)
     {
         skb_frag_t *pFrag = &skb_shinfo(pBuf)->frags[i];
+# if RTLNX_VER_MIN(5,4,0) || RTLNX_SUSE_MAJ_PREREQ(15, 2)
+        pSG->aSegs[iSeg].cb = pFrag->bv_len;
+        pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->bv_offset;
+# else /* < KERNEL_VERSION(5, 4, 0) */
         pSG->aSegs[iSeg].cb = pFrag->size;
         pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->page_offset;
+# endif /* >= KERNEL_VERSION(5, 4, 0) */
         Log6((" %p", pSG->aSegs[iSeg].pv));
         pSG->aSegs[iSeg++].Phys = NIL_RTHCPHYS;
         Assert(iSeg <= pSG->cSegsAlloc);
@@ -940,8 +935,13 @@ static void vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf,
         for (i = 0; i < skb_shinfo(pFragBuf)->nr_frags; i++)
         {
             skb_frag_t *pFrag = &skb_shinfo(pFragBuf)->frags[i];
+# if RTLNX_VER_MIN(5,4,0) || RTLNX_SUSE_MAJ_PREREQ(15, 2)
+            pSG->aSegs[iSeg].cb = pFrag->bv_len;
+            pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->bv_offset;
+# else /* < KERNEL_VERSION(5, 4, 0) */
             pSG->aSegs[iSeg].cb = pFrag->size;
             pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->page_offset;
+# endif /* >= KERNEL_VERSION(5, 4, 0) */
             Log6((" %p", pSG->aSegs[iSeg].pv));
             pSG->aSegs[iSeg++].Phys = NIL_RTHCPHYS;
             Assert(iSeg <= pSG->cSegsAlloc);
@@ -1010,7 +1010,7 @@ static void vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf,
  *
  * @returns 0 or EJUSTRETURN - this is probably copy & pastry and thus wrong.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14)
+#if RTLNX_VER_MIN(2,6,14)
 static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
                                         struct net_device *pSkbDev,
                                         struct packet_type *pPacketType,
@@ -1025,10 +1025,10 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
     struct net_device *pDev;
     LogFlow(("vboxNetFltLinuxPacketHandler: pBuf=%p pSkbDev=%p pPacketType=%p\n",
              pBuf, pSkbDev, pPacketType));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+#if RTLNX_VER_MIN(2,6,18)
     Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
           pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+# if RTLNX_VER_MIN(2,6,22)
     Log6(("vboxNetFltLinuxPacketHandler: packet dump follows:\n%.*Rhxd\n", pBuf->len-pBuf->data_len, skb_mac_header(pBuf)));
 # endif
 #else
@@ -1085,7 +1085,7 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
         pBuf = pCopy;
         /* Somehow skb_copy ignores mac_len */
         pBuf->mac_len = uMacLen;
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+# if RTLNX_VER_MIN(2,6,27)
         /* Restore VLAN tag stripped by host hardware */
         if (vlan_tx_tag_present(pBuf) && skb_headroom(pBuf) >= VLAN_ETH_HLEN)
         {
@@ -1097,18 +1097,18 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
             pBuf->mac_header   -= VLAN_HLEN;
             pBuf->mac_len      += VLAN_HLEN;
         }
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
+# endif /* RTLNX_VER_MIN(2,6,27) */
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+# if RTLNX_VER_MIN(2,6,18)
         Log3(("vboxNetFltLinuxPacketHandler: skb copy len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
               pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+#  if RTLNX_VER_MIN(2,6,22)
         Log6(("vboxNetFltLinuxPacketHandler: packet dump follows:\n%.*Rhxd\n", pBuf->len-pBuf->data_len, skb_mac_header(pBuf)));
-#  endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22) */
-# else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
+#  endif /* RTLNX_VER_MIN(2,6,22) */
+# else /* RTLNX_VER_MAX(2,6,18) */
         Log3(("vboxNetFltLinuxPacketHandler: skb copy len=%u data_len=%u truesize=%u next=%p nr_frags=%u tso_size=%u tso_seqs=%u frag_list=%p pkt_type=%x\n",
               pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->tso_size, skb_shinfo(pBuf)->tso_segs, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
+# endif /* RTLNX_VER_MAX(2,6,18) */
     }
 #endif /* !VBOXNETFLT_SG_SUPPORT */
 
@@ -1145,7 +1145,7 @@ DECLINLINE(unsigned) vboxNetFltLinuxCalcSGSegments(struct sk_buff *pBuf, unsigne
     {
         *pcbTemp = vboxNetFltLinuxGetChecksumStartOffset(pBuf) + VBOX_SKB_CSUM_OFFSET(pBuf) + sizeof(uint16_t);
     }
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+# if RTLNX_VER_MIN(2,6,27)
     if (vlan_tx_tag_present(pBuf))
     {
         if (*pcbTemp)
@@ -1153,7 +1153,7 @@ DECLINLINE(unsigned) vboxNetFltLinuxCalcSGSegments(struct sk_buff *pBuf, unsigne
         else
             *pcbTemp = VLAN_ETH_HLEN;
     }
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
+# endif /* RTLNX_VER_MIN(2,6,27) */
     if (*pcbTemp)
         ++cSegs;
     struct sk_buff *pFrag;
@@ -1537,7 +1537,7 @@ static void vboxNetFltLinuxForwardToIntNetInner(PVBOXNETFLTINS pThis, struct sk_
             /*
              * skb_gso_segment does the following. Do we need to do it as well?
              */
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+# if RTLNX_VER_MIN(2,6,22)
             skb_reset_mac_header(pBuf);
             pBuf->mac_len = pBuf->network_header - pBuf->mac_header;
 # else
@@ -1587,7 +1587,9 @@ static void vboxNetFltLinuxForwardToIntNetInner(PVBOXNETFLTINS pThis, struct sk_
 #ifndef VBOXNETFLT_SG_SUPPORT
         if (pBuf->ip_summed == CHECKSUM_PARTIAL && pBuf->pkt_type == PACKET_OUTGOING)
         {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+# if RTLNX_VER_MIN(2,6,19)
+            int rc = VBOX_SKB_CHECKSUM_HELP(pBuf);
+# else
             /*
              * Try to work around the problem with CentOS 4.7 and 5.2 (2.6.9
              * and 2.6.18 kernels), they pass wrong 'h' pointer down. We take IP
@@ -1597,13 +1599,12 @@ static void vboxNetFltLinuxForwardToIntNetInner(PVBOXNETFLTINS pThis, struct sk_
             unsigned char *tmp = pBuf->h.raw;
             if (pBuf->h.raw == pBuf->nh.raw && pBuf->protocol == htons(ETH_P_IP))
                 pBuf->h.raw = pBuf->nh.raw + pBuf->nh.iph->ihl * 4;
-#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18) */
             int rc = VBOX_SKB_CHECKSUM_HELP(pBuf);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
             /* Restore the original (wrong) pointer. */
             pBuf->h.raw = tmp;
-#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18) */
-            if (rc) {
+# endif
+            if (rc)
+            {
                 LogRel(("VBoxNetFlt: Failed to compute checksum, dropping the packet.\n"));
                 return;
             }
@@ -1657,7 +1658,7 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
  *
  * @param   pWork               The work queue.
  */
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+# if RTLNX_VER_MIN(2,6,20)
 static void vboxNetFltLinuxXmitTask(struct work_struct *pWork)
 # else
 static void vboxNetFltLinuxXmitTask(void *pWork)
@@ -1774,7 +1775,7 @@ static bool vboxNetFltNeedsLinkState(PVBOXNETFLTINS pThis, struct net_device *pD
         if (!strncmp(Info.driver, "vboxnet", sizeof(Info.driver)))
             return true;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) /* TAP started doing carrier */
+#if RTLNX_VER_MIN(2,6,36) /* TAP started doing carrier */
         return !strncmp(Info.driver,   "tun", 4)
             && !strncmp(Info.bus_info, "tap", 4);
 #endif
@@ -1783,7 +1784,7 @@ static bool vboxNetFltNeedsLinkState(PVBOXNETFLTINS pThis, struct net_device *pD
     return false;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
+#if RTLNX_VER_MAX(2,6,18)
 DECLINLINE(void) netif_tx_lock_bh(struct net_device *pDev)
 {
     spin_lock_bh(&pDev->xmit_lock);
@@ -1836,7 +1837,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 
     Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) retained. ref=%d\n",
           pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if RTLNX_VER_MIN(2,6,37)
           netdev_refcnt_read(pDev)
 #else
           atomic_read(&pDev->refcnt)
@@ -1933,7 +1934,7 @@ static int vboxNetFltLinuxUnregisterDevice(PVBOXNETFLTINS pThis, struct net_devi
         Log(("vboxNetFltLinuxUnregisterDevice: this=%p: xmit queue purged.\n", pThis));
         Log(("vboxNetFltLinuxUnregisterDevice: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if RTLNX_VER_MIN(2,6,37)
              netdev_refcnt_read(pDev)
 #else
              atomic_read(&pDev->refcnt)
@@ -2044,8 +2045,8 @@ static int vboxNetFltLinuxNotifierCallback(struct notifier_block *self, unsigned
 
     if (ulEventType == NETDEV_REGISTER)
     {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) /* cgroups/namespaces introduced */
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+#if RTLNX_VER_MIN(2,6,24) /* cgroups/namespaces introduced */
+# if RTLNX_VER_MIN(2,6,26)
 #  define VBOX_DEV_NET(dev)             dev_net(dev)
 #  define VBOX_NET_EQ(n1, n2)           net_eq((n1), (n2))
 # else
@@ -2116,14 +2117,16 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
     /*
      * IPv4
      */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14)
+#if RTLNX_VER_MIN(2,6,14)
     in_dev = __in_dev_get_rtnl(dev);
 #else
     in_dev = __in_dev_get(dev);
 #endif
     if (in_dev != NULL)
     {
-        for_ifa(in_dev) {
+        struct in_ifaddr *ifa;
+
+        for (ifa = in_dev->ifa_list; ifa; ifa = ifa->ifa_next) {
             if (VBOX_IPV4_IS_LOOPBACK(ifa->ifa_address))
                 return NOTIFY_OK;
 
@@ -2137,7 +2140,7 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
 
             pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
                 /* :fAdded */ true, kIntNetAddrType_IPv4, &ifa->ifa_address);
-        } endfor_ifa(in_dev);
+        }
     }
 
     /*
@@ -2149,7 +2152,7 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
         struct inet6_ifaddr *ifa;
 
         read_lock_bh(&in6_dev->lock);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#if RTLNX_VER_MIN(2,6,35)
         list_for_each_entry(ifa, &in6_dev->addr_list, if_list)
 #else
         for (ifa = in6_dev->addr_list; ifa != NULL; ifa = ifa->if_next)
@@ -2185,9 +2188,9 @@ static int vboxNetFltLinuxNotifierIPv4Callback(struct notifier_block *self, unsi
     pEventDev = ifa->ifa_dev->dev;
     fMyDev = (pDev == pEventDev);
     Log(("VBoxNetFlt: %s: IPv4 event %s(0x%lx) %s: addr %RTnaipv4 mask %RTnaipv4\n",
-         pDev ? VBOX_NETDEV_NAME(pDev) : "<???>",
+         pDev ? VBOX_NETDEV_NAME(pDev) : "<unknown>",
          vboxNetFltLinuxGetNetDevEventName(ulEventType), ulEventType,
-         pEventDev ? VBOX_NETDEV_NAME(pEventDev) : "<???>",
+         pEventDev ? VBOX_NETDEV_NAME(pEventDev) : "<unknown>",
          ifa->ifa_address, ifa->ifa_mask));
 
     if (pDev != NULL)
@@ -2230,9 +2233,9 @@ static int vboxNetFltLinuxNotifierIPv6Callback(struct notifier_block *self, unsi
     pEventDev = ifa->idev->dev;
     fMyDev = (pDev == pEventDev);
     Log(("VBoxNetFlt: %s: IPv6 event %s(0x%lx) %s: %RTnaipv6\n",
-         pDev ? VBOX_NETDEV_NAME(pDev) : "<???>",
+         pDev ? VBOX_NETDEV_NAME(pDev) : "<unknown>",
          vboxNetFltLinuxGetNetDevEventName(ulEventType), ulEventType,
-         pEventDev ? VBOX_NETDEV_NAME(pEventDev) : "<???>",
+         pEventDev ? VBOX_NETDEV_NAME(pEventDev) : "<unknown>",
          &ifa->addr));
 
     if (pDev != NULL)
@@ -2453,7 +2456,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
         Log(("vboxNetFltOsDeleteInstance: this=%p: xmit queue purged.\n", pThis));
         Log(("vboxNetFltOsDeleteInstance: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if RTLNX_VER_MIN(2,6,37)
              netdev_refcnt_read(pDev)
 #else
              atomic_read(&pDev->refcnt)
@@ -2555,7 +2558,7 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     memset(&pThis->u.s.PacketType, 0, sizeof(pThis->u.s.PacketType));
 #ifndef VBOXNETFLT_LINUX_NO_XMIT_QUEUE
     skb_queue_head_init(&pThis->u.s.XmitQueue);
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+# if RTLNX_VER_MIN(2,6,20)
     INIT_WORK(&pThis->u.s.XmitTask, vboxNetFltLinuxXmitTask);
 # else
     INIT_WORK(&pThis->u.s.XmitTask, vboxNetFltLinuxXmitTask, &pThis->u.s.XmitTask);

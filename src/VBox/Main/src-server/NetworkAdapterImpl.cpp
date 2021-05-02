@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,6 +236,7 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
     {
         case NetworkAdapterType_Am79C970A:
         case NetworkAdapterType_Am79C973:
+        case NetworkAdapterType_Am79C960:
 #ifdef VBOX_WITH_E1000
         case NetworkAdapterType_I82540EM:
         case NetworkAdapterType_I82543GC:
@@ -243,6 +244,9 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
 #endif
 #ifdef VBOX_WITH_VIRTIO
         case NetworkAdapterType_Virtio:
+#endif
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+        case NetworkAdapterType_Virtio_1_0:
 #endif /* VBOX_WITH_VIRTIO */
             break;
         default:
@@ -720,6 +724,68 @@ HRESULT NetworkAdapter::setGenericDriver(const com::Utf8Str &aGenericDriver)
     }
 
     return S_OK;
+}
+
+
+HRESULT NetworkAdapter::getCloudNetwork(com::Utf8Str &aCloudNetwork)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+   AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    aCloudNetwork = mData->strCloudNetworkName;
+
+    return S_OK;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aCloudNetwork);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
+}
+
+HRESULT NetworkAdapter::setCloudNetwork(const com::Utf8Str &aCloudNetwork)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+    /* the machine needs to be mutable */
+    AutoMutableOrSavedOrRunningStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->strCloudNetworkName != aCloudNetwork)
+    {
+        /* if an empty/null string is to be set, Cloud networking must be
+         * turned off */
+        if (   aCloudNetwork.isEmpty()
+            && mData->fEnabled
+            && mData->mode == NetworkAttachmentType_Cloud)
+        {
+            return setError(E_FAIL,
+                            tr("Empty or null Cloud network name is not valid"));
+        }
+        mData.backup();
+        mData->strCloudNetworkName = aCloudNetwork;
+
+        // leave the lock before informing callbacks
+        alock.release();
+
+#if 0
+        /// @todo Implement dynamic re-attachment of cloud network
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        mParent->i_setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
+        /* When changing the internal network, adapt the CFGM logic to make this
+         * change immediately effect and to notify the guest that the network
+         * might have changed, therefore changeAdapter=TRUE. */
+        mParent->i_onNetworkAdapterChange(this, TRUE);
+#else
+        mParent->i_onNetworkAdapterChange(this, FALSE);
+#endif
+    }
+    return S_OK;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aCloudNetwork);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
 }
 
 

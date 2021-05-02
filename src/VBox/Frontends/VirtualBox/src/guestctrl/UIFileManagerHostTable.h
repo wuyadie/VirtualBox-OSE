@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,7 @@ protected:
     virtual QString fsObjectPropertyString() /* override */;
     virtual void    showProperties() /* override */;
     virtual void    determineDriveLetters() /* override */;
+    virtual void    determinePathSeparator() /* override */;
     virtual void    prepareToolbar() /* override */;
     virtual void    createFileViewContextMenu(const QWidget *pWidget, const QPoint &point) /* override */;
     /** @name Copy/Cut host-to-host stuff. Currently not implemented.
@@ -68,7 +69,6 @@ private:
 
     static QString permissionString(QFileDevice::Permissions permissions);
     void    prepareActionConnections();
-
 };
 
 #endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerHostTable_h */

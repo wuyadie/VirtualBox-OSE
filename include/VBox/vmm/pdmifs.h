@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -430,9 +430,9 @@ typedef struct PDMIKEYBOARDPORT
      *          event now and want it to be repeated at a later point.
      *
      * @param   pInterface          Pointer to this interface structure.
-     * @param   u32UsageID          The HID usage code event to queue.
+     * @param   idUsage             The HID usage code event to queue.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventHid,(PPDMIKEYBOARDPORT pInterface, uint32_t u32UsageID));
+    DECLR3CALLBACKMEMBER(int, pfnPutEventHid,(PPDMIKEYBOARDPORT pInterface, uint32_t idUsage));
 } PDMIKEYBOARDPORT;
 /** PDMIKEYBOARDPORT interface ID. */
 #define PDMIKEYBOARDPORT_IID                    "2a0844f0-410b-40ab-a6ed-6575f3aa3e29"
@@ -709,6 +709,18 @@ typedef struct PDMIDISPLAYPORT
      * @thread  Any.
      */
     DECLR3CALLBACKMEMBER(void, pfnReportHostCursorPosition, (PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y, bool fOutOfRange));
+
+    /**
+     * Notify the graphics device about the monitor positions since the ones we get from vmwgfx FIFO are not correct. In an ideal
+     * universe this method should not be here.
+     *
+     * @param   pInterface   Pointer to this interface.
+     * @param   cPositions   Number of monitor positions
+     * @param   pPosition    Monitor positions (offsets/origins) array
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportMonitorPositions, (PPDMIDISPLAYPORT pInterface, uint32_t cPositions, PRTPOINT pPosition));
+
 } PDMIDISPLAYPORT;
 /** PDMIDISPLAYPORT interface ID. */
 #define PDMIDISPLAYPORT_IID                     "471b0520-338c-11e9-bb84-6ff2c956da45"
@@ -721,6 +733,8 @@ typedef struct PDMIDISPLAYPORT
 #define VBVA_CURSOR_SCREEN_RELATIVE                         RT_BIT(1)
 /** @} */
 
+/** Pointer to a 3D graphics notification. */
+typedef struct VBOX3DNOTIFY VBOX3DNOTIFY;
 /** Pointer to a 2D graphics acceleration command. */
 typedef struct VBOXVHWACMD VBOXVHWACMD;
 /** Pointer to a VBVA command header. */
@@ -736,15 +750,9 @@ typedef struct VBVAINFOVIEW *PVBVAINFOVIEW;
 /** Pointer to a const VBVA guest VRAM area information. */
 typedef const struct VBVAINFOVIEW *PCVBVAINFOVIEW;
 typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
-struct VBOXVDMACMD_CHROMIUM_CMD; /* <- chromium [hgsmi] command */
-struct VBOXVDMACMD_CHROMIUM_CTL; /* <- chromium [hgsmi] command */
-
 
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
-struct VBOXCRCMDCTL;
-typedef DECLCALLBACK(void) FNCRCTLCOMPLETION(struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd, int rc,  void *pvCompletion);
-typedef FNCRCTLCOMPLETION *PFNCRCTLCOMPLETION;
 
 /**
  * Display connector interface (up).
@@ -865,57 +873,15 @@ typedef struct PDMIDISPLAYCONNECTOR
                                                      VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCmd));
 
     /**
-     * Process the guest chromium command.
-     *
-     * @param   pInterface          Pointer to this interface.
-     * @param   pCmd                Video HW Acceleration Command to be processed.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiCommandProcess,(PPDMIDISPLAYCONNECTOR pInterface,
-                                                         struct VBOXVDMACMD_CHROMIUM_CMD RT_UNTRUSTED_VOLATILE_GUEST *pCmd,
-                                                         uint32_t cbCmd));
-
-    /**
-     * Process the guest chromium control command.
-     *
-     * @param   pInterface          Pointer to this interface.
-     * @param   pCmd                Video HW Acceleration Command to be processed.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiControlProcess,(PPDMIDISPLAYCONNECTOR pInterface,
-                                                         struct VBOXVDMACMD_CHROMIUM_CTL RT_UNTRUSTED_VOLATILE_GUEST *pCtl,
-                                                         uint32_t cbCtl));
-
-    /**
-     * Process the guest chromium control command.
-     *
-     * @param   pInterface          Pointer to this interface.
-     * @param   pCmd                Video HW Acceleration Command to be processed.
-     * @param   cbCmd               Undocumented!
-     * @param   pfnCompletion       Undocumented!
-     * @param   pvCompletion        Undocumented!
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(int, pfnCrHgcmCtlSubmit,(PPDMIDISPLAYCONNECTOR pInterface, struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd,
-                                                  PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion));
-
-    /**
      * The specified screen enters VBVA mode.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   uScreenId           The screen updates are for.
      * @param   pHostFlags          Undocumented!
-     * @param   fRenderThreadMode   if true - the graphics device has a separate thread that does all rendering.
-     *                              This means that:
-     *                              1. most pfnVBVAXxx callbacks (see the individual documentation for each one)
-     *                                 will be called in the context of the render thread rather than the emulation thread
-     *                              2. PDMIDISPLAYCONNECTOR implementor (i.e. DisplayImpl) must NOT notify crogl backend
-     *                                 about vbva-originated events (e.g. resize), because crogl is working in CrCmd mode,
-     *                                 in the context of the render thread as part of the Graphics device, and gets notified about those events directly
-     * @thread  if fRenderThreadMode is TRUE - the render thread, otherwise - the emulation thread.
+     * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
-                                             struct VBVAHOSTFLAGS RT_UNTRUSTED_VOLATILE_GUEST *pHostFlags, bool fRenderThreadMode));
+                                             struct VBVAHOSTFLAGS RT_UNTRUSTED_VOLATILE_GUEST *pHostFlags));
 
     /**
      * The specified screen leaves VBVA mode.
@@ -1058,9 +1024,19 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVBVAReportCursorPosition,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fFlags, uint32_t uScreen, uint32_t x, uint32_t y));
+
+    /**
+     * Process the graphics device HW Acceleration command.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   p3DNotify           Acceleration Command to be processed.
+     * @thread  The graphics device thread: FIFO for the VMSVGA device.
+     */
+    DECLR3CALLBACKMEMBER(int, pfn3DNotifyProcess,(PPDMIDISPLAYCONNECTOR pInterface,
+                                                  VBOX3DNOTIFY *p3DNotify));
 } PDMIDISPLAYCONNECTOR;
 /** PDMIDISPLAYCONNECTOR interface ID. */
-#define PDMIDISPLAYCONNECTOR_IID                "f2a4c9fc-2613-11e9-bc48-bf934e641fc0"
+#define PDMIDISPLAYCONNECTOR_IID                "cdd562e4-8030-11ea-8d40-bbc8e146c565"
 
 
 /** Pointer to a secret key interface. */
@@ -1527,9 +1503,10 @@ typedef struct PDMIVMMDEVPORT
      * @param   paDisplays      Definitions of guest screens to be applied. See VMMDev.h
      * @param   fForce          Whether to deliver the request to the guest even if the guest has
      *                          the requested resolution already.
+     * @param   fMayNotify      Whether to send a hotplug notification to the guest if appropriate.
      */
     DECLR3CALLBACKMEMBER(int, pfnRequestDisplayChange,(PPDMIVMMDEVPORT pInterface, uint32_t cDisplays,
-                                                       struct VMMDevDisplayDef const *paDisplays, bool fForce));
+                                                       struct VMMDevDisplayDef const *paDisplays, bool fForce, bool fMayNotify));
 
     /**
      * Pass credentials to guest.
@@ -1627,7 +1604,7 @@ typedef struct PDMIVMMDEVPORT
 
 } PDMIVMMDEVPORT;
 /** PDMIVMMDEVPORT interface ID. */
-#define PDMIVMMDEVPORT_IID                      "2ccc19a5-742a-4af0-a7d3-31ea67ff50e9"
+#define PDMIVMMDEVPORT_IID                      "9e004f1a-875d-11e9-a673-c77c30f53623"
 
 
 /** Pointer to a HPET legacy notification interface. */
@@ -1858,6 +1835,20 @@ typedef struct PDMIVMMDEVCONNECTOR
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnSetVisibleRegion,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t cRect, PRTRECT pRect));
+
+    /**
+     * Update monitor positions (offsets). Passing monitor positions from the guest to host
+     * exclusively since vmwgfx fails to do so (thru FIFO).
+     *
+     * @returns VBox status code.
+     * @param   pInterface          Pointer to this interface.
+     * @param   cPositions          Number of monitor positions
+     * @param   pPosition           Positions array
+     * @thread  The emulation thread.
+     *
+     * @remarks Is allowed to be NULL.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnUpdateMonitorPositions,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t cPositions, PRTPOINT pPosition));
 
     /**
      * Query the visible region of the display
@@ -2205,21 +2196,9 @@ typedef struct PDMIDISPLAYVBVACALLBACKS
      */
     DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsync,(PPDMIDISPLAYVBVACALLBACKS pInterface,
                                                            VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCmd));
-
-    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiCommandCompleteAsync,(PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                              struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, int rc));
-
-    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiControlCompleteAsync,(PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                              struct VBOXVDMACMD_CHROMIUM_CTL *pCmd, int rc));
-
-    DECLR3CALLBACKMEMBER(int, pfnCrCtlSubmit,(PPDMIDISPLAYVBVACALLBACKS pInterface, struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd,
-                                              PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion));
-
-    DECLR3CALLBACKMEMBER(int, pfnCrCtlSubmitSync,(PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                  struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd));
 } PDMIDISPLAYVBVACALLBACKS;
 /** PDMIDISPLAYVBVACALLBACKS  */
-#define PDMIDISPLAYVBVACALLBACKS_IID            "ddac0bd0-332d-4671-8853-732921a80216"
+#define PDMIDISPLAYVBVACALLBACKS_IID            "37f34c9c-0491-47dc-a0b3-81697c44a416"
 
 /** Pointer to a PCI raw connector interface. */
 typedef struct PDMIPCIRAWCONNECTOR *PPDMIPCIRAWCONNECTOR;

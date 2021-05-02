@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3249,7 +3249,7 @@ static DECLCALLBACK(int) vdIOGetSizeFallback(void *pvUser, void *pvStorage, uint
     RT_NOREF1(pvUser);
     PVDIIOFALLBACKSTORAGE pStorage = (PVDIIOFALLBACKSTORAGE)pvStorage;
 
-    return RTFileGetSize(pStorage->File, pcbSize);
+    return RTFileQuerySize(pStorage->File, pcbSize);
 }
 
 /**
@@ -5407,11 +5407,14 @@ VBOXDDU_DECL(int) VDDestroy(PVDISK pDisk)
  * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
  * @param   pVDIfsImage     Pointer to the per-image VD interface list.
  * @param   pszFilename     Name of the image file for which the backend is queried.
+ * @param   enmDesiredType  The desired image type, VDTYPE_INVALID if anything goes.
  * @param   ppszFormat      Receives pointer of the UTF-8 string which contains the format name.
  *                          The returned pointer must be freed using RTStrFree().
+ * @param   penmType        Where to store the type of the image.
  */
 VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                              const char *pszFilename, char **ppszFormat, VDTYPE *penmType)
+                              const char *pszFilename, VDTYPE enmDesiredType,
+                              char **ppszFormat, VDTYPE *penmType)
 {
     int rc = VERR_NOT_SUPPORTED;
     VDINTERFACEIOINT VDIfIoInt;
@@ -5429,6 +5432,7 @@ VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
     AssertMsgReturn(VALID_PTR(penmType),
                     ("penmType=%#p\n", penmType),
                     VERR_INVALID_PARAMETER);
+    AssertReturn(enmDesiredType >= VDTYPE_INVALID && enmDesiredType <= VDTYPE_FLOPPY, VERR_INVALID_PARAMETER);
 
     if (!vdPluginIsInitialized())
         VDInit();
@@ -5463,6 +5467,13 @@ VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                         pInterfaceIo, sizeof(VDINTERFACEIOINT), &pVDIfsImage);
     AssertRC(rc);
 
+    /** @todo r=bird: Would be better to do a scoring approach here, where the
+     * backend that scores the highest is choosen.  That way we don't have to depend
+     * on registration order and filename suffixes to figure out what RAW should
+     * handle and not.   Besides, the registration order won't cut it for plug-ins
+     * anyway, as they end up after the builtin ones.
+     */
+
     /* Find the backend supporting this file format. */
     for (unsigned i = 0; i < vdGetImageBackendCount(); i++)
     {
@@ -5472,7 +5483,7 @@ VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
 
         if (pBackend->pfnProbe)
         {
-            rc = pBackend->pfnProbe(pszFilename, pVDIfsDisk, pVDIfsImage, penmType);
+            rc = pBackend->pfnProbe(pszFilename, pVDIfsDisk, pVDIfsImage, enmDesiredType, penmType);
             if (    RT_SUCCESS(rc)
                 /* The correct backend has been found, but there is a small
                  * incompatibility so that the file cannot be used. Stop here
@@ -8599,6 +8610,12 @@ VBOXDDU_DECL(int) VDRead(PVDISK pDisk, uint64_t uOffset, void *pvBuf,
         AssertRC(rc2);
         fLockRead = true;
 
+        AssertMsgBreakStmt(   uOffset < pDisk->cbSize
+                           && cbRead <= pDisk->cbSize - uOffset,
+                           ("uOffset=%llu cbRead=%zu pDisk->cbSize=%llu\n",
+                            uOffset, cbRead, pDisk->cbSize),
+                           rc = VERR_INVALID_PARAMETER);
+
         PVDIMAGE pImage = pDisk->pLast;
         AssertPtrBreakStmt(pImage, rc = VERR_VD_NOT_OPENED);
 
@@ -8668,7 +8685,8 @@ VBOXDDU_DECL(int) VDWrite(PVDISK pDisk, uint64_t uOffset, const void *pvBuf,
         AssertRC(rc2);
         fLockWrite = true;
 
-        AssertMsgBreakStmt(uOffset + cbWrite <= pDisk->cbSize,
+        AssertMsgBreakStmt(   uOffset < pDisk->cbSize
+                           && cbWrite <= pDisk->cbSize - uOffset,
                            ("uOffset=%llu cbWrite=%zu pDisk->cbSize=%llu\n",
                             uOffset, cbWrite, pDisk->cbSize),
                            rc = VERR_INVALID_PARAMETER);
@@ -10242,7 +10260,8 @@ VBOXDDU_DECL(int) VDAsyncRead(PVDISK pDisk, uint64_t uOffset, size_t cbRead,
         AssertRC(rc2);
         fLockRead = true;
 
-        AssertMsgBreakStmt(uOffset + cbRead <= pDisk->cbSize,
+        AssertMsgBreakStmt(   uOffset < pDisk->cbSize
+                           && cbRead <= pDisk->cbSize - uOffset,
                            ("uOffset=%llu cbRead=%zu pDisk->cbSize=%llu\n",
                             uOffset, cbRead, pDisk->cbSize),
                            rc = VERR_INVALID_PARAMETER);
@@ -10313,7 +10332,8 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVDISK pDisk, uint64_t uOffset, size_t cbWrite,
         AssertRC(rc2);
         fLockWrite = true;
 
-        AssertMsgBreakStmt(uOffset + cbWrite <= pDisk->cbSize,
+        AssertMsgBreakStmt(   uOffset < pDisk->cbSize
+                           && cbWrite <= pDisk->cbSize - uOffset,
                            ("uOffset=%llu cbWrite=%zu pDisk->cbSize=%llu\n",
                             uOffset, cbWrite, pDisk->cbSize),
                            rc = VERR_INVALID_PARAMETER);

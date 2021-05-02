@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2017-2019 Oracle Corporation
+# Copyright (C) 2017-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,8 @@ MY_CHROOT_CDROM="/cdrom"
 MY_CDROM_NOCHROOT="/tmp/vboxcdrom"
 MY_EXITCODE=0
 MY_DEBUG="" # "yes"
-
+GUEST_VERSION=@@VBOX_INSERT_GUEST_OS_VERSION@@
+GUEST_MAJOR_VERSION=@@VBOX_INSERT_GUEST_OS_MAJOR_VERSION@@
 
 #
 # Do we need to exec using target bash?  If so, we must do that early
@@ -161,6 +162,16 @@ fi
 
 
 #
+# Add EPEL repository
+#
+EPEL_REPOSITORY="https://dl.fedoraproject.org/pub/epel/epel-release-latest-${GUEST_MAJOR_VERSION}.noarch.rpm"
+log_command_in_target wget ${EPEL_REPOSITORY}
+log_command_in_target yum localinstall -y "epel-release-latest-${GUEST_MAJOR_VERSION}.noarch.rpm"
+log_command_in_target yum install -y yum-utils
+log_command_in_target yum-config-manager --enable epel
+
+
+#
 # Packages needed for GAs.
 #
 echo "--------------------------------------------------" >> "${MY_LOGFILE}"
@@ -170,10 +181,23 @@ log_command_in_target yum -y install "kernel-headers-$(uname -r)"
 log_command_in_target yum -y install gcc
 log_command_in_target yum -y install binutils
 log_command_in_target yum -y install make
+@@VBOX_COND_GUEST_VERSION[>8.0.0]@@
+log_command_in_target yum -y install elfutils-libelf-devel
+@@VBOX_COND_END@@
 log_command_in_target yum -y install dkms
 log_command_in_target yum -y install make
 log_command_in_target yum -y install bzip2
 log_command_in_target yum -y install perl
+
+
+#
+#Package cloud-init is needed for possible automation the initial setup of virtual machine
+#
+log_command_in_target yum -y install cloud-init
+log_command_in_target systemctl enable cloud-init-local.service
+log_command_in_target systemctl enable cloud-init.service
+log_command_in_target systemctl enable cloud-config.service
+log_command_in_target systemctl enable cloud-final.service
 
 
 #
@@ -184,6 +208,8 @@ echo "--------------------------------------------------" >> "${MY_LOGFILE}"
 echo '** Installing VirtualBox Guest Additions...' | tee -a "${MY_LOGFILE}"
 MY_IGNORE_EXITCODE=2  # returned if modules already loaded and reboot required.
 log_command_in_target /bin/bash "${MY_CHROOT_CDROM}/vboxadditions/VBoxLinuxAdditions.run" --nox11
+log_command_in_target /bin/bash -c "udevadm control --reload-rules" # GAs doesn't yet do this.
+log_command_in_target /bin/bash -c "udevadm trigger"                 # (ditto)
 MY_IGNORE_EXITCODE=
 log_command_in_target usermod -a -G vboxsf "@@VBOX_INSERT_USER_LOGIN@@"
 @@VBOX_COND_END@@

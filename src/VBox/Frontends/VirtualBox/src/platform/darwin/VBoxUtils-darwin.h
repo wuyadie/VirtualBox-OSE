@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -114,6 +114,7 @@ SHARED_LIBRARY_STUFF void darwinToggleWindowZoom(NativeNSWindowRef pWindow);
 SHARED_LIBRARY_STUFF bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow);
 SHARED_LIBRARY_STUFF bool darwinIsOnActiveSpace(NativeNSWindowRef pWindow);
 SHARED_LIBRARY_STUFF bool darwinScreensHaveSeparateSpaces();
+SHARED_LIBRARY_STUFF bool darwinIsScrollerStyleOverlay();
 
 bool darwinOpenFile(NativeNSStringRef pstrFile);
 

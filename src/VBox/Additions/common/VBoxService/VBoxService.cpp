@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,6 +77,7 @@
 #ifdef DEBUG
 # include <iprt/memtracker.h>
 #endif
+#include <iprt/env.h>
 #include <iprt/message.h>
 #include <iprt/path.h>
 #include <iprt/process.h>
@@ -90,6 +91,7 @@
 #include <VBox/log.h>
 
 #include "VBoxServiceInternal.h"
+#include "VBoxServiceUtils.h"
 #ifdef VBOX_WITH_VBOXSERVICE_CONTROL
 # include "VBoxServiceControl.h"
 #endif
@@ -377,13 +379,12 @@ void VGSvcLogDestroy(void)
  */
 static int vgsvcUsage(void)
 {
-    RTPrintf("Usage:\n"
-             " %-12s [-f|--foreground] [-v|--verbose] [-l|--logfile <file>]\n"
-             "              [-p|--pidfile <file>] [-i|--interval <seconds>]\n"
-             "              [--disable-<service>] [--enable-<service>]\n"
-             "              [--only-<service>] [-h|-?|--help]\n", g_pszProgName);
+    RTPrintf("Usage: %s [-f|--foreground] [-v|--verbose] [-l|--logfile <file>]\n"
+             "           [-p|--pidfile <file>] [-i|--interval <seconds>]\n"
+             "           [--disable-<service>] [--enable-<service>]\n"
+             "           [--only-<service>] [-h|-?|--help]\n", g_pszProgName);
 #ifdef RT_OS_WINDOWS
-    RTPrintf("              [-r|--register] [-u|--unregister]\n");
+    RTPrintf("           [-r|--register] [-u|--unregister]\n");
 #endif
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         if (g_aServices[j].pDesc->pszUsage)
@@ -877,6 +878,50 @@ void VGSvcMainWait(void)
 }
 
 
+/**
+ * Report VbglR3InitUser / VbglR3Init failure.
+ *
+ * @returns RTEXITCODE_FAILURE
+ * @param   rcVbgl      The failing status code.
+ */
+static RTEXITCODE vbglInitFailure(int rcVbgl)
+{
+    if (rcVbgl == VERR_ACCESS_DENIED)
+        return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                              "Insufficient privileges to start %s! Please start with Administrator/root privileges!\n",
+                              g_pszProgName);
+    return RTMsgErrorExit(RTEXITCODE_FAILURE, "VbglR3Init failed with rc=%Rrc\n", rcVbgl);
+}
+
+#ifdef RT_OS_LINUX
+/**
+ * Check for a guest property and start VBoxDRMClient if it exists.
+ *
+ */
+static void startDRMResize(void)
+{
+    uint32_t uGuestPropSvcClientID;
+    int rc = VbglR3GuestPropConnect(&uGuestPropSvcClientID);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/DRMResize");
+        if (RT_SUCCESS(rc))
+        {
+            RTMsgInfo("Starting DRM resize service");
+            char szDRMClientPath[RTPATH_MAX];
+            RTPathExecDir(szDRMClientPath, RTPATH_MAX);
+            RTPathStripSuffix(szDRMClientPath);
+            RTPathAppend(szDRMClientPath, RTPATH_MAX, "VBoxDRMClient");
+            const char *apszArgs[1] = { NULL };
+            rc = RTProcCreate("VBoxDRMClient", apszArgs, RTENV_DEFAULT,
+                              RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_SEARCH_PATH, NULL);
+            if (rc == -1)
+                RTMsgError("Could not start DRM resize service");
+        }
+    }
+}
+#endif
+
 int main(int argc, char **argv)
 {
     RTEXITCODE rcExit;
@@ -914,27 +959,19 @@ int main(int argc, char **argv)
      * handles a guest control session.
      */
     if (   argc >= 2
-        && !RTStrICmp(argv[1], "guestsession"))
+        && !RTStrICmp(argv[1], VBOXSERVICECTRLSESSION_GETOPT_PREFIX))
         fUserSession = true;
 #endif
 
     /*
-     * Connect to the kernel part before daemonizing so we can fail and
-     * complain if there is some kind of problem.  We need to initialize the
-     * guest lib *before* we do the pre-init just in case one of services needs
-     * do to some initial stuff with it.
+     * Connect to the kernel part before daemonizing and *before* we do the sub-service
+     * pre-init just in case one of services needs do to some initial stuff with it.
+     *
+     * However, we do not fail till after we've parsed arguments, because that will
+     * prevent useful stuff like --help, --register, --unregister and --version from
+     * working when the driver hasn't been installed/loaded yet.
      */
-    if (fUserSession)
-        rc = VbglR3InitUser();
-    else
-        rc = VbglR3Init();
-    if (RT_FAILURE(rc))
-    {
-        if (rc == VERR_ACCESS_DENIED)
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Insufficient privileges to start %s! Please start with Administrator/root privileges!\n",
-                                  g_pszProgName);
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "VbglR3Init failed with rc=%Rrc\n", rc);
-    }
+    int const rcVbgl = fUserSession ? VbglR3InitUser() : VbglR3Init();
 
 #ifdef RT_OS_WINDOWS
     /*
@@ -943,7 +980,11 @@ int main(int argc, char **argv)
      */
     if (   argc == 2
         && !RTStrICmp(argv[1], "pagefusion"))
-        return VGSvcPageSharingWorkerChild();
+    {
+        if (RT_SUCCESS(rcVbgl))
+            return VGSvcPageSharingWorkerChild();
+        return vbglInitFailure(rcVbgl);
+    }
 #endif
 
 #ifdef VBOX_WITH_VBOXSERVICE_CONTROL
@@ -952,7 +993,11 @@ int main(int argc, char **argv)
      * handles a guest control session.
      */
     if (fUserSession)
-        return VGSvcGstCtrlSessionSpawnInit(argc, argv);
+    {
+        if (RT_SUCCESS(rcVbgl))
+            return VGSvcGstCtrlSessionSpawnInit(argc, argv);
+        return vbglInitFailure(rcVbgl);
+    }
 #endif
 
     /*
@@ -1051,8 +1096,7 @@ int main(int argc, char **argv)
             switch (*psz)
             {
                 case 'i':
-                    rc = VGSvcArgUInt32(argc, argv, psz + 1, &i,
-                                              &g_DefaultInterval, 1, (UINT32_MAX / 1000) - 1);
+                    rc = VGSvcArgUInt32(argc, argv, psz + 1, &i, &g_DefaultInterval, 1, (UINT32_MAX / 1000) - 1);
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -1084,8 +1128,7 @@ int main(int argc, char **argv)
 
                 case 'l':
                 {
-                    rc = vgsvcArgString(argc, argv, psz + 1, &i,
-                                        g_szLogFile, sizeof(g_szLogFile));
+                    rc = vgsvcArgString(argc, argv, psz + 1, &i, g_szLogFile, sizeof(g_szLogFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -1094,8 +1137,7 @@ int main(int argc, char **argv)
 
                 case 'p':
                 {
-                    rc = vgsvcArgString(argc, argv, psz + 1, &i,
-                                        g_szPidFile, sizeof(g_szPidFile));
+                    rc = vgsvcArgString(argc, argv, psz + 1, &i, g_szPidFile, sizeof(g_szPidFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -1126,6 +1168,10 @@ int main(int argc, char **argv)
         } while (psz && *++psz);
     }
 
+    /* Now we can report the VBGL failure. */
+    if (RT_FAILURE(rcVbgl))
+        return vbglInitFailure(rcVbgl);
+
     /* Check that at least one service is enabled. */
     if (vgsvcCountEnabledServices() == 0)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "At least one service must be enabled\n");
@@ -1139,6 +1185,10 @@ int main(int argc, char **argv)
     rcExit = vgsvcLazyPreInit();
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
+
+#ifdef RT_OS_LINUX
+    startDRMResize();
+#endif
 
 #ifdef RT_OS_WINDOWS
     /*
@@ -1267,4 +1317,3 @@ int main(int argc, char **argv)
 
     return rcExit;
 }
-

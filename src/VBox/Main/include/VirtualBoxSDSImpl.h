@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,9 @@ private:
      * @{ */
     STDMETHOD(RegisterVBoxSVC)(IVBoxSVCRegistration *aVBoxSVC, LONG aPid, IUnknown **aExistingVirtualBox);
     STDMETHOD(DeregisterVBoxSVC)(IVBoxSVCRegistration *aVBoxSVC, LONG aPid);
+    STDMETHOD(LaunchVMProcess)(IN_BSTR aMachine, IN_BSTR aComment, IN_BSTR aFrontend,
+                               ComSafeArrayIn(IN_BSTR, aEnvironmentChanges), IN_BSTR aCmdOptions,
+                               ULONG aSessionId, ULONG *aPid);
     /** @} */
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,6 @@ enum UIActionIndexRT
     UIActionIndexRT_M_Machine_S_TakeSnapshot,
     UIActionIndexRT_M_Machine_S_ShowInformation,
     UIActionIndexRT_M_Machine_S_ShowFileManager,
-    UIActionIndexRT_M_Machine_S_ShowGuestProcessControl,
     UIActionIndexRT_M_Machine_T_Pause,
     UIActionIndexRT_M_Machine_S_Reset,
     UIActionIndexRT_M_Machine_S_Detach,
@@ -83,6 +82,7 @@ enum UIActionIndexRT
     UIActionIndexRT_M_Input,
     UIActionIndexRT_M_Input_M_Keyboard,
     UIActionIndexRT_M_Input_M_Keyboard_S_Settings,
+    UIActionIndexRT_M_Input_M_Keyboard_S_SoftKeyboard,
     UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD,
 #ifdef VBOX_WS_X11
     UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS,
@@ -122,6 +122,7 @@ enum UIActionIndexRT
     UIActionIndexRT_M_Debug_S_ShowCommandLine,
     UIActionIndexRT_M_Debug_T_Logging,
     UIActionIndexRT_M_Debug_S_ShowLogDialog,
+    UIActionIndexRT_M_Debug_S_GuestControlConsole,
 #endif
 
 #ifdef VBOX_WS_MAC

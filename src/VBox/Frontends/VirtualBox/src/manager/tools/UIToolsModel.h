@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 #include <QTransform>
 
 /* GUI includes: */
+#include "QIWithRetranslateUI.h"
 #include "UIToolsItem.h"
 
 /* COM includes: */
@@ -46,7 +47,7 @@ class UIToolsHandlerMouse;
 class UIToolsHandlerKeyboard;
 
 /** QObject extension used as VM Tools-pane model: */
-class UIToolsModel : public QObject
+class UIToolsModel : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
@@ -119,6 +120,11 @@ public:
         /** Returns whether certain class of tools is enabled.*/
         bool areToolsEnabled(UIToolClass enmClass) const;
 
+        /** Defines restructed tool @a types. */
+        void setRestrictedToolTypes(const QList<UIToolType> &types);
+        /** Returns restricted tool types. */
+        QList<UIToolType> restrictedToolTypes() const;
+
         /** Closes parent. */
         void closeParent();
     /** @} */
@@ -186,6 +192,9 @@ protected:
       * @{ */
         /** Preprocesses Qt @a pEvent for passed @a pObject. */
         virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+
+        /** Handles translation event. */
+        virtual void retranslateUi() /* override */;
     /** @} */
 
 private slots:
@@ -224,6 +233,8 @@ private:
         /** Saves last selected items. */
         void saveLastSelectedItems();
         /** Cleanups connections. */
+        void cleanupConnections();
+        /** Cleanups connections. */
         void cleanupHandlers();
         /** Cleanups items. */
         void cleanupItems();
@@ -257,6 +268,9 @@ private:
 
         /** Holds whether tools of particular class are enabled. */
         QMap<UIToolClass, bool>  m_statesToolsEnabled;
+
+        /** Holds a list of restricted tool types. */
+        QList<UIToolType>  m_restrictedToolTypes;
     /** @} */
 
     /** @name Children stuff.

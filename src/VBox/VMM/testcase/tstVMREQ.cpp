@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/cpum.h>
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/initterm.h>
@@ -308,6 +308,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             g_cErrors++;
         }
         VMR3ReleaseUVM(pUVM);
+    }
+    else if (rc == VERR_SVM_NO_SVM || rc == VERR_VMX_NO_VMX)
+    {
+        RTPrintf(TESTCASE ": Skipped: %Rrc\n", rc);
+        return RTEXITCODE_SKIPPED;
     }
     else
     {

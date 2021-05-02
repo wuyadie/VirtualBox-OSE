@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -355,10 +355,32 @@ DECLINLINE(void) RTTimeSpecGetSecondsAndNano(PRTTIMESPEC pTime, int32_t *pi32Sec
     *pi32Nano    = i32Nano;
 }
 
+/** @def RTTIME_LINUX_KERNEL_PREREQ
+ * Prerequisite minimum linux kernel version.
+ * @note Cannot really be moved to iprt/cdefs.h, see the-linux-kernel.h */
+/** @def RTTIME_LINUX_KERNEL_PREREQ_LT
+ * Prerequisite maxium linux kernel version (LT=less-than).
+ * @note Cannot really be moved to iprt/cdefs.h, see the-linux-kernel.h */
+#if defined(RT_OS_LINUX) && defined(LINUX_VERSION_CODE) && defined(KERNEL_VERSION)
+# define RTTIME_LINUX_KERNEL_PREREQ(a, b, c)    (LINUX_VERSION_CODE >= KERNEL_VERSION(a, b, c))
+# define RTTIME_LINUX_KERNEL_PREREQ_LT(a, b, c) (!RTTIME_LINUX_KERNEL_PREREQ(a, b, c))
+#else
+# define RTTIME_LINUX_KERNEL_PREREQ(a, b, c)    0
+# define RTTIME_LINUX_KERNEL_PREREQ_LT(a, b, c) 0
+#endif
 
 /* PORTME: Add struct timeval guard macro here. */
-#if defined(RTTIME_INCL_TIMEVAL) || defined(_STRUCT_TIMEVAL) || defined(_SYS__TIMEVAL_H_) || defined(_SYS_TIME_H) || defined(_TIMEVAL) || defined(_LINUX_TIME_H) \
+#if defined(RTTIME_INCL_TIMEVAL) \
+ || defined(_SYS__TIMEVAL_H_) \
+ || defined(_SYS_TIME_H) \
+ || defined(_TIMEVAL) \
+ || defined(_STRUCT_TIMEVAL) \
+ || (   defined(RT_OS_LINUX) \
+     && defined(_LINUX_TIME_H) \
+     && (   !defined(__KERNEL__) \
+         || RTTIME_LINUX_KERNEL_PREREQ_LT(5,6,0) /* @bugref{9757} */ ) ) \
  || (defined(RT_OS_NETBSD) && defined(_SYS_TIME_H_))
+
 /**
  * Gets the time as POSIX timeval.
  *
@@ -392,16 +414,25 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimeval(PRTTIMESPEC pTime, const struct tim
 {
     return RTTimeSpecAddMicro(RTTimeSpecSetSeconds(pTime, pTimeval->tv_sec), pTimeval->tv_usec);
 }
+
 #endif /* various ways of detecting struct timeval */
 
 
 /* PORTME: Add struct timespec guard macro here. */
-#if defined(RTTIME_INCL_TIMESPEC) || defined(_STRUCT_TIMESPEC) || defined(_SYS__TIMESPEC_H_) || defined(TIMEVAL_TO_TIMESPEC) || defined(_TIMESPEC) \
+#if defined(RTTIME_INCL_TIMESPEC) \
+ || defined(_SYS__TIMESPEC_H_) \
+ || defined(TIMEVAL_TO_TIMESPEC) \
+ || defined(_TIMESPEC) \
+ || (   defined(_STRUCT_TIMESPEC) \
+     && (   !defined(RT_OS_LINUX) \
+         || !defined(__KERNEL__) \
+         || RTTIME_LINUX_KERNEL_PREREQ_LT(5,6,0) /* @bugref{9757} */ ) ) \
  || (defined(RT_OS_NETBSD) && defined(_SYS_TIME_H_))
+
 /**
  * Gets the time as POSIX timespec.
  *
- * @returns pTime.
+ * @returns pTimespec.
  * @param   pTime       The time spec to interpret.
  * @param   pTimespec   Where to store the time as POSIX timespec.
  */
@@ -432,15 +463,44 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimespec(PRTTIMESPEC pTime, const struct ti
     return RTTimeSpecAddNano(RTTimeSpecSetSeconds(pTime, pTimespec->tv_sec), pTimespec->tv_nsec);
 }
 
-
-# ifdef _LINUX_TIME64_H
-DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimespec64(PRTTIMESPEC pTime, const struct timespec64 *pTimeval)
-{
-    return RTTimeSpecAddNano(RTTimeSpecSetSeconds(pTime, pTimeval->tv_sec), pTimeval->tv_nsec);
-}
-# endif
 #endif /* various ways of detecting struct timespec */
 
+
+#if defined(RT_OS_LINUX) && defined(_LINUX_TIME64_H) /* since linux 3.17 */
+
+/**
+ * Gets the time a linux 64-bit timespec structure.
+ * @returns pTimespec.
+ * @param   pTime       The time spec to modify.
+ * @param   pTimespec   Where to store the time as linux 64-bit timespec.
+ */
+DECLINLINE(struct timespec64 *) RTTimeSpecGetTimespec64(PCRTTIMESPEC pTime, struct timespec64 *pTimespec)
+{
+    int64_t i64 = RTTimeSpecGetNano(pTime);
+    int32_t i32Nano = (int32_t)(i64 % RT_NS_1SEC);
+    i64 /= RT_NS_1SEC;
+    if (i32Nano < 0)
+    {
+        i32Nano += RT_NS_1SEC;
+        i64--;
+    }
+    pTimespec->tv_sec = i64;
+    pTimespec->tv_nsec = i32Nano;
+    return pTimespec;
+}
+
+/**
+ * Sets the time from a linux 64-bit timespec structure.
+ * @returns pTime.
+ * @param   pTime       The time spec to modify.
+ * @param   pTimespec   Pointer to the linux 64-bit timespec struct with the new time.
+ */
+DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimespec64(PRTTIMESPEC pTime, const struct timespec64 *pTimespec)
+{
+    return RTTimeSpecAddNano(RTTimeSpecSetSeconds(pTime, pTimespec->tv_sec), pTimespec->tv_nsec);
+}
+
+#endif /* RT_OS_LINUX && _LINUX_TIME64_H */
 
 
 /** The offset of the unix epoch and the base for NT time (in 100ns units).
@@ -451,10 +511,10 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimespec64(PRTTIMESPEC pTime, const struct 
 /**
  * Gets the time as NT time.
  *
- * @returns Nt time.
+ * @returns NT time.
  * @param   pTime       The time spec to interpret.
  */
-DECLINLINE(uint64_t) RTTimeSpecGetNtTime(PCRTTIMESPEC pTime)
+DECLINLINE(int64_t) RTTimeSpecGetNtTime(PCRTTIMESPEC pTime)
 {
     return pTime->i64NanosecondsRelativeToUnixEpoch / 100
         + RTTIME_NT_TIME_OFFSET_UNIX;
@@ -477,6 +537,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetNtTime(PRTTIMESPEC pTime, uint64_t u64NtTim
 
 
 #ifdef _FILETIME_
+
 /**
  * Gets the time as NT file time.
  *
@@ -501,7 +562,8 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetNtFileTime(PRTTIMESPEC pTime, const FILETIM
 {
     return RTTimeSpecSetNtTime(pTime, *(const uint64_t *)pFileTime);
 }
-#endif
+
+#endif /* _FILETIME_ */
 
 
 /** The offset to the start of DOS time.
@@ -1053,17 +1115,25 @@ RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarNoDelta(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarNoDelta(PRTTIMENANOTSDATA pData);
 #ifdef IN_RING3
 RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
 #else

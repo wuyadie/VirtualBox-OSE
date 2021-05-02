@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ int main(int argc, char **argv, char **envp)
     for (int i = 1; i < argc && !(fStartVM && fSeparateProcess); ++i)
     {
         /* NOTE: the check here must match the corresponding check for the
-         * options to start a VM in main.cpp and VBoxGlobal.cpp exactly,
+         * options to start a VM in main.cpp and UICommon.cpp exactly,
          * otherwise there will be weird error messages. */
         if (   !MyStrCmp(argv[i], "--startvm")
             || !MyStrCmp(argv[i], "-startvm"))
@@ -63,6 +63,9 @@ int main(int argc, char **argv, char **envp)
     }
 
     uint32_t fFlags = (fStartVM && !fSeparateProcess) ? 0 : SUPSECMAIN_FLAGS_DONT_OPEN_DEV;
+#ifdef RT_OS_DARWIN
+    fFlags |= SUPSECMAIN_FLAGS_LOC_OSX_HLP_APP;
+#endif
 
     return SUPR3HardenedMain("VirtualBoxVM",
                              fFlags | SUPSECMAIN_FLAGS_TRUSTED_ERROR,

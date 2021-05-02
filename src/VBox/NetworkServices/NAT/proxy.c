@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -409,6 +409,37 @@ proxy_create_socket(int sdom, int stype)
 
     return s;
 }
+
+
+#ifdef RT_OS_LINUX
+/**
+ * Fixup a socket returned by accept(2).
+ *
+ * On Linux a socket returned by accept(2) does NOT inherit the socket
+ * options from the listening socket!  We need to repeat parts of the
+ * song and dance we did above to make it non-blocking.
+ */
+int
+proxy_fixup_accepted_socket(SOCKET s)
+{
+    int sflags;
+    int status;
+
+    sflags = fcntl(s, F_GETFL, 0);
+    if (sflags < 0) {
+        DPRINTF(("F_GETFL: %R[sockerr]\n", SOCKERRNO()));
+        return -1;
+    }
+
+    status = fcntl(s, F_SETFL, sflags | O_NONBLOCK);
+    if (status < 0) {
+        DPRINTF(("O_NONBLOCK: %R[sockerr]\n", SOCKERRNO()));
+        return -1;
+    }
+
+    return 0;
+}
+#endif  /* RT_OS_LINUX */
 
 
 /**

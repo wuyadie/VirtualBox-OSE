@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,11 @@
 
 SUB_DEPTH = ../../../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+# We need the VMM/Config.kmk one for the VMM_COMMON_DEFS variable.
+ifndef VBOX_VMM_CONFIG_KMK_INCLUDED
+ include $(PATH_ROOT)/src/VBox/VMM/Config.kmk
+endif
 
 PROGRAMS += \
 	SUPInstall \
@@ -67,6 +72,7 @@ SUPLoggerCtl_SOURCES  = SUPLoggerCtl.cpp
 SUPLoggerCtl_LIBS     = $(LIB_RUNTIME)
 
 tstInt_TEMPLATE       = VBOXR3EXE
+tstInt_DEFS           = $(VMM_COMMON_DEFS)
 tstInt_SOURCES        = tstInt.cpp
 tstInt_LIBS           = $(LIB_RUNTIME)
 

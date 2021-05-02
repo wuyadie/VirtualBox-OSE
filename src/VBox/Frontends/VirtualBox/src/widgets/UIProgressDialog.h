@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -154,6 +154,8 @@ private:
     const ulong  m_cOperations;
     /** Holds the number of current operation. */
     ulong        m_uCurrentOperation;
+    /** Holds the weight of current operation. */
+    ulong        m_uCurrentOperationWeight;
     /** Holds whether progress cancel is enabled. */
     bool         m_fCancelEnabled;
     /** Holds whether the progress has ended. */

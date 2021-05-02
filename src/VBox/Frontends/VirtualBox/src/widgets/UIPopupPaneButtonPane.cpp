@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,7 +109,7 @@ void UIPopupPaneButtonPane::prepareButtons()
         {
             m_pButtonLayout->addWidget(pButton);
             m_buttons[iButtonID] = pButton;
-            connect(pButton, SIGNAL(clicked(bool)), this, SLOT(sltButtonClicked()));
+            connect(pButton, &QIToolButton::clicked, this, &UIPopupPaneButtonPane::sltButtonClicked);
             if (pButton->property("default").toBool())
                 m_iDefaultButton = iButtonID;
             if (pButton->property("escape").toBool())
@@ -230,4 +230,3 @@ QIcon UIPopupPaneButtonPane::defaultIcon(int iButtonID)
     }
     return icon;
 }
-

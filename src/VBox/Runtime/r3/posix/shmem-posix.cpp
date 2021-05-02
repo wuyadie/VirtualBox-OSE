@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -208,6 +208,29 @@ RTDECL(int) RTShMemClose(RTSHMEM hShMem)
     }
     else
         rc = RTErrConvertFromErrno(errno);
+
+    return rc;
+}
+
+
+RTDECL(int) RTShMemDelete(const char *pszName)
+{
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+
+    size_t cchName = strlen(pszName);
+    AssertReturn(cchName, VERR_INVALID_PARAMETER);
+    AssertReturn(cchName < NAME_MAX - 1, VERR_INVALID_PARAMETER); /* account for the / we add later on. */
+    char *psz = NULL;
+
+    int rc = RTStrAllocEx(&psz, cchName + 2); /* '/' + terminator */
+    if (RT_SUCCESS(rc))
+    {
+        psz[0] = '/';
+        memcpy(&psz[1], pszName, cchName + 1);
+        if (shm_unlink(psz))
+            rc = RTErrConvertFromErrno(errno);
+        RTStrFree(psz);
+    }
 
     return rc;
 }

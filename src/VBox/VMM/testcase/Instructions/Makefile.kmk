@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@ BLDDIRS += $(PATH_TARGET)/pylint
 define def_vbox_instructions_py_check
 $(eval name:=$(basename $(notdir $(py))))
 
-pylint::   $(name)-py-phony.o
+pylint:    $(name)-py-phony.o
 $(name).o: $(name)-py-phony.o
 $(PATH_TARGET)/pylint/$(name).o $(name)-py-phony.o:: $(py) | $(PATH_TARGET)/pylint/
 ifdef VBOX_WITH_PYLINT

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2010-2019 Oracle Corporation
+; Copyright (C) 2010-2020 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -995,6 +995,9 @@ EXPORTS
     RTErrInfoSet
     RTErrInfoSetF
     RTErrInfoSetV
+    RTIniFileCreateFromVfsFile
+    RTIniFileQueryValue
+    RTIniFileRelease
     RTFileAioCtxAssociateWithFile
     RTFileAioCtxCreate
     RTFileAioCtxDestroy
@@ -1022,8 +1025,8 @@ EXPORTS
     RTFileFlush
     RTFileFromNative
     RTFileGetMaxSize
-    RTFileGetMaxSizeEx
-    RTFileGetSize
+    RTFileQueryMaxSizeEx
+    RTFileQuerySizeByPath
     RTFileIoCtl             ; not-win
     RTFileIsValid
     RTFileLock
@@ -1428,6 +1431,7 @@ EXPORTS
     RTNetIPv6PseudoChecksum
     RTNetIPv6PseudoChecksumBits
     RTNetIPv6PseudoChecksumEx
+    RTNetIsIPv4AddrStr
     RTNetTCPChecksum
     RTNetUDPChecksum
     RTOnceReset
@@ -2053,6 +2057,7 @@ EXPORTS
     RTUtf16GetCpInternal
     RTUtf16ICmp
     RTUtf16Len
+    RTUtf16NLen
     RTUtf16LocaleICmp
     RTUtf16PutCpInternal
     RTUtf16ToLatin1ExTag
@@ -2096,7 +2101,7 @@ EXPORTS
     RTVfsFileFromRTFile
     RTVfsFileGetMaxSize
     RTVfsFileGetOpenFlags
-    RTVfsFileGetSize
+    RTVfsFileQuerySize
     RTVfsFileOpen
     RTVfsFileOpenNormal
     RTVfsFilePoll

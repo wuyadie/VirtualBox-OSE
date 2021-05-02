@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,5 @@
 #endif
 
 #include <iprt/win/windows.h>
-
-#if 0
-HRESULT vboxDispMpInternalInit();
-HRESULT vboxDispMpInternalTerm();
-HRESULT vboxDispMpInternalCancel(struct VBOXWDDMDISP_CONTEXT *pContext, struct VBOXWDDMDISP_SWAPCHAIN *pSwapchain);
-#endif
 
 #endif /* !GA_INCLUDED_SRC_WINNT_Graphics_Video_disp_wddm_VBoxDispMpInternal_h */

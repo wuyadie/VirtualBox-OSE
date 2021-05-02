@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,14 +20,6 @@
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
-
-#include <iprt/asm.h>
-#include <iprt/assert.h>
-#include <iprt/critsect.h>
-#include <iprt/path.h>
-#include <iprt/semaphore.h>
-#include <iprt/thread.h>
-#include <iprt/time.h>
 
 
 /**

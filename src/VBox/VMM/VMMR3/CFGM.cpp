@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -974,15 +974,6 @@ VMMR3DECL(int) CFGMR3ConstructDefaultTree(PVM pVM)
     rc = CFGMR3InsertInteger(pRoot, "RamHoleSize",          512U * _1M);
     UPDATERC();
     rc = CFGMR3InsertInteger(pRoot, "TimerMillies",         10);
-    UPDATERC();
-    rc = CFGMR3InsertInteger(pRoot, "RawR3Enabled",         1);
-    UPDATERC();
-    /** @todo CFGM Defaults: RawR0, PATMEnabled and CASMEnabled needs attention later. */
-    rc = CFGMR3InsertInteger(pRoot, "RawR0Enabled",         1);
-    UPDATERC();
-    rc = CFGMR3InsertInteger(pRoot, "PATMEnabled",          1);
-    UPDATERC();
-    rc = CFGMR3InsertInteger(pRoot, "CSAMEnabled",          1);
     UPDATERC();
 
     /*

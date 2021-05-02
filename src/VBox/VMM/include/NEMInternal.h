@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,8 +49,8 @@ RT_C_DECLS_BEGIN
 # define NEM_WIN_USE_HYPERCALLS_FOR_PAGES
 //# define NEM_WIN_USE_HYPERCALLS_FOR_REGISTERS /**< Applies to ring-3 code only. Useful for testing VID API. */
 //# define NEM_WIN_USE_OUR_OWN_RUN_API          /**< Applies to ring-3 code only. Useful for testing VID API. */
-# define NEM_WIN_WITH_RING0_RUNLOOP             /**< Enables the ring-0 runloop. */
-# define NEM_WIN_USE_RING0_RUNLOOP_BY_DEFAULT   /**< For quickly testing ring-3 API without messing with CFGM. */
+//# define NEM_WIN_WITH_RING0_RUNLOOP             /**< Enables the ring-0 runloop. */
+//# define NEM_WIN_USE_RING0_RUNLOOP_BY_DEFAULT   /**< For quickly testing ring-3 API without messing with CFGM. */
 # if defined(NEM_WIN_USE_OUR_OWN_RUN_API) && !defined(NEM_WIN_USE_HYPERCALLS_FOR_REGISTERS)
 #  error "NEM_WIN_USE_OUR_OWN_RUN_API requires NEM_WIN_USE_HYPERCALLS_FOR_REGISTERS"
 # endif
@@ -227,6 +227,8 @@ typedef struct NEMCPU
     uint32_t                    u32Magic;
     /** Whether \#UD needs to be intercepted and presented to GIM. */
     bool                        fGIMTrapXcptUD : 1;
+    /** Whether \#GP needs to be intercept for mesa driver workaround. */
+    bool                        fTrapXcptGpForLovelyMesaDrv: 1;
 #ifdef RT_OS_WINDOWS
     /** The current state of the interrupt windows (NEM_WIN_INTW_F_XXX). */
     uint8_t                     fCurrentInterruptWindows;
@@ -304,6 +306,8 @@ typedef struct NEMCPU
     STAMCOUNTER                 StatExitException;
     STAMCOUNTER                 StatExitExceptionBp;
     STAMCOUNTER                 StatExitExceptionDb;
+    STAMCOUNTER                 StatExitExceptionGp;
+    STAMCOUNTER                 StatExitExceptionGpMesa;
     STAMCOUNTER                 StatExitExceptionUd;
     STAMCOUNTER                 StatExitExceptionUdHandled;
     STAMCOUNTER                 StatExitUnrecoverable;
@@ -360,6 +364,8 @@ typedef struct NEMR0PERVCPU
 # ifdef RT_OS_WINDOWS
     /** Hypercall input/ouput page. */
     NEMR0HYPERCALLDATA          HypercallData;
+    /** Delta to add to convert a ring-0 pointer to a ring-3 one.   */
+    uintptr_t                   offRing3ConversionDelta;
 # else
     uint32_t                    uDummy;
 # endif
@@ -375,8 +381,6 @@ typedef struct NEMR0PERVM
     uint64_t                    idHvPartition;
     /** I/O control context. */
     PSUPR0IOCTLCTX              pIoCtlCtx;
-    /** Delta to add to convert a ring-0 pointer to a ring-3 one.   */
-    uintptr_t                   offRing3ConversionDelta;
     /** Info about the VidGetHvPartitionId I/O control interface. */
     NEMWINIOCTL                 IoCtlGetHvPartitionId;
     /** Info about the VidStartVirtualProcessor I/O control interface. */
@@ -421,16 +425,16 @@ int     nemR3NativeNotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS 
 void    nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled);
 #endif
 
-void    nemHCNativeNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
-void    nemHCNativeNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
+void    nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
+void    nemHCNativeNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
                                                    int fRestoreAsRAM, bool fRestoreAsRAM2);
-void    nemHCNativeNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+void    nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
                                                RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM);
-int     nemHCNativeNotifyPhysPageAllocated(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+int     nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
                                            PGMPAGETYPE enmType, uint8_t *pu2State);
-void    nemHCNativeNotifyPhysPageProtChanged(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+void    nemHCNativeNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
                                              PGMPAGETYPE enmType, uint8_t *pu2State);
-void    nemHCNativeNotifyPhysPageChanged(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew, uint32_t fPageProt,
+void    nemHCNativeNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew, uint32_t fPageProt,
                                          PGMPAGETYPE enmType, uint8_t *pu2State);
 
 

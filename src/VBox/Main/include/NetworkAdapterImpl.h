@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,8 @@ private:
     HRESULT setNATNetwork(const com::Utf8Str &aNATNetwork);
     HRESULT getGenericDriver(com::Utf8Str &aGenericDriver);
     HRESULT setGenericDriver(const com::Utf8Str &aGenericDriver);
+    HRESULT getCloudNetwork(com::Utf8Str &aCloudNetwork);
+    HRESULT setCloudNetwork(const com::Utf8Str &aCloudNetwork);
     HRESULT getCableConnected(BOOL *aCableConnected);
     HRESULT setCableConnected(BOOL aCableConnected);
     HRESULT getLineSpeed(ULONG *aLineSpeed);

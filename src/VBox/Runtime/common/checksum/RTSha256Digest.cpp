@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -127,7 +127,7 @@ RTR3DECL(int) RTSha256DigestFromFile(const char *pszFile, char **ppszDigest, PFN
     if (pfnProgressCallback)
     {
         uint64_t cbFile;
-        rc = RTFileGetSize(hFile, &cbFile);
+        rc = RTFileQuerySize(hFile, &cbFile);
         if (RT_FAILURE(rc))
         {
             RTFileClose(hFile);

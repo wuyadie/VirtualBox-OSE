@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,17 +22,19 @@
 #include "UINetworkManagerDialog.h"
 #include "UINetworkManagerIndicator.h"
 #include "UINetworkCustomer.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 
 UINetworkRequest::UINetworkRequest(UINetworkRequestType enmType,
                                    const QList<QUrl> &urls,
+                                   const QString &strTarget,
                                    const UserDictionary &requestHeaders,
                                    UINetworkCustomer *pCustomer,
                                    UINetworkManager *pNetworkManager)
     : QObject(pNetworkManager)
     , m_enmType(enmType)
     , m_urls(urls)
+    , m_strTarget(strTarget)
     , m_requestHeaders(requestHeaders)
     , m_pCustomer(pCustomer)
     , m_pNetworkManager(pNetworkManager)
@@ -191,7 +193,7 @@ void UINetworkRequest::prepare()
 void UINetworkRequest::prepareNetworkReply()
 {
     /* Create network-reply: */
-    m_pReply = new UINetworkReply(m_enmType, m_url, m_requestHeaders);
+    m_pReply = new UINetworkReply(m_enmType, m_url, m_strTarget, m_requestHeaders);
     AssertPtrReturnVoid(m_pReply.data());
     {
         /* Prepare network-reply: */

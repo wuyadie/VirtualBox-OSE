@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,16 +68,12 @@ public:
     void setCurrentVerticalScrollBarValue(int value);
     void setCurrentFont(QFont font);
 
-    void setSearchResultOverlayShowHide(bool fShow);
-    void setSearchMatchCount(int iMatchCount);
-
 protected:
 
     virtual void contextMenuEvent(QContextMenuEvent *pEvent) /* override */;
     virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
     virtual void mouseMoveEvent(QMouseEvent *pEvent) /* override */;
     virtual void leaveEvent(QEvent * pEvent) /* override */;
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
     virtual void retranslateUi() /* override */;
 
 private slots:
@@ -89,6 +85,8 @@ private slots:
 
 private:
 
+    /** Configures this (such as palette etc.) */
+    void configure();
     void prepare();
     void prepareWidgets();
     QPair<int, QString> bookmarkForPos(const QPoint &position);
@@ -114,9 +112,7 @@ private:
     QString      m_strBackgroungText;
     friend class UILineNumberArea;
     bool         m_bHasContextMenu;
-    bool         m_fShowSearchResultOverlay;
-    int          m_iMatchCount;
-};
+ };
 
 
 

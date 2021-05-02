@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,15 +83,26 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
     RT_NOREF_PV(fCreate);
 
     int rc;
-    fMode = rtFsModeNormalize(fMode, pszPath, 0);
+    fMode = rtFsModeNormalize(fMode, pszPath, 0, RTFS_TYPE_DIRECTORY);
     if (rtFsModeIsValidPermissions(fMode))
     {
         char const *pszNativePath;
         rc = rtPathToNative(&pszNativePath, pszPath, NULL);
         if (RT_SUCCESS(rc))
         {
+            struct stat st;
             if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK) == 0)
+            {
+                /* If requested, we try make use the permission bits are set
+                   correctly when asked.  For now, we'll just ignore errors here. */
+                if (fCreate & RTDIRCREATE_FLAGS_IGNORE_UMASK)
+                {
+                    if (   stat(pszNativePath, &st)
+                        || (st.st_mode & 07777) != (fMode & 07777) )
+                        chmod(pszNativePath, fMode & RTFS_UNIX_MASK);
+                }
                 rc = VINF_SUCCESS;
+            }
             else
             {
                 rc = errno;
@@ -108,7 +119,6 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
                 {
                     rc = RTErrConvertFromErrno(rc);
                     /*fVerifyIsDir = false;   We'll check if it's a dir ourselves since we're going to stat() anyway. */
-                    struct stat st;
                     if (!stat(pszNativePath, &st))
                     {
                         rc = VERR_ALREADY_EXISTS;
@@ -158,16 +168,37 @@ RTDECL(int) RTDirRemove(const char *pszPath)
         if (rmdir(pszNativePath))
         {
             rc = errno;
-            if (rc == EEXIST) /* Solaris returns this, the rest have ENOTDIR. */
+            if (rc == EEXIST) /* Solaris returns this, the rest have ENOTEMPTY. */
                 rc = VERR_DIR_NOT_EMPTY;
             else if (rc != ENOTDIR)
                 rc = RTErrConvertFromErrno(rc);
             else
             {
-                rc = RTErrConvertFromErrno(rc);
+                /*
+                 * This may be a valid path-not-found or it may be a non-directory in
+                 * the final component.  FsPerf want us to distinguish between the two,
+                 * and trailing slash shouldn't matter because it doesn't on windows...
+                 */
+                char       *pszFree = NULL;
+                const char *pszStat = pszNativePath;
+                size_t      cch     = strlen(pszNativePath);
+                if (cch > 2 && pszNativePath[cch - 1] == '/')
+                {
+                    pszStat = pszFree = (char *)RTMemTmpAlloc(cch);
+                    memcpy(pszFree, pszNativePath, cch);
+                    do
+                        pszFree[--cch] = '\0';
+                    while (cch > 2 && pszFree[cch - 1] == '/');
+                }
+
                 struct stat st;
-                if (!stat(pszNativePath, &st) && !S_ISDIR(st.st_mode))
+                if (!stat(pszStat, &st) && !S_ISDIR(st.st_mode))
                     rc = VERR_NOT_A_DIRECTORY;
+                else
+                    rc = VERR_PATH_NOT_FOUND;
+
+                if (pszFree)
+                    RTMemTmpFree(pszFree);
             }
         }
 

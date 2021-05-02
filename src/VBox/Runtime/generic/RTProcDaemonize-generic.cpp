@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,12 +83,12 @@ RTR3DECL(int) RTProcDaemonize(const char * const *papszArgs, const char *pszDaem
             rc = RTProcCreateEx(szExecPath, papszNewArgs, RTENV_DEFAULT,
                                 RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_SAME_CONTRACT,
                                 &hStdIn, &hStdOutAndErr, &hStdOutAndErr,
-                                NULL /*pszAsUser*/,  NULL /*pszPassword*/, NULL /*phProcess*/);
+                                NULL /*pszAsUser*/,  NULL /*pszPassword*/, NULL /*pExtraData*/, NULL /*phProcess*/);
 
             RTFileClose(hStdOutAndErr.u.hFile);
         }
 
-        RTFileClose(hStdOutAndErr.u.hFile);
+        RTFileClose(hStdIn.u.hFile);
     }
     RTMemFree(papszNewArgs);
     return rc;

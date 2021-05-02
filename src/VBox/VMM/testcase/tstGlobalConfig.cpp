@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,7 +102,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         return 1;
     }
 
-    rc = SUPR3LoadVMM("./VMMR0.r0");
+    rc = SUPR3LoadVMM("./VMMR0.r0", NULL /*pErrInfo*/);
     if (RT_SUCCESS(rc))
     {
         Req.pSession = pSession;

@@ -3,7 +3,7 @@
  * VBox USB Monitor Device Filtering functionality
  */
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,13 @@
 #include "VBoxUSBFilterMgr.h"
 #include <VBox/usblib.h>
 #include <devguid.h>
+#include <devpkey.h>
 
+
+/* We should be including ntifs.h but that's not as easy as it sounds. */
+extern "C" {
+NTKERNELAPI PDEVICE_OBJECT IoGetDeviceAttachmentBaseRef(__in PDEVICE_OBJECT DeviceObject);
+}
 
 /*
  * state transitions:
@@ -94,6 +100,8 @@ typedef struct VBOXUSBFLT_DEVICE
     uintptr_t uFltId;
     /* true iff device is filtered with a one-shot filter */
     bool fIsFilterOneShot;
+    /* true if descriptors could not be read and only inferred from PnP Manager data */
+    bool fInferredDesc;
     /* The device state. If the non-owner session is requesting the state while the device is grabbed,
      * the USBDEVICESTATE_USED_BY_HOST is returned. */
     VBOXUSBFLT_DEVSTATE  enmState;
@@ -102,12 +110,14 @@ typedef struct VBOXUSBFLT_DEVICE
     uint16_t        idVendor;
     uint16_t        idProduct;
     uint16_t        bcdDevice;
+    uint16_t        bPort;
     uint8_t         bClass;
     uint8_t         bSubClass;
     uint8_t         bProtocol;
     char            szSerial[MAX_USB_SERIAL_STRING];
     char            szMfgName[MAX_USB_SERIAL_STRING];
     char            szProduct[MAX_USB_SERIAL_STRING];
+    WCHAR           szLocationPath[768];
 #if 0
     char            szDrvKeyName[512];
     BOOLEAN         fHighSpeed;
@@ -305,35 +315,6 @@ static PVBOXUSBFLT_DEVICE vboxUsbFltDevGetLocked(PDEVICE_OBJECT pPdo)
     return NULL;
 }
 
-PVBOXUSBFLT_DEVICE vboxUsbFltDevGet(PDEVICE_OBJECT pPdo)
-{
-    PVBOXUSBFLT_DEVICE pDevice;
-
-    VBOXUSBFLT_LOCK_ACQUIRE();
-    pDevice = vboxUsbFltDevGetLocked(pPdo);
-    /*
-     * Prevent a host crash when vboxUsbFltDevGetLocked fails to locate the matching PDO
-     * in g_VBoxUsbFltGlobals.DeviceList (see @bugref{6509}).
-     */
-    if (pDevice == NULL)
-    {
-        WARN(("failed to get device for PDO(0x%p)", pPdo));
-    }
-    else if (pDevice->enmState > VBOXUSBFLT_DEVSTATE_ADDED)
-    {
-        vboxUsbFltDevRetain(pDevice);
-        LOG(("found device (0x%p), state(%d) for PDO(0x%p)", pDevice, pDevice->enmState, pPdo));
-    }
-    else
-    {
-        LOG(("found replugging device (0x%p), state(%d) for PDO(0x%p)", pDevice, pDevice->enmState, pPdo));
-        pDevice = NULL;
-    }
-    VBOXUSBFLT_LOCK_RELEASE();
-
-    return pDevice;
-}
-
 static NTSTATUS vboxUsbFltPdoReplug(PDEVICE_OBJECT pDo)
 {
     LOG(("Replugging PDO(0x%p)", pDo));
@@ -369,12 +350,42 @@ static PVBOXUSBFLTCTX vboxUsbFltDevMatchLocked(PVBOXUSBFLT_DEVICE pDevice, uintp
     USBFilterSetNumExact(&DevFlt, USBFILTERIDX_VENDOR_ID, pDevice->idVendor, true);
     USBFilterSetNumExact(&DevFlt, USBFILTERIDX_PRODUCT_ID, pDevice->idProduct, true);
     USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_REV, pDevice->bcdDevice, true);
-    USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_CLASS, pDevice->bClass, true);
-    USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_SUB_CLASS, pDevice->bSubClass, true);
-    USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_PROTOCOL, pDevice->bProtocol, true);
-    USBFilterSetStringExact(&DevFlt, USBFILTERIDX_MANUFACTURER_STR, pDevice->szMfgName, true /*fMustBePresent*/, true /*fPurge*/);
-    USBFilterSetStringExact(&DevFlt, USBFILTERIDX_PRODUCT_STR, pDevice->szProduct, true /*fMustBePresent*/, true /*fPurge*/);
-    USBFilterSetStringExact(&DevFlt, USBFILTERIDX_SERIAL_NUMBER_STR, pDevice->szSerial, true /*fMustBePresent*/, true /*fPurge*/);
+
+    /* If we could not read a string descriptor, don't set the filter item at all. */
+    if (pDevice->szMfgName[0])
+        USBFilterSetStringExact(&DevFlt, USBFILTERIDX_MANUFACTURER_STR, pDevice->szMfgName, true /*fMustBePresent*/, true /*fPurge*/);
+    if (pDevice->szProduct[0])
+        USBFilterSetStringExact(&DevFlt, USBFILTERIDX_PRODUCT_STR, pDevice->szProduct, true /*fMustBePresent*/, true /*fPurge*/);
+    if (pDevice->szSerial[0])
+        USBFilterSetStringExact(&DevFlt, USBFILTERIDX_SERIAL_NUMBER_STR, pDevice->szSerial, true /*fMustBePresent*/, true /*fPurge*/);
+
+    /* If device descriptor had to be inferred from PnP Manager data, the class/subclass/protocol may be wrong.
+     * When Windows reports CompatibleIDs 'USB\Class_03&SubClass_00&Prot_00', the device descriptor might be
+     * reporting class 3 (HID), *or* the device descriptor might be reporting class 0 (specified by interface)
+     * and the device's interface reporting class 3. Ignore the class/subclass/protocol in such case, since
+     * we are more or less guaranteed to rely on VID/PID anyway.
+     * See @bugref{9479}.
+     */
+    if (pDevice->fInferredDesc)
+    {
+        LOG(("Device descriptor was not read, only inferred; ignoring class/subclass/protocol!"));
+    }
+    else
+    {
+        LOG(("Setting filter class/subclass/protocol %02X/%02X/%02X\n", pDevice->bClass, pDevice->bSubClass, pDevice->bProtocol));
+        USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_CLASS, pDevice->bClass, true);
+        USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_SUB_CLASS, pDevice->bSubClass, true);
+        USBFilterSetNumExact(&DevFlt, USBFILTERIDX_DEVICE_PROTOCOL, pDevice->bProtocol, true);
+    }
+
+    /* If the port number looks valid, add it to the filter. */
+    if (pDevice->bPort)
+    {
+        LOG(("Setting filter port %04X\n", pDevice->bPort));
+        USBFilterSetNumExact(&DevFlt, USBFILTERIDX_PORT, pDevice->bPort, true);
+    }
+    else
+        LOG(("Port number not known, ignoring!"));
 
     /* Run filters on the thing. */
     PVBOXUSBFLTCTX pOwner = VBoxUSBFilterMatchEx(&DevFlt, puId, fRemoveFltIfOneShot, pfFilter, pfIsOneShot);
@@ -413,6 +424,28 @@ static uint16_t vboxUsbParseHexNumU16(WCHAR **ppStr)
         wc = *pStr;
         u = wc >= 'A' ? wc - 'A' + 10 : wc - '0';   /* Hex digit to number. */
         num |= u << (12 - 4 * i);
+        pStr++;
+    }
+    *ppStr = pStr;
+
+    return num;
+}
+
+static uint8_t vboxUsbParseHexNumU8(WCHAR **ppStr)
+{
+    WCHAR       *pStr = *ppStr;
+    WCHAR       wc;
+    uint16_t    num = 0;
+    unsigned    u;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        if (!*pStr)     /* Just in case the string is too short. */
+            break;
+
+        wc = *pStr;
+        u = wc >= 'A' ? wc - 'A' + 10 : wc - '0';   /* Hex digit to number. */
+        num |= u << (4 - 4 * i);
         pStr++;
     }
     *ppStr = pStr;
@@ -461,12 +494,58 @@ static bool vboxUsbParseHardwareID(WCHAR *pchIdStr, uint16_t *pVid, uint16_t *pP
 #undef REV_PREFIX
 }
 
+static bool vboxUsbParseCompatibleIDs(WCHAR *pchIdStr, uint8_t *pClass, uint8_t *pSubClass, uint8_t *pProt)
+{
+#define CLS_PREFIX  L"USB\\Class_"
+#define SUB_PREFIX  L"&SubClass_"
+#define PRO_PREFIX  L"&Prot_"
+
+    *pClass = *pSubClass = *pProt = 0xFF;
+
+    /* The Compatible IDs string is in the format USB\Class_xx&SubClass_xx&Prot_xx,
+     * with 'xx' being 8-bit hexadecimal numbers. Since this string is provided by the
+     * PnP manager and USB devices always report these as part of the basic USB device
+     * descriptor, we assume all three must be present.
+     */
+
+    if (wcsncmp(pchIdStr, CLS_PREFIX, wcslen(CLS_PREFIX)))
+        return false;
+    /* Point to the start of the device class and parse it. */
+    pchIdStr += wcslen(CLS_PREFIX);
+    *pClass = vboxUsbParseHexNumU8(&pchIdStr);
+
+    if (wcsncmp(pchIdStr, SUB_PREFIX, wcslen(SUB_PREFIX)))
+        return false;
+
+    /* Point to the start of the subclass and parse it. */
+    pchIdStr += wcslen(SUB_PREFIX);
+    *pSubClass = vboxUsbParseHexNumU8(&pchIdStr);
+
+    if (wcsncmp(pchIdStr, PRO_PREFIX, wcslen(PRO_PREFIX)))
+        return false;
+
+    /* Point to the start of the protocol and parse it. */
+    pchIdStr += wcslen(PRO_PREFIX);
+    *pProt = vboxUsbParseHexNumU8(&pchIdStr);
+
+    return true;
+#undef CLS_PREFIX
+#undef SUB_PREFIX
+#undef PRO_PREFIX
+}
+
 #define VBOXUSBMON_POPULATE_REQUEST_TIMEOUT_MS 10000
 
 static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT pDo /*, BOOLEAN bPopulateNonFilterProps*/)
 {
-    NTSTATUS Status;
-    PUSB_DEVICE_DESCRIPTOR pDevDr = 0;
+    NTSTATUS                Status;
+    USB_TOPOLOGY_ADDRESS    TopoAddr;
+    PUSB_DEVICE_DESCRIPTOR  pDevDr = 0;
+    ULONG                   ulResultLen;
+    DEVPROPTYPE             type;
+    WCHAR                   wchPropBuf[256];
+    uint16_t                port;
+    bool                    rc;
 
     pDevice->Pdo = pDo;
 
@@ -481,22 +560,21 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
 
     do
     {
+        pDevice->fInferredDesc = false;
         Status = VBoxUsbToolGetDescriptor(pDo, pDevDr, sizeof(*pDevDr), USB_DEVICE_DESCRIPTOR_TYPE, 0, 0, VBOXUSBMON_POPULATE_REQUEST_TIMEOUT_MS);
         if (!NT_SUCCESS(Status))
         {
-            WCHAR       wchPropBuf[256];
-            ULONG       ulResultLen;
-            bool        rc;
             uint16_t    vid, pid, rev;
+            uint8_t     cls, sub, prt;
 
             WARN(("getting device descriptor failed, Status (0x%x); falling back to IoGetDeviceProperty", Status));
 
-            /* Try falling back to IoGetDeviceProperty. */
-            Status = IoGetDeviceProperty(pDo, DevicePropertyHardwareID, sizeof(wchPropBuf), wchPropBuf, &ulResultLen);
+            /* Try falling back to IoGetDevicePropertyData. */
+            Status = IoGetDevicePropertyData(pDo, &DEVPKEY_Device_HardwareIds, LOCALE_NEUTRAL, 0, sizeof(wchPropBuf), wchPropBuf, &ulResultLen, &type);
             if (!NT_SUCCESS(Status))
             {
                 /* This just isn't our day. We have no idea what the device is. */
-                WARN(("IoGetDeviceProperty failed, Status (0x%x)", Status));
+                WARN(("IoGetDevicePropertyData failed for DEVPKEY_Device_HardwareIds, Status (0x%x)", Status));
                 break;
             }
             rc = vboxUsbParseHardwareID(wchPropBuf, &vid, &pid, &rev);
@@ -507,19 +585,139 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
                 break;
             }
 
-            LOG(("Parsed HardwareID: vid=%04X, pid=%04X, rev=%04X", vid, pid, rev));
+            /* Now grab the Compatible IDs to get the class/subclass/protocol. */
+            Status = IoGetDevicePropertyData(pDo, &DEVPKEY_Device_CompatibleIds, LOCALE_NEUTRAL, 0, sizeof(wchPropBuf), wchPropBuf, &ulResultLen, &type);
+            if (!NT_SUCCESS(Status))
+            {
+                /* We really kind of need these. */
+                WARN(("IoGetDevicePropertyData failed for DEVPKEY_Device_CompatibleIds, Status (0x%x)", Status));
+                break;
+            }
+            rc = vboxUsbParseCompatibleIDs(wchPropBuf, &cls, &sub, &prt);
+            if (!rc)
+            {
+                /* This *really* should not happen. */
+                WARN(("Failed to parse Hardware ID"));
+                break;
+            }
+
+            LOG(("Parsed HardwareID: vid=%04X, pid=%04X, rev=%04X, class=%02X, subcls=%02X, prot=%02X", vid, pid, rev, cls, sub, prt));
             if (vid == 0xFFFF || pid == 0xFFFF)
                 break;
 
             LOG(("Successfully fell back to IoGetDeviceProperty result"));
-            /* The vendor/product ID is what matters. */
             pDevDr->idVendor  = vid;
             pDevDr->idProduct = pid;
             pDevDr->bcdDevice = rev;
-            /* The rest we don't really know. */
-            pDevDr->bDeviceClass    = 0;
-            pDevDr->bDeviceSubClass = 0;
-            pDevDr->bDeviceProtocol = 0;
+            pDevDr->bDeviceClass    = cls;
+            pDevDr->bDeviceSubClass = sub;
+            pDevDr->bDeviceProtocol = prt;
+
+            /* The USB device class/subclass/protocol may not be accurate. We have to be careful when comparing
+             * and not take mismatches too seriously.
+             */
+            pDevice->fInferredDesc = true;
+        }
+
+        /* Query the location path. The path is purely a function of the physical device location
+         * and does not change if the device changes, and also does not change depending on
+         * whether the device is captured or not.
+         * NB: We ignore any additional strings and only look at the first one.
+         */
+        Status = IoGetDevicePropertyData(pDo, &DEVPKEY_Device_LocationPaths, LOCALE_NEUTRAL, 0, sizeof(pDevice->szLocationPath), pDevice->szLocationPath, &ulResultLen, &type);
+        if (!NT_SUCCESS(Status))
+        {
+            /* We do need this, but not critically. On Windows 7, we may get STATUS_OBJECT_NAME_NOT_FOUND. */
+            WARN(("IoGetDevicePropertyData failed for DEVPKEY_Device_LocationPaths, Status (0x%x)", Status));
+        }
+        else
+        {
+            LOG_STRW(pDevice->szLocationPath);
+        }
+
+        // Disabled, but could be used as a fallback instead of IoGetDevicePropertyData; it should work even
+        // when this code is entered from the PnP IRP processing path.
+#if 0
+        {
+            HUB_DEVICE_CONFIG_INFO  HubInfo;
+
+            memset(&HubInfo, 0, sizeof(HubInfo));
+            HubInfo.Version = 1;
+            HubInfo.Length  = sizeof(HubInfo);
+
+            NTSTATUS Status = VBoxUsbToolIoInternalCtlSendSync(pDo, IOCTL_INTERNAL_USB_GET_DEVICE_CONFIG_INFO, &HubInfo, NULL);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("GET_DEVICE_CONFIG_INFO for PDO(0x%p) failed Status(0x%x)", pDo, Status));
+            LOG(("Querying hub device config info for PDO(0x%p) done with Status(0x%x)", pDo, Status));
+
+            if (Status == STATUS_SUCCESS)
+            {
+                uint16_t    vid, pid, rev;
+                uint8_t     cls, sub, prt;
+
+                LOG(("Hub flags: %X\n", HubInfo.HubFlags));
+                LOG_STRW(HubInfo.HardwareIds.Buffer);
+                LOG_STRW(HubInfo.CompatibleIds.Buffer);
+                if (HubInfo.DeviceDescription.Buffer)
+                    LOG_STRW(HubInfo.DeviceDescription.Buffer);
+
+                rc = vboxUsbParseHardwareID(HubInfo.HardwareIds.Buffer, &pid, &vid, &rev);
+                if (!rc)
+                {
+                    /* This *really* should not happen. */
+                    WARN(("Failed to parse Hardware ID"));
+                }
+
+                /* The CompatibleID the IOCTL gives is not always the same as what the PnP Manager uses
+                 * (thanks, Microsoft). It might look like "USB\DevClass_00&SubClass_00&Prot_00" or like
+                 * "USB\USB30_HUB". In such cases, we must consider the class/subclass/protocol
+                 * information simply unavailable.
+                 */
+                rc = vboxUsbParseCompatibleIDs(HubInfo.CompatibleIds.Buffer, &cls, &sub, &prt);
+                if (!rc)
+                {
+                    /* This is unfortunate but not fatal. */
+                    WARN(("Failed to parse Compatible ID"));
+                }
+                LOG(("Parsed HardwareID from IOCTL: vid=%04X, pid=%04X, rev=%04X, class=%02X, subcls=%02X, prot=%02X", vid, pid, rev, cls, sub, prt));
+
+                ExFreePool(HubInfo.HardwareIds.Buffer);
+                ExFreePool(HubInfo.CompatibleIds.Buffer);
+                if (HubInfo.DeviceDescription.Buffer)
+                    ExFreePool(HubInfo.DeviceDescription.Buffer);
+            }
+        }
+#endif
+
+        /* Query the topology address from the hub driver. This is not trivial to translate to the location
+         * path, but at least we can get the port number this way.
+         */
+        memset(&TopoAddr, 0, sizeof(TopoAddr));
+        Status = VBoxUsbToolIoInternalCtlSendSync(pDo, IOCTL_INTERNAL_USB_GET_TOPOLOGY_ADDRESS, &TopoAddr, NULL);
+        ASSERT_WARN(Status == STATUS_SUCCESS, ("GET_TOPOLOGY_ADDRESS for PDO(0x%p) failed Status(0x%x)", pDo, Status));
+        LOG(("Querying topology address for PDO(0x%p) done with Status(0x%x)", pDo, Status));
+
+        port = 0;
+        if (Status == STATUS_SUCCESS)
+        {
+            uint16_t    *pPort = &TopoAddr.RootHubPortNumber;
+
+            /* The last non-zero port number is the one we're looking for. It might be on the
+             * root hub directly, or on some downstream hub.
+             */
+            for (int i = 0; i < RT_ELEMENTS(TopoAddr.HubPortNumber) + 1; ++i) {
+                if (*pPort)
+                    port = *pPort;
+                pPort++;
+            }
+            LOG(("PCI bus/dev/fn: %02X:%02X:%02X, parsed port: %u\n", TopoAddr.PciBusNumber, TopoAddr.PciDeviceNumber, TopoAddr.PciFunctionNumber, port));
+            LOG(("RH port: %u, hub ports: %u/%u/%u/%u/%u/%u\n", TopoAddr.RootHubPortNumber, TopoAddr.HubPortNumber[0],
+                 TopoAddr.HubPortNumber[1], TopoAddr.HubPortNumber[2], TopoAddr.HubPortNumber[3], TopoAddr.HubPortNumber[4], TopoAddr.HubPortNumber[5]));
+
+            /* In the extremely unlikely case that the port number does not fit into 8 bits, force
+             * it to zero to indicate that we can't use it.
+             */
+            if (port > 255)
+                port = 0;
         }
 
         if (vboxUsbFltBlDevMatchLocked(pDevDr->idVendor, pDevDr->idProduct, pDevDr->bcdDevice))
@@ -529,7 +727,8 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
             break;
         }
 
-        LOG(("Device pid=%x vid=%x rev=%x", pDevDr->idVendor, pDevDr->idProduct, pDevDr->bcdDevice));
+        LOG(("Device pid=%x vid=%x rev=%x port=%x", pDevDr->idVendor, pDevDr->idProduct, pDevDr->bcdDevice, port));
+        pDevice->bPort        = port;
         pDevice->idVendor     = pDevDr->idVendor;
         pDevice->idProduct    = pDevDr->idProduct;
         pDevice->bcdDevice    = pDevDr->bcdDevice;
@@ -626,24 +825,6 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
     VBoxUsbMonMemFree(pDevDr);
     LOG(("Populating Device(0x%p) for PDO(0x%p) Done, Status (0x%x)", pDevice, pDo, Status));
     return Status;
-}
-
-static void vboxUsbFltSignalChangeLocked()
-{
-    for (PLIST_ENTRY pEntry = g_VBoxUsbFltGlobals.ContextList.Flink;
-            pEntry != &g_VBoxUsbFltGlobals.ContextList;
-            pEntry = pEntry->Flink)
-    {
-        PVBOXUSBFLTCTX pCtx = PVBOXUSBFLTCTX_FROM_LE(pEntry);
-        /* the removed context can not be in a list */
-        Assert(!pCtx->bRemoved);
-        if (pCtx->pChangeEvent)
-        {
-            KeSetEvent(pCtx->pChangeEvent,
-                    0, /* increment*/
-                    FALSE /* wait */);
-        }
-    }
 }
 
 static bool vboxUsbFltDevCheckReplugLocked(PVBOXUSBFLT_DEVICE pDevice, PVBOXUSBFLTCTX pContext)
@@ -826,20 +1007,19 @@ typedef struct VBOXUSBFLTCHECKWALKER
     PVBOXUSBFLTCTX pContext;
 } VBOXUSBFLTCHECKWALKER, *PVBOXUSBFLTCHECKWALKER;
 
-static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pFile, PDEVICE_OBJECT pTopDo,
+static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pHubFile,
                                                          PDEVICE_OBJECT pHubDo, PVOID pvContext)
 {
-    RT_NOREF1(pHubDo);
     PVBOXUSBFLTCHECKWALKER pData = (PVBOXUSBFLTCHECKWALKER)pvContext;
     PVBOXUSBFLTCTX pContext = pData->pContext;
 
-    LOG(("Visiting pFile(0x%p), pTopDo(0x%p), pHubDo(0x%p), oContext(0x%p)", pFile, pTopDo, pHubDo, pContext));
+    LOG(("Visiting pHubFile(0x%p), pHubDo(0x%p), oContext(0x%p)", pHubFile, pHubDo, pContext));
     KIRQL Irql = KeGetCurrentIrql();
     ASSERT_WARN(Irql == PASSIVE_LEVEL, ("unexpected IRQL (%d)", Irql));
 
     PDEVICE_RELATIONS pDevRelations = NULL;
 
-    NTSTATUS Status = VBoxUsbMonQueryBusRelations(pTopDo, pFile, &pDevRelations);
+    NTSTATUS Status = VBoxUsbMonQueryBusRelations(pHubDo, pHubFile, &pDevRelations);
     if (Status == STATUS_SUCCESS && pDevRelations)
     {
         ULONG cReplugPdos = pDevRelations->Count;
@@ -847,7 +1027,15 @@ static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pFile, PDE
         InitializeListHead(&ReplugDevList);
         for (ULONG k = 0; k < pDevRelations->Count; ++k)
         {
-            PDEVICE_OBJECT pDevObj = pDevRelations->Objects[k];
+            PDEVICE_OBJECT pDevObj;
+
+            /* Grab the PDO+reference. We won't need the upper layer device object
+             * anymore, so dereference that right here, and drop the PDO ref later.
+             */
+            pDevObj = IoGetDeviceAttachmentBaseRef(pDevRelations->Objects[k]);
+            LOG(("DevObj=%p, PDO=%p\n", pDevRelations->Objects[k], pDevObj));
+            ObDereferenceObject(pDevRelations->Objects[k]);
+            pDevRelations->Objects[k] = pDevObj;
 
             LOG(("Found existing USB PDO 0x%p", pDevObj));
             VBOXUSBFLT_LOCK_ACQUIRE();
@@ -935,13 +1123,13 @@ static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pFile, PDE
                     continue;
 
                 Status = vboxUsbFltPdoReplug(pDevRelations->Objects[k]);
-                ASSERT_WARN(Status == STATUS_SUCCESS, ("vboxUsbFltPdoReplug ailed Status(0x%x)", Status));
+                ASSERT_WARN(Status == STATUS_SUCCESS, ("vboxUsbFltPdoReplug failed! Status(0x%x)", Status));
                 ObDereferenceObject(pDevRelations->Objects[k]);
                 if (!--cReplugPdos)
                     break;
             }
 
-            ASSERT_WARN(!cReplugPdos, ("cReplugPdosreached zero!"));
+            ASSERT_WARN(!cReplugPdos, ("cReplugPdos reached zero!"));
         }
 
         vboxUsbFltReplugList(&ReplugDevList);
@@ -950,11 +1138,11 @@ static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pFile, PDE
     }
     else
     {
-        WARN(("VBoxUsbMonQueryBusRelations failed for DO(0x%p), Status(0x%x), pDevRelations(0x%p)",
-                pTopDo, Status, pDevRelations));
+        WARN(("VBoxUsbMonQueryBusRelations failed for hub DO(0x%p), Status(0x%x), pDevRelations(0x%p)",
+                pHubDo, Status, pDevRelations));
     }
 
-    LOG(("Done Visiting pFile(0x%p), pTopDo(0x%p), pHubDo(0x%p), oContext(0x%p)", pFile, pTopDo, pHubDo, pContext));
+    LOG(("Done Visiting pHubFile(0x%p), pHubDo(0x%p), oContext(0x%p)", pHubFile, pHubDo, pContext));
 
     return TRUE;
 }
@@ -968,7 +1156,7 @@ NTSTATUS VBoxUsbFltFilterCheck(PVBOXUSBFLTCTX pContext)
 
     VBOXUSBFLTCHECKWALKER Data;
     Data.pContext = pContext;
-    vboxUsbMonHubDevWalk(vboxUsbFltFilterCheckWalker, &Data, VBOXUSBMONHUBWALK_F_FDO);
+    vboxUsbMonHubDevWalk(vboxUsbFltFilterCheckWalker, &Data);
 
     LOG(("DONE Running filters, Context (0x%p)", pContext));
 
@@ -989,17 +1177,6 @@ NTSTATUS VBoxUsbFltClose(PVBOXUSBFLTCTX pContext)
     VBOXUSBFLT_LOCK_ACQUIRE();
 
     pContext->bRemoved = TRUE;
-    if (pContext->pChangeEvent)
-    {
-        LOG(("seting & closing change event (0x%p)", pContext->pChangeEvent));
-        KeSetEvent(pContext->pChangeEvent,
-                0, /* increment*/
-                FALSE /* wait */);
-        ObDereferenceObject(pContext->pChangeEvent);
-        pContext->pChangeEvent = NULL;
-    }
-    else
-        LOG(("no change event"));
     RemoveEntryList(&pContext->ListEntry);
 
     LOG(("removing owner filters"));
@@ -1086,6 +1263,22 @@ int VBoxUsbFltAdd(PVBOXUSBFLTCTX pContext, PUSBFILTER pFilter, uintptr_t *pId)
     USBFilterSetMustBePresent(pFilter, USBFILTERIDX_BUS, false);
     USBFilterSetMustBePresent(pFilter, USBFILTERIDX_PORT, false);
 
+    /* We may not be able to reconstruct the class/subclass/protocol if we aren't able to
+     * read the device descriptor. Don't require these to be present. See also the fInferredDesc flag.
+     */
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_DEVICE_CLASS, false);
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_DEVICE_SUB_CLASS, false);
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_DEVICE_PROTOCOL, false);
+
+    /* We may also be unable to read string descriptors. Often the userland can't read the
+     * string descriptors either because the device is in a low-power state, but it can happen
+     * that the userland gets lucky and reads the strings, but by the time we get to read them
+     * they're inaccessible due to power management. So, don't require the strings to be present.
+     */
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_MANUFACTURER_STR, false);
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_PRODUCT_STR, false);
+    USBFilterSetMustBePresent(pFilter, USBFILTERIDX_SERIAL_NUMBER_STR, false);
+
     uintptr_t uId = 0;
     VBOXUSBFLT_LOCK_ACQUIRE();
     /* Add the filter. */
@@ -1093,7 +1286,7 @@ int VBoxUsbFltAdd(PVBOXUSBFLTCTX pContext, PUSBFILTER pFilter, uintptr_t *pId)
     VBOXUSBFLT_LOCK_RELEASE();
     if (RT_SUCCESS(rc))
     {
-        LOG(("ADDED filer id 0x%p", uId));
+        LOG(("ADDED filter id 0x%p", uId));
         ASSERT_WARN(uId, ("uid is NULL"));
 #ifdef VBOX_USBMON_WITH_FILTER_AUTOAPPLY
         VBoxUsbFltFilterCheck();
@@ -1161,36 +1354,6 @@ int VBoxUsbFltRemove(PVBOXUSBFLTCTX pContext, uintptr_t uId)
     return rc;
 }
 
-NTSTATUS VBoxUsbFltSetNotifyEvent(PVBOXUSBFLTCTX pContext, HANDLE hEvent)
-{
-    NTSTATUS Status = STATUS_SUCCESS;
-    PKEVENT pEvent = NULL;
-    PKEVENT pOldEvent = NULL;
-    if (hEvent)
-    {
-        Status = ObReferenceObjectByHandle(hEvent,
-                    EVENT_MODIFY_STATE,
-                    *ExEventObjectType, UserMode,
-                    (PVOID*)&pEvent,
-                    NULL);
-        Assert(Status == STATUS_SUCCESS);
-        if (!NT_SUCCESS(Status))
-            return Status;
-    }
-
-    VBOXUSBFLT_LOCK_ACQUIRE();
-    pOldEvent = pContext->pChangeEvent;
-    pContext->pChangeEvent = pEvent;
-    VBOXUSBFLT_LOCK_RELEASE();
-
-    if (pOldEvent)
-    {
-        ObDereferenceObject(pOldEvent);
-    }
-
-    return STATUS_SUCCESS;
-}
-
 static USBDEVICESTATE vboxUsbDevGetUserState(PVBOXUSBFLTCTX pContext, PVBOXUSBFLT_DEVICE pDevice)
 {
     if (vboxUsbFltDevStateIsNotFiltered(pDevice))
@@ -1233,7 +1396,8 @@ static USBDEVICESTATE vboxUsbDevGetUserState(PVBOXUSBFLTCTX pContext, PVBOXUSBFL
 
 NTSTATUS VBoxUsbFltGetDevice(PVBOXUSBFLTCTX pContext, HVBOXUSBDEVUSR hDevice, PUSBSUP_GETDEV_MON pInfo)
 {
-    Assert(hDevice);
+    if (!hDevice)
+       return STATUS_INVALID_PARAMETER;
 
     memset (pInfo, 0, sizeof (*pInfo));
     VBOXUSBFLT_LOCK_ACQUIRE();
@@ -1256,9 +1420,7 @@ NTSTATUS VBoxUsbFltGetDevice(PVBOXUSBFLTCTX pContext, HVBOXUSBDEVUSR hDevice, PU
 
     VBOXUSBFLT_LOCK_RELEASE();
 
-    /* this should not occur */
-    AssertFailed();
-
+    /* We should not get this far with valid input. */
     return STATUS_INVALID_PARAMETER;
 }
 
@@ -1266,6 +1428,13 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
 {
     *pbFiltered = FALSE;
     PVBOXUSBFLT_DEVICE pDevice;
+
+    /* Find the real PDO+reference. Dereference when we're done with it. Note that
+     * the input pPdo was not explicitly referenced so we're not dropping its ref.
+     */
+    PDEVICE_OBJECT pDevObj = IoGetDeviceAttachmentBaseRef(pPdo);
+    LOG(("DevObj=%p, real PDO=%p\n", pPdo, pDevObj));
+    pPdo = pDevObj;
 
     /* first check if device is in the a already */
     VBOXUSBFLT_LOCK_ACQUIRE();
@@ -1277,6 +1446,7 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
         ASSERT_WARN(pDevice->enmState != VBOXUSBFLT_DEVSTATE_REMOVED, ("VBOXUSBFLT_DEVSTATE_REMOVED state for device(0x%p)", pDevice));
         *pbFiltered = pDevice->enmState >= VBOXUSBFLT_DEVSTATE_CAPTURING;
         VBOXUSBFLT_LOCK_RELEASE();
+        ObDereferenceObject(pPdo);
         return STATUS_SUCCESS;
     }
     VBOXUSBFLT_LOCK_RELEASE();
@@ -1284,6 +1454,7 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
     if (!pDevice)
     {
         WARN(("VBoxUsbMonMemAllocZ failed"));
+        ObDereferenceObject(pPdo);
         return STATUS_NO_MEMORY;
     }
 
@@ -1293,6 +1464,7 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
     if (!NT_SUCCESS(Status))
     {
         WARN(("vboxUsbFltDevPopulate failed, Status 0x%x", Status));
+        ObDereferenceObject(pPdo);
         VBoxUsbMonMemFree(pDevice);
         return Status;
     }
@@ -1305,6 +1477,10 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
     VBOXUSBFLT_LOCK_ACQUIRE();
     /* (paranoia) re-check the device is still not here */
     pTmpDev = vboxUsbFltDevGetLocked(pPdo);
+
+    /* Drop the PDO ref, now we won't need it anymore. */
+    ObDereferenceObject(pPdo);
+
     if (pTmpDev)
     {
         LOG(("second try: found device (0x%p), state(%d) for PDO(0x%p)", pDevice, pDevice->enmState, pPdo));
@@ -1350,18 +1526,17 @@ NTSTATUS VBoxUsbFltPdoAdd(PDEVICE_OBJECT pPdo, BOOLEAN *pbFiltered)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS VBoxUsbFltPdoAddCompleted(PDEVICE_OBJECT pPdo)
-{
-    RT_NOREF1(pPdo);
-    VBOXUSBFLT_LOCK_ACQUIRE();
-    vboxUsbFltSignalChangeLocked();
-    VBOXUSBFLT_LOCK_RELEASE();
-    return STATUS_SUCCESS;
-}
-
 BOOLEAN VBoxUsbFltPdoIsFiltered(PDEVICE_OBJECT pPdo)
 {
     VBOXUSBFLT_DEVSTATE enmState = VBOXUSBFLT_DEVSTATE_REMOVED;
+
+    /* Find the real PDO+reference. Dereference when we're done with it. Note that
+     * the input pPdo was not explicitly referenced so we're not dropping its ref.
+     */
+    PDEVICE_OBJECT pDevObj = IoGetDeviceAttachmentBaseRef(pPdo);
+    LOG(("DevObj=%p, real PDO=%p\n", pPdo, pDevObj));
+    pPdo = pDevObj;
+
     VBOXUSBFLT_LOCK_ACQUIRE();
 
     PVBOXUSBFLT_DEVICE pDevice = vboxUsbFltDevGetLocked(pPdo);
@@ -1369,6 +1544,7 @@ BOOLEAN VBoxUsbFltPdoIsFiltered(PDEVICE_OBJECT pPdo)
         enmState = pDevice->enmState;
 
     VBOXUSBFLT_LOCK_RELEASE();
+    ObDereferenceObject(pPdo);
 
     return enmState >= VBOXUSBFLT_DEVSTATE_CAPTURING;
 }
@@ -1378,6 +1554,13 @@ NTSTATUS VBoxUsbFltPdoRemove(PDEVICE_OBJECT pPdo)
     PVBOXUSBFLT_DEVICE pDevice;
     VBOXUSBFLT_DEVSTATE enmOldState;
 
+    /* Find the real PDO+reference. Dereference when we're done with it. Note that
+     * the input pPdo was not explicitly referenced so we're not dropping its ref.
+     */
+    PDEVICE_OBJECT pDevObj = IoGetDeviceAttachmentBaseRef(pPdo);
+    LOG(("DevObj=%p, real PDO=%p\n", pPdo, pDevObj));
+    pPdo = pDevObj;
+
     VBOXUSBFLT_LOCK_ACQUIRE();
     pDevice = vboxUsbFltDevGetLocked(pPdo);
     if (pDevice)
@@ -1385,20 +1568,9 @@ NTSTATUS VBoxUsbFltPdoRemove(PDEVICE_OBJECT pPdo)
         RemoveEntryList(&pDevice->GlobalLe);
         enmOldState = pDevice->enmState;
         pDevice->enmState = VBOXUSBFLT_DEVSTATE_REMOVED;
-        if (enmOldState != VBOXUSBFLT_DEVSTATE_REPLUGGING)
-        {
-            vboxUsbFltSignalChangeLocked();
-        }
-        else
-        {
-            /* the device *should* reappear, do signlling on re-appear only
-             * to avoid extra signaling. still there might be a situation
-             * when the device will not re-appear if it gets physically removed
-             * before it re-appears
-             * @todo: set a timer callback to do a notification from it */
-        }
     }
     VBOXUSBFLT_LOCK_RELEASE();
+    ObDereferenceObject(pPdo);
     if (pDevice)
         vboxUsbFltDevRelease(pDevice);
     return STATUS_SUCCESS;
@@ -1408,6 +1580,8 @@ HVBOXUSBFLTDEV VBoxUsbFltProxyStarted(PDEVICE_OBJECT pPdo)
 {
     PVBOXUSBFLT_DEVICE pDevice;
     VBOXUSBFLT_LOCK_ACQUIRE();
+
+    /* NB: The USB proxy (VBoxUSB.sys) passes us the real PDO, not anything above that. */
     pDevice = vboxUsbFltDevGetLocked(pPdo);
     /*
      * Prevent a host crash when vboxUsbFltDevGetLocked fails to locate the matching PDO
@@ -1417,12 +1591,11 @@ HVBOXUSBFLTDEV VBoxUsbFltProxyStarted(PDEVICE_OBJECT pPdo)
     {
         WARN(("failed to get device for PDO(0x%p)", pPdo));
     }
-    else if (pDevice->enmState = VBOXUSBFLT_DEVSTATE_CAPTURING)
+    else if (pDevice->enmState == VBOXUSBFLT_DEVSTATE_CAPTURING)
     {
         pDevice->enmState = VBOXUSBFLT_DEVSTATE_CAPTURED;
-        LOG(("The proxy notified proxy start for the captured device 0x%x", pDevice));
+        LOG(("The proxy notified proxy start for the captured device 0x%p", pDevice));
         vboxUsbFltDevRetain(pDevice);
-        vboxUsbFltSignalChangeLocked();
     }
     else
     {
@@ -1450,9 +1623,8 @@ void VBoxUsbFltProxyStopped(HVBOXUSBFLTDEV hDev)
             || pDevice->enmState == VBOXUSBFLT_DEVSTATE_USED_BY_GUEST)
     {
         /* this is due to devie was physically removed */
-        LOG(("The proxy notified proxy stop for the captured device 0x%x, current state %d", pDevice, pDevice->enmState));
+        LOG(("The proxy notified proxy stop for the captured device 0x%p, current state %d", pDevice, pDevice->enmState));
         pDevice->enmState = VBOXUSBFLT_DEVSTATE_CAPTURING;
-        vboxUsbFltSignalChangeLocked();
     }
     else
     {

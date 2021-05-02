@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,10 @@ else ifdef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
  #
  LIBRARIES += RuntimeBldProg RuntimeR0
  LIBRARIES.solaris += RuntimeR0Stub
- LIBRARIES.win += RuntimeR0Stub RuntimeRCStub
+ LIBRARIES.win += RuntimeR0Stub
+ ifdef VBOX_WITH_RAW_MODE
+  LIBRARIES.win += RuntimeRCStub
+ endif
  include $(PATH_SUB_CURRENT)/tools/Makefile.kmk
 
 else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_VALIDATIONKIT && !VBOX_ONLY_DOCS
@@ -83,6 +86,7 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_VALIDATIONKIT && !VBOX_ONLY_DOCS
  LIBRARIES += RuntimeR3 RuntimeBldProg RuntimeR0 RuntimeEFCPP RuntimeR3NoCRTGCC
  LIBRARIES.solaris += RuntimeR0Stub
  LIBRARIES.win += RuntimeR0Stub
+ LIBRARIES.win.amd64 += RuntimeR3-x86
  ifdef VBOX_WITH_RAW_MODE
   LIBRARIES += RuntimeRC
   LIBRARIES.win += RuntimeRCStub
@@ -157,8 +161,10 @@ common/misc/buildconfig.cpp_DEFS = \
 BLDPROGS += oiddb2c
 oiddb2c_TEMPLATE = VBoxBldProg
 oiddb2c_SOURCES = common/asn1/oiddb2c.cpp
+
 common/asn1/asn1-dump.cpp_DEPS = $(IPRT_OUT_DIR)/oiddb.h
 common/asn1/asn1-dump.cpp_INCS = $(IPRT_OUT_DIR)
+OTHER_CLEAN += $(IPRT_OUT_DIR)/oiddb.h $(IPRT_OUT_DIR)/oiddb.h.ts
 
 $(IPRT_OUT_DIR)/oiddb.h.ts +| $(IPRT_OUT_DIR)/oiddb.h: \
 		$(VBOX_PATH_RUNTIME_SRC)/common/asn1/oiddb.cfg \
@@ -195,6 +201,7 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetSS.asm \
 	win/amd64/ASMProbeReadByte.asm \
 	common/asm/ASMSetFlags.asm \
+	common/asm/ASMAddFlags.asm \
 	win/amd64/ASMGetDR0.asm \
 	win/amd64/ASMGetDR1.asm \
 	win/amd64/ASMGetDR2.asm \
@@ -290,9 +297,8 @@ ifdef IPRT_WITH_FUTEX_BASED_SEMS
 endif
 RuntimeR3_INCS          = \
 	include \
-	$(SDK_VBOX_ZLIB_INCS)
-RuntimeR3_INCS         += \
-	$(PATH_ROOT)/src/libs/liblzf-3.4
+	$(SDK_VBOX_ZLIB_INCS) \
+	$(SDK_VBOX_LZF_INCS)
 
 # RuntimeR3_INCS.solaris  = \
 #    /usr/include
@@ -445,6 +451,8 @@ RuntimeR3_SOURCES       = \
 	common/fs/isomakerimport.cpp \
 	common/fs/ntfsvfs.cpp \
 	common/fs/RTFsCmdLs.cpp \
+	common/ioqueue/ioqueuebase.cpp \
+	common/ioqueue/ioqueue-stdfile-provider.cpp \
 	common/ldr/ldr.cpp \
 	common/ldr/ldrELF.cpp \
 	common/ldr/ldrEx.cpp \
@@ -477,6 +485,7 @@ RuntimeR3_SOURCES       = \
 	common/misc/RTFileOpenF.cpp \
 	common/misc/RTFileOpenV.cpp \
 	common/misc/RTMemWipeThoroughly.cpp \
+	common/misc/RTSystemFirmwareTypeName.cpp \
 	common/misc/assert.cpp \
 	common/misc/buildconfig.cpp \
 	common/misc/cidr.cpp \
@@ -522,6 +531,7 @@ RuntimeR3_SOURCES       = \
 	common/path/RTPathExt.cpp \
 	common/path/RTPathFilename.cpp \
 	common/path/RTPathFilenameUtf16.cpp \
+	common/path/RTPathFindCommon.cpp \
 	common/path/RTPathGlob.cpp \
 	common/path/RTPathHasExt.cpp \
 	common/path/RTPathHasPath.cpp \
@@ -532,6 +542,7 @@ RuntimeR3_SOURCES       = \
 	common/path/RTPathParse.cpp \
 	common/path/RTPathParsedReassemble.cpp \
 	common/path/RTPathParseSimple.cpp \
+	common/path/RTPathPurgeFilename.cpp \
 	common/path/RTPathRealDup.cpp \
 	common/path/RTPathRmCmd.cpp \
 	common/path/RTPathSkipRootSpec.cpp \
@@ -567,6 +578,7 @@ RuntimeR3_SOURCES       = \
 	common/string/RTStrIStartsWith.cpp \
 	common/string/RTStrICmpAscii.cpp \
 	common/string/RTStrNICmpAscii.cpp \
+	common/string/RTStrSplit.cpp \
 	common/string/RTStrStr.cpp \
 	common/string/RTUtf16Copy.cpp \
 	common/string/RTUtf16CopyAscii.cpp \
@@ -664,6 +676,7 @@ RuntimeR3_SOURCES       = \
 	generic/critsect-generic.cpp \
 	generic/critsectrw-generic.cpp \
 	generic/env-generic.cpp \
+	generic/ftp-server.cpp \
 	generic/RTDirCreateUniqueNumbered-generic.cpp \
 	generic/RTEnvDupEx-generic.cpp \
 	generic/RTFileCopy-generic.cpp \
@@ -720,18 +733,22 @@ RuntimeR3_SOURCES       = \
 
 RuntimeR3_SOURCES.x86 += \
 	generic/RTMpGetDescription-generic.cpp \
-	common/misc/RTSystemIsInsideVM-amd64-x86.cpp
+	common/misc/RTSystemIsInsideVM-amd64-x86.cpp \
+	common/string/RTStrMemFind32.asm
 RuntimeR3_SOURCES.amd64 += \
 	generic/RTMpGetDescription-generic.cpp \
-	common/misc/RTSystemIsInsideVM-amd64-x86.cpp
+	common/misc/RTSystemIsInsideVM-amd64-x86.cpp \
+	common/string/RTStrMemFind32.asm
 RuntimeR3_SOURCES.sparc32 += \
 	generic/RTMpGetDescription-generic-stub.cpp \
 	generic/RTSystemIsInsideVM-generic.cpp \
-	common/asm/asm-fake.cpp
+	common/asm/asm-fake.cpp \
+	common/string/RTStrMemFind32.cpp
 RuntimeR3_SOURCES.sparc64 += \
 	generic/RTMpGetDescription-generic-stub.cpp \
 	generic/RTSystemIsInsideVM-generic.cpp \
-	common/asm/asm-fake.cpp
+	common/asm/asm-fake.cpp \
+	common/string/RTStrMemFind32.cpp
 
 ifdef IPRT_WITH_LZJB
  RuntimeR3_SOURCES += common/misc/lzjb.c
@@ -817,8 +834,10 @@ endif
 VBOX_WITH_NT_DIRENUM = 1
 RuntimeR3_SOURCES.win = \
 	common/dbg/dbgmoddbghelp.cpp \
+	common/ioqueue/ioqueue-aiofile-provider.cpp \
 	generic/cdrom-generic.cpp \
 	generic/RTDirExists-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/fileio-sg-generic.cpp \
 	generic/fileio-sg-at-generic.cpp \
@@ -863,6 +882,7 @@ RuntimeR3_SOURCES.win = \
 	r3/win/RTSystemQueryOSInfo-win.cpp \
 	r3/win/RTSystemShutdown-win.cpp \
 	r3/win/RTSystemQueryDmiString-win.cpp \
+	r3/win/RTSystemFirmware-win.cpp \
 	r3/win/RTSystemQueryTotalRam-win.cpp \
 	r3/win/RTTimeZoneGetCurrent-win.cpp \
 	r3/win/alloc-win.cpp \
@@ -870,6 +890,7 @@ RuntimeR3_SOURCES.win = \
 	r3/win/dir-win.cpp \
 	$(if-expr defined(VBOX_WITH_NT_DIRENUM),r3/nt/direnum-r3-nt.cpp,r3/win/direnum-win.cpp generic/RTDirQueryInfo-generic.cpp) \
 	r3/win/errvars-win.cpp \
+	r3/win/fileaio-win.cpp \
 	r3/win/fileio-win.cpp \
 	r3/win/init-win.cpp \
 	r3/win/krnlmod-win.cpp \
@@ -910,9 +931,11 @@ RuntimeR3_SOURCES.win.x86   := \
 	common/string/memrchr.asm
 
 RuntimeR3_SOURCES.linux = \
+	common/ioqueue/ioqueue-aiofile-provider.cpp \
 	generic/cdrom-generic.cpp \
 	generic/RTCrStoreCreateSnapshotById-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
@@ -930,10 +953,11 @@ RuntimeR3_SOURCES.linux = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/allocex-r3-posix.cpp \
 	r3/linux/RTThreadGetNativeState-linux.cpp \
+	r3/linux/fileaio-linux.cpp \
+	r3/linux/ioqueue-iouringfile-provider.cpp \
 	r3/linux/krnlmod-linux.cpp \
 	r3/linux/mp-linux.cpp \
 	r3/linux/rtProcInitExePath-linux.cpp \
@@ -944,6 +968,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/linux/RTFileCopyPartEx-linux.cpp \
 	r3/linux/RTFileSetAllocationSize-linux.cpp \
 	r3/linux/RTProcIsRunningByName-linux.cpp \
+	r3/linux/RTSystemFirmware-linux.cpp \
 	r3/linux/RTSystemQueryDmiString-linux.cpp \
 	r3/linux/RTSystemShutdown-linux.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
@@ -954,6 +979,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/linux/systemmem-linux.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
@@ -1014,6 +1040,7 @@ RuntimeR3_SOURCES.os2   = \
 	generic/cdrom-generic.cpp \
 	generic/RTCrStoreCreateSnapshotById-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/fileio-at-generic.cpp \
 	generic/fileio-sg-generic.cpp \
@@ -1027,6 +1054,7 @@ RuntimeR3_SOURCES.os2   = \
 	generic/RTRandAdvCreateSystemFaster-generic.cpp \
 	generic/RTRandAdvCreateSystemTruer-generic.cpp \
 	generic/RTSystemQueryDmiString-generic.cpp \
+	generic/RTSystemFirmware-generic.cpp \
 	generic/RTSystemShutdown-generic.cpp \
 	generic/RTTimeLocalNow-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
@@ -1061,6 +1089,7 @@ RuntimeR3_SOURCES.os2   = \
 	r3/os2/rtProcInitExePath-os2.cpp \
 	r3/os2/sched-os2.cpp \
 	r3/os2/sems-os2.cpp \
+	r3/os2/serialport-os2.cpp \
 	r3/os2/systemmem-os2.cpp \
 	r3/os2/thread-os2.cpp \
 	r3/os2/time-os2.cpp \
@@ -1092,12 +1121,14 @@ RuntimeR3_SOURCES.os2   = \
 	r3/posix/utf8-posix.cpp
 
 RuntimeR3_SOURCES.darwin = \
+	common/ioqueue/ioqueue-aiofile-provider.cpp \
 	darwin/RTErrConvertFromDarwin.cpp \
 	darwin/RTErrConvertFromDarwinCOM.cpp \
 	darwin/RTErrConvertFromDarwinIO.cpp \
 	darwin/RTErrConvertFromDarwinKern.cpp \
 	generic/cdrom-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileCopyPartEx-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -1121,6 +1152,7 @@ RuntimeR3_SOURCES.darwin = \
 	generic/uuid-generic.cpp\
 	generic/RTProcIsRunningByName-generic.cpp \
 	generic/RTThreadGetNativeState-generic.cpp \
+	generic/RTSystemFirmware-generic.cpp \
 	r3/darwin/RTCrStoreCreateSnapshotById-darwin.cpp \
 	r3/darwin/filelock-darwin.cpp \
 	r3/darwin/krnlmod-darwin.cpp \
@@ -1136,7 +1168,6 @@ RuntimeR3_SOURCES.darwin = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
@@ -1144,9 +1175,11 @@ RuntimeR3_SOURCES.darwin = \
 	r3/posix/RTPathUserHome-posix.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
+	r3/posix/fileaio-posix.cpp \
 	r3/posix/fileio-posix.cpp \
 	r3/posix/fileio2-posix.cpp \
 	r3/posix/fileio-at-posix.cpp \
@@ -1180,9 +1213,11 @@ RuntimeR3_SOURCES.darwin.amd64 += common/string/memrchr.asm
 
 ## @todo Make BSD sched, implement RTMP*.
 RuntimeR3_SOURCES.freebsd = \
+	common/ioqueue/ioqueue-aiofile-provider.cpp \
 	generic/cdrom-generic.cpp \
 	generic/RTCrStoreCreateSnapshotById-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileCopyPartEx-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -1192,6 +1227,7 @@ RuntimeR3_SOURCES.freebsd = \
 	generic/RTSemEventMultiWait-2-ex-generic.cpp \
 	generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp \
 	generic/RTSystemQueryDmiString-generic.cpp \
+	generic/RTSystemFirmware-generic.cpp \
 	generic/RTSystemShutdown-generic.cpp \
 	generic/RTThreadGetAffinity-stub-generic.cpp \
 	generic/RTThreadSetAffinity-stub-generic.cpp \
@@ -1209,6 +1245,7 @@ RuntimeR3_SOURCES.freebsd = \
 	generic/RTProcDaemonize-generic.cpp \
 	generic/RTProcIsRunningByName-generic.cpp \
 	generic/RTThreadGetNativeState-generic.cpp \
+	r3/freebsd/fileaio-freebsd.cpp \
 	r3/freebsd/mp-freebsd.cpp \
 	r3/freebsd/systemmem-freebsd.cpp \
 	r3/freebsd/rtProcInitExePath-freebsd.cpp \
@@ -1216,7 +1253,6 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
@@ -1225,6 +1261,7 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1266,13 +1303,16 @@ RuntimeR3_SOURCES.freebsd = \
 RuntimeR3_SOURCES.netbsd = \
 	generic/cdrom-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileCopyPartEx-generic.cpp \
 	generic/RTFileMove-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTPathGetCurrentOnDrive-generic.cpp \
 	generic/RTSemEventMultiWait-2-ex-generic.cpp \
 	generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp \
 	generic/RTSystemQueryDmiString-generic.cpp \
+	generic/RTSystemFirmware-generic.cpp \
 	generic/RTSystemShutdown-generic.cpp \
 	generic/RTThreadGetAffinity-stub-generic.cpp \
 	generic/RTThreadSetAffinity-stub-generic.cpp \
@@ -1295,7 +1335,6 @@ RuntimeR3_SOURCES.netbsd = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTFileSetAllocationSize-posix.cpp \
@@ -1306,6 +1345,7 @@ RuntimeR3_SOURCES.netbsd = \
 	r3/posix/RTSystemQueryTotalRam-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1344,9 +1384,11 @@ RuntimeR3_SOURCES.netbsd = \
 	r3/posix/utf8-posix.cpp
 
 RuntimeR3_SOURCES.solaris = \
+	common/ioqueue/ioqueue-aiofile-provider.cpp \
 	generic/cdrom-generic.cpp \
 	generic/RTCrStoreCreateSnapshotById-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileCopyPartEx-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -1364,11 +1406,11 @@ RuntimeR3_SOURCES.solaris = \
 	generic/utf16locale-generic.cpp \
 	generic/uuid-generic.cpp \
 	generic/RTThreadGetNativeState-generic.cpp \
+	generic/RTSystemFirmware-generic.cpp \
 	r3/generic/allocex-r3-generic.cpp \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTFileSetAllocationSize-posix.cpp \
@@ -1378,6 +1420,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1415,6 +1458,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/timer-posix.cpp \
 	r3/posix/tls-posix.cpp \
 	r3/posix/utf8-posix.cpp \
+	r3/solaris/fileaio-solaris.cpp \
 	r3/solaris/krnlmod-solaris.cpp \
 	r3/solaris/systemmem-solaris.cpp \
 	r3/solaris/mp-solaris.cpp \
@@ -1439,6 +1483,7 @@ RuntimeR3_SOURCES.solaris.sparc64 = \
 RuntimeR3_SOURCES.haiku = \
 	generic/RTCrStoreCreateSnapshotById-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetMode-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/fileio-at-generic.cpp \
 	generic/fileio-sg-generic.cpp \
@@ -1525,10 +1570,8 @@ ifn1of ($(KBUILD_TARGET), os2) # breaks validationkit, figure out later.
  #$(call KB_FN_DO_PASS0_ON_TARGET,RuntimeR3)
 
  BLDDIRS += $(IPRT_OUT_DIR)/man/
- OTHER_CLEAN += \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(IPRT_XML_REFENTRY_FILES)) \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h,$(IPRT_XML_REFENTRY_FILES))) \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h.ts,$(IPRT_XML_REFENTRY_FILES)))
+ OTHER_CLEAN += $(foreach xml,$(basename $(notdir $(IPRT_XML_REFENTRY_FILES))), \
+ 	$(IPRT_OUT_DIR)/man/$(xml).xml $(IPRT_OUT_DIR)/man/$(xml).h $(IPRT_OUT_DIR)/man/$(xml).h.ts)
 
 
  include $(PATH_ROOT)/doc/manual/Config.kmk
@@ -1544,6 +1587,13 @@ ifn1of ($(KBUILD_TARGET), os2) # breaks validationkit, figure out later.
 
 endif
 
+
+#
+# RuntimeR3-x86 - 32-bit version of RuntimeR3 for windows hosts.
+#
+RuntimeR3-x86_EXTENDS         := RuntimeR3
+RuntimeR3-x86_BLD_TRG_ARCH    := x86
+RuntimeR3-x86_DEFS            := $(filter-out IN_SUP_R3 IN_SUP, $(RuntimeR3_DEFS)) IPRT_WITHOUT_LDR_VERIFY RT_NO_GIP
 
 
 #
@@ -1684,6 +1734,9 @@ RuntimeBldProg_SOURCES         = \
 	common/misc/RTFileOpenF.cpp \
 	common/misc/RTFileOpenV.cpp \
 	common/misc/RTMemWipeThoroughly.cpp \
+	common/misc/req.cpp \
+	common/misc/reqqueue.cpp \
+	common/misc/reqpool.cpp \
 	common/misc/sanity-c.c \
 	common/misc/sanity-cpp.cpp \
 	common/misc/sg.cpp \
@@ -1895,6 +1948,7 @@ RuntimeBldProg_SOURCES.win = \
 	r3/nt/RTFileSetMode-r3-nt.cpp \
 	r3/nt/RTPathQueryInfo-nt.cpp \
 	r3/nt/RTPathSetMode-r3-nt.cpp \
+	r3/nt/RTProcQueryParent-r3-nt.cpp \
 	r3/win/alloc-win.cpp \
 	r3/win/allocex-win.cpp \
 	r3/win/dir-win.cpp \
@@ -1920,6 +1974,7 @@ RuntimeBldProg_SOURCES.win = \
 	r3/win/thread2-win.cpp \
 	$(if-expr 1,r3/win/time-win.cpp,r3/nt/time-nt.cpp) \
 	r3/win/time2-win.cpp \
+	r3/win/tls-win.cpp \
 	r3/win/utf16locale-win.cpp \
 	r3/win/utf8-win.cpp \
 	win/errmsgwin.cpp \
@@ -2107,9 +2162,9 @@ VBoxRT_SOURCES                := \
 	common/checksum/crc32-zlib.cpp \
 	common/fuzz/fuzz.cpp \
 	common/fuzz/fuzz-observer.cpp \
+	common/fuzz/fuzz-target-recorder.cpp \
 	common/fuzz/fuzzmastercmd.cpp \
-	common/fuzz/fuzzclientcmd.cpp \
-	common/misc/aiomgr.cpp
+	common/fuzz/fuzzclientcmd.cpp
 ifneq ($(KBUILD_TARGET),win)
 VBox/VBoxRTDeps.cpp_CXXFLAGS = -Wno-deprecated-declarations
 endif
@@ -2141,37 +2196,28 @@ VBoxRT_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(K
 VBoxRT_SOURCES.$(KBUILD_TARGET).x86   := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).x86)
 VBoxRT_SOURCES.$(KBUILD_TARGET).amd64 := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).amd64)
 VBoxRT_SOURCES.$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(KBUILD_TARGET_ARCH))
-VBoxRT_SOURCES.x86   := $(RuntimeR3_SOURCES.x86)
-VBoxRT_SOURCES.amd64 := $(RuntimeR3_SOURCES.amd64)
+VBoxRT_SOURCES.x86            := $(RuntimeR3_SOURCES.x86)
+VBoxRT_SOURCES.amd64          := $(RuntimeR3_SOURCES.amd64)
 VBoxRT_SOURCES.win            += \
 	r3/win/dllmain-win.cpp \
-	r3/win/fileaio-win.cpp \
-	$(VBoxRT_0_OUTDIR)/VBoxRT.def
-VBoxRT_SOURCES.linux          += \
-	r3/linux/fileaio-linux.cpp
-VBoxRT_SOURCES.solaris        += \
-	r3/solaris/fileaio-solaris.cpp
-VBoxRT_SOURCES.darwin         += \
-	r3/posix/fileaio-posix.cpp
-VBoxRT_SOURCES.freebsd        += \
-	r3/freebsd/fileaio-freebsd.cpp
+	 $(VBoxRT_0_OUTDIR)/VBoxRT.def
 VBoxRT_INCS                   := $(RuntimeR3_INCS)
 VBoxRT_INCS.$(KBUILD_TARGET)  := $(RuntimeR3_INCS.$(KBUILD_TARGET))
 VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
 VBoxRT_LIBS                    = \
-	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB)
+	$(SDK_VBOX_LZF_LIBS)
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 VBoxRT_LIBS                   += \
 	$(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
 endif
 ifndef SDK_VBOX_LIBXML2_LIBS
- VBoxRT_LIBS                 += \
+ VBoxRT_LIBS                  += \
 	$(PATH_STAGE_LIB)/VBox-libxml2$(VBOX_SUFF_LIB)
 endif
-VBoxRT_LIBS                  += \
+VBoxRT_LIBS                   += \
 	$(SDK_VBOX_ZLIB_LIBS)
 ifndef SDK_VBOX_OPENSSL_LIBS
- VBoxRT_LIBS                 += \
+ VBoxRT_LIBS                  += \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBox-libssl$(VBOX_SUFF_LIB)
 endif
@@ -2308,7 +2354,7 @@ endif
 VBoxRT-x86_SDKS  += VBOX_OPENSSL-x86
 
 VBoxRT-x86_LIBS = \
-	$(PATH_STAGE_LIB)/VBox-liblzf-x86$(VBOX_SUFF_LIB)
+	$(SDK_VBOX_LZF_LIBS-x86)
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 VBoxRT-x86_LIBS += \
 	$(PATH_STAGE_LIB)/SUPR3-x86$(VBOX_SUFF_LIB)
@@ -2386,6 +2432,8 @@ if1of (VBoxRT,$(DLLS))
  	$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm
  VBoxRTStableCheck_LIBS = \
  	$(LIB_RUNTIME)
+ VBoxRTStableCheck_CLEAN = \
+ 	$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm
  ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.amd64)
 $$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm: \
        $(PATH_SUB_CURRENT)/VBox/DefToAsmExterns.sed \
@@ -2655,7 +2703,11 @@ RuntimeR0Drv_TEMPLATE   = VBoxR0DrvLib
 RuntimeR0Drv_SDKS.win   = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK)INCS VBOX_OPENSSL
 RuntimeR0Drv_DEFS       = IN_RT_R0 RT_WITH_VBOX RT_WITHOUT_NOCRT_WRAPPERS RT_NO_EXPORT_SYMBOL NOFILEID
 RuntimeR0Drv_DEFS.win   = IN_SUP_R0 LDR_ONLY_PE IPRT_WITHOUT_DIGEST_MD4
-RuntimeR0Drv_DEFS.darwin= IN_SUP_R0 LDR_ONLY_MACHO IPRT_WITHOUT_DIGEST_MD4
+RuntimeR0Drv_DEFS.darwin= IN_SUP_R0 LDR_ONLY_MACHO IPRT_WITHOUT_DIGEST_MD4 IN_RING0_DRV_ON_DARWIN
+if  ($(VBOX_SOLARIS_11_UPDATE_VERSION) > 2 \
+ || ($(VBOX_SOLARIS_11_UPDATE_VERSION) == 2 && $(VBOX_SOLARIS_11_BUILD_VERSION) >= 22))
+RuntimeR0Drv_DEFS.solaris += VBOX_NEW_CRASH_DUMP_FORMAT
+endif
 
 RuntimeR0Drv_INCS      := $(PATH_SUB_CURRENT) include
 RuntimeR0Drv_INCS.freebsd = \
@@ -2776,12 +2828,14 @@ RuntimeR0Drv_SOURCES    = \
 	VBox/log-vbox.cpp \
 
 RuntimeR0Drv_SOURCES.amd64 = \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
 	common/math/bignum-amd64-x86.asm \
 	common/math/RTUInt128MulByU64.asm
 RuntimeR0Drv_SOURCES.x86   = \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
@@ -2820,7 +2874,6 @@ RuntimeR0Drv_SOURCES.linux = \
 	r0drv/powernotification-r0drv.c
 
 RuntimeR0Drv_SOURCES.win = \
-	common/asm/ASMCpuIdExSlow.asm \
 	common/ldr/ldr.cpp \
 	common/ldr/ldrEx.cpp \
 	common/ldr/ldrPE.cpp \
@@ -2965,7 +3018,8 @@ RuntimeR0Drv_SOURCES.win = \
 
 RuntimeR0Drv_SOURCES.win.amd64 := $(RuntimeWin64ASM_SOURCES)
 RuntimeR0Drv_SOURCES.win.x86   := $(RuntimeWin32ASM_SOURCES) \
-	r0drv/nt/nt3fakes-stub-r0drv-nt.cpp
+	r0drv/nt/nt3fakes-stub-r0drv-nt.cpp \
+	r0drv/nt/alloca-x86-r0drv-nt.asm
 
 
 RuntimeR0Drv_SOURCES.darwin = \
@@ -3055,6 +3109,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	common/misc/thread.cpp \
 	common/string/base64.cpp \
 	common/string/memchr.asm \
+	common/string/mempcpy.asm \
 	common/string/strpbrk.cpp \
 	common/string/RTStrPrintHexBytes.cpp \
 	darwin/RTErrConvertFromDarwin.cpp \
@@ -3098,6 +3153,12 @@ RuntimeR0Drv_SOURCES.darwin = \
 	r0drv/alloc-ef-r0drv.cpp \
 	r0drv/memobj-r0drv.cpp \
 	r0drv/powernotification-r0drv.c
+# - The xnu memcpy implementation in osfmk/x86_64/bcopy.s returned 'void' rather than 'void *' for a long time, so use our own.
+# - The memcmp and strlen implementations are still C implementations living in osfmk/x86_64/loose_ends.c, so use our asm code.
+RuntimeR0Drv_SOURCES.darwin.amd64 = \
+	common/string/memcpy.asm
+#	common/string/strlen.asm - try again later \
+#	common/string/memcmp.asm
 
 RuntimeR0Drv_SOURCES.os2 = \
 	common/path/RTPathFilenameUtf16.cpp \
@@ -3803,7 +3864,7 @@ test-doxygen::
 if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
  test-mangling:: $(IPRT_OUT_DIR)/mangling.run
  OTHERS      += $(IPRT_OUT_DIR)/mangling.run
- CLEANS      += $(IPRT_OUT_DIR)/mangling.run
+ OTHER_CLEAN += $(IPRT_OUT_DIR)/mangling.run
  $(IPRT_OUT_DIR)/mangling.run: \
 		$$(RuntimeR3_1_TARGET) \
 		$$(RuntimeR0_1_TARGET) \
@@ -3966,4 +4027,3 @@ taf-template.o taf-template.obj: taf-core.o taf-asn1-decoder.o taf-sanity.o taf-
 tsp-template.o tsp-template.obj: tsp-core.o tsp-asn1-decoder.o tsp-sanity.o tsp-init.o
 x509-template.o x509-template.obj: x509-core.o x509-asn1-decoder.o x509-sanity.o x509-init.o
 pkcs7-template.o pkcs7-template.obj: pkcs7-core.o pkcs7-asn1-decoder.o pkcs7-sanity.o pkcs7-init.o
-

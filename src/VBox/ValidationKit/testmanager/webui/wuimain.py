@@ -7,7 +7,7 @@ Test Manager Core - WUI - The Main page.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 135976 $"
 
 # Standard Python imports.
 
@@ -563,9 +563,9 @@ class WuiMain(WuiDispatcherBase):
                                             WuiDispatcherBase.ksParamPageNo)
         sHrefPtr   += '%d">%s</a>'
 
-        cNumOfPages      = (cItems + cItemsPerPage - 1) / cItemsPerPage;
+        cNumOfPages      = (cItems + cItemsPerPage - 1) // cItemsPerPage;
         cPagesToDisplay  = 10
-        cPagesRangeStart = iPage - cPagesToDisplay / 2 \
+        cPagesRangeStart = iPage - cPagesToDisplay // 2 \
                            if not iPage - cPagesToDisplay / 2 < 0 else 0
         cPagesRangeEnd   = cPagesRangeStart + cPagesToDisplay \
                            if not cPagesRangeStart + cPagesToDisplay > cNumOfPages else cNumOfPages
@@ -716,7 +716,7 @@ class WuiMain(WuiDispatcherBase):
     # The rest of stuff
     #
 
-    def _actionGroupedResultsListing( #pylint: disable=R0914
+    def _actionGroupedResultsListing( #pylint: disable=too-many-locals
             self,
             enmResultsGroupingType,
             oResultsLogicType,
@@ -758,10 +758,9 @@ class WuiMain(WuiDispatcherBase):
         #
         oTrLogic = TestResultLogic(self._oDb);
         sAltSelectorAction = None;
-        if   enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeNone \
-          or enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestBox:
+        if enmResultsGroupingType in (TestResultLogic.ksResultsGroupingTypeNone, TestResultLogic.ksResultsGroupingTypeTestBox,):
             aoTmp = oTrLogic.getTestBoxes(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idTestBox, '%s (%s)' % (x.sName, str(x.ip))) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({(x.idTestBox, '%s (%s)' % (x.sName, str(x.ip))) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
 
             if enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestBox:
@@ -773,27 +772,27 @@ class WuiMain(WuiDispatcherBase):
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestGroup:
             aoTmp = oTrLogic.getTestGroups(tsNow = tsEffective, sPeriod = sCurPeriod);
-            aoGroupMembers = sorted(list(set([ (x.idTestGroup, x.sName ) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idTestGroup, x.sName ) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Test Group'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeBuildRev:
             aoTmp = oTrLogic.getBuilds(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.iRevision, '%s.%d' % (x.oCat.sBranch, x.iRevision)) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.iRevision, '%s.%d' % (x.oCat.sBranch, x.iRevision)) for x in aoTmp }),
                                     reverse = True, key = lambda asData: asData[0])
             self._sPageTitle = 'Grouped by Build'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeBuildCat:
             aoTmp = oTrLogic.getBuildCategories(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ ( x.idBuildCategory, '%s / %s / %s / %s'
-                                                 % ( x.sProduct, x.sBranch, ', '.join(x.asOsArches), x.sType) )
-                                               for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idBuildCategory,
+                                            '%s / %s / %s / %s' % ( x.sProduct, x.sBranch, ', '.join(x.asOsArches), x.sType) )
+                                           for x in aoTmp }),
                                     reverse = True, key = lambda asData: asData[1]);
             self._sPageTitle = 'Grouped by Build Category'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestCase:
             aoTmp = oTrLogic.getTestCases(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idTestCase, '%s' % x.sName) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idTestCase, '%s' % x.sName) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Test Case'
 
@@ -809,7 +808,7 @@ class WuiMain(WuiDispatcherBase):
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeSchedGroup:
             aoTmp = oTrLogic.getSchedGroups(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idSchedGroup, '%s' % x.sName) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idSchedGroup, '%s' % x.sName) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Scheduling Group'
 
@@ -915,7 +914,7 @@ class WuiMain(WuiDispatcherBase):
         # Add non-filter parameters as hidden fields so we can use 'GET' and have URLs to bookmark.
         self._dSideMenuFormAttrs['method'] = 'GET';
         sHtml = u'';
-        for sKey, oValue in self._oSrvGlue.getParameters().iteritems():
+        for sKey, oValue in self._oSrvGlue.getParameters().items():
             if len(sKey) > 3:
                 if hasattr(oValue, 'startswith'):
                     sHtml += u'<input type="hidden" name="%s" value="%s"/>\n' \
@@ -932,10 +931,10 @@ class WuiMain(WuiDispatcherBase):
                  u' <a href="javascript:toggleSidebarSize();" class="tm-sidebar-size-link">&#x00bb;&#x00bb;</a></span></p>\n';
         sHtml += u' <dl>\n';
         for oCrit in oFilter.aCriteria:
-            if oCrit.aoPossible:
+            if oCrit.aoPossible or oCrit.sType == oCrit.ksType_Ranges:
                 if   (    oCrit.oSub is None \
                       and (   oCrit.sState == oCrit.ksState_Selected \
-                           or len(oCrit.aoPossible) <= 2)) \
+                           or (len(oCrit.aoPossible) <= 2 and oCrit.sType != oCrit.ksType_Ranges))) \
                   or (    oCrit.oSub is not None \
                       and (   oCrit.sState == oCrit.ksState_Selected \
                            or oCrit.oSub.sState == oCrit.ksState_Selected \
@@ -962,33 +961,48 @@ class WuiMain(WuiDispatcherBase):
                          u'   <ul>\n' \
                          % (sClass);
 
-                for oDesc in oCrit.aoPossible:
-                    fChecked = oDesc.oValue in oCrit.aoSelected;
-                    sHtml += u'    <li%s%s><label><input type="checkbox" name="%s" value="%s"%s%s/>%s%s</label>\n' \
-                           % ( ' class="side-filter-irrelevant"' if oDesc.fIrrelevant else '',
-                               (' title="%s"' % (webutils.escapeAttr(oDesc.sHover,)) if oDesc.sHover is not None else ''),
-                               oCrit.sVarNm,
-                               oDesc.oValue,
-                               ' checked' if fChecked else '',
-                               ' onclick="toggleCollapsibleCheckbox(this);"' if oDesc.aoSubs is not None else '',
-                               webutils.escapeElem(oDesc.sDesc),
-                               '<span class="side-filter-count"> [%u]</span>' % (oDesc.cTimes) if oDesc.cTimes is not None
-                               else '', );
-                    if oDesc.aoSubs is not None:
-                        sHtml += u'     <ul class="sf-checkbox-%s">\n' % ('collapsible' if fChecked else 'expandable', );
-                        for oSubDesc in oDesc.aoSubs:
-                            fSubChecked = oSubDesc.oValue in oCrit.oSub.aoSelected;
-                            sHtml += u'     <li%s%s><label><input type="checkbox" name="%s" value="%s"%s/>%s%s</label>\n' \
-                                   % ( ' class="side-filter-irrelevant"' if oSubDesc.fIrrelevant else '',
-                                       ' title="%s"' % ( webutils.escapeAttr(oSubDesc.sHover,) if oSubDesc.sHover is not None
-                                                         else ''),
-                                       oCrit.oSub.sVarNm, oSubDesc.oValue, ' checked' if fSubChecked else '',
-                                       webutils.escapeElem(oSubDesc.sDesc),
-                                       '<span class="side-filter-count"> [%u]</span>' % (oSubDesc.cTimes)
-                                       if oSubDesc.cTimes is not None else '', );
+                if oCrit.sType == oCrit.ksType_Ranges:
+                    assert not oCrit.oSub;
+                    assert not oCrit.aoPossible;
+                    asValues = [];
+                    for tRange in oCrit.aoSelected:
+                        if tRange[0] == tRange[1]:
+                            asValues.append('%s' % (tRange[0],));
+                        else:
+                            asValues.append('%s-%s' % (tRange[0] if tRange[0] is not None else 'inf',
+                                                       tRange[1] if tRange[1] is not None else 'inf'));
+                    sHtml += u'    <li title="%s"><input type="text" name="%s" value="%s"/></li>\n' \
+                           % ( webutils.escapeAttr('comma separate list of numerical ranges'), oCrit.sVarNm,
+                               ', '.join(asValues), );
+                else:
+                    for oDesc in oCrit.aoPossible:
+                        fChecked = oDesc.oValue in oCrit.aoSelected;
+                        sHtml += u'    <li%s%s><label><input type="checkbox" name="%s" value="%s"%s%s/>%s%s</label>\n' \
+                               % ( ' class="side-filter-irrelevant"' if oDesc.fIrrelevant else '',
+                                   (' title="%s"' % (webutils.escapeAttr(oDesc.sHover,)) if oDesc.sHover is not None else ''),
+                                   oCrit.sVarNm,
+                                   oDesc.oValue,
+                                   ' checked' if fChecked else '',
+                                   ' onclick="toggleCollapsibleCheckbox(this);"' if oDesc.aoSubs is not None else '',
+                                   webutils.escapeElem(oDesc.sDesc),
+                                   '<span class="side-filter-count"> [%u]</span>' % (oDesc.cTimes) if oDesc.cTimes is not None
+                                   else '', );
+                        if oDesc.aoSubs is not None:
+                            sHtml += u'     <ul class="sf-checkbox-%s">\n' % ('collapsible' if fChecked else 'expandable', );
+                            for oSubDesc in oDesc.aoSubs:
+                                fSubChecked = oSubDesc.oValue in oCrit.oSub.aoSelected;
+                                sHtml += u'     <li%s%s><label><input type="checkbox" name="%s" value="%s"%s/>%s%s</label>\n' \
+                                       % ( ' class="side-filter-irrelevant"' if oSubDesc.fIrrelevant else '',
+                                           ' title="%s"' % ( webutils.escapeAttr(oSubDesc.sHover,) if oSubDesc.sHover is not None
+                                                             else ''),
+                                           oCrit.oSub.sVarNm, oSubDesc.oValue, ' checked' if fSubChecked else '',
+                                           webutils.escapeElem(oSubDesc.sDesc),
+                                           '<span class="side-filter-count"> [%u]</span>' % (oSubDesc.cTimes)
+                                           if oSubDesc.cTimes is not None else '', );
 
-                        sHtml += u'     </ul>\n';
-                    sHtml += u'    </li>';
+                            sHtml += u'     </ul>\n';
+                        sHtml += u'    </li>';
+
                 sHtml += u'   </ul>\n' \
                          u'  </dd>\n';
 

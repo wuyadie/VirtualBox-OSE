@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,8 @@ if !defined(VBOX_ONLY_BUILD) && defined(VBOX_WITH_RAW_MODE)
 endif
 if  !defined(VBOX_ONLY_DOCS) \
  && !defined(VBOX_ONLY_EXTPACKS) \
- && !defined(VBOX_ONLY_VALIDATIONKIT)
+ && !defined(VBOX_ONLY_VALIDATIONKIT) \
+ && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
  ifdef VBOX_WITH_SUPSVC
   PROGRAMS += VBoxSupSvc
  endif
@@ -90,9 +91,15 @@ VBOX_SUP_WIN_CERTS := \
        SpcRootMicrosoft6=SpcRoot-MicrosoftDevelopmentRootCertificateAuthority2014-078f0a9d03df119e434e4fec1bf0235a.taf \
        NtRootMicrosoft7=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
        TimeRootMicrosoft0=Timestamp-CopyrightC1997MicrosoftCorp-01.taf \
-       TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-51ca009816fdbd80f120e015ee75823e.taf \
+       TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
        AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
        AppleRoot1=AppleRoot-G2-c499136c1803c27bc0a3a00d7f72807a1c77268d.taf
+# Hack Alert! Because the DigiCert cross signing certificate we use expired 2020-04-15, we add it as a trusted NT kernel
+#             signing root instead, so we can bypass the expiry check in IPRT.  NtRootMicrosoft8 is the one found in the
+#             6.1.20 extpack, NtRootMicrosoft9 is the one bird uses at home.
+VBOX_SUP_WIN_CERTS += NtRootDigiCert8=NtRoot-CrossSign-DigiCertAssuredIDRootCA-589567a6c1944d68f11ff3d86576092b.taf
+VBOX_SUP_WIN_CERTS += NtRootDigiCert9=NtRoot-CrossSign-DigiCertHighAssuranceEVRootCA-f4a38dbe86386c554d25f1ce2557a4fe.taf
+
 VBOX_SUP_WIN_CERT_NAMES := $(foreach cert,$(VBOX_SUP_WIN_CERTS),$(firstword $(subst =,$(SPACE) ,$(cert))))
 VBOX_PATH_SUPR3_CERTIFICATES := $(PATH_SUB_CURRENT)/Certificates
 
@@ -140,6 +147,8 @@ endif
 		$(call VBOX_SUP_GEN_CERT_MACRO,AppleRoot,AppleRoot%) \
 		$(call VBOX_SUP_GEN_CERT_MACRO,Trusted,TrustedCert%,build)
 
+OTHER_CLEAN += $(VBOX_SUP_WIN_CERTS_FILE)
+
 tst: $(VBOX_SUP_WIN_CERTS_FILE)
 
 
@@ -152,7 +161,6 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
-	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
@@ -195,7 +203,6 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC,) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
-	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
 	VBOX_PERMIT_MORE \
@@ -387,7 +394,9 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	../../Disassembler/DisasmReg.cpp
 
  SUPR3HardenedStatic_SOURCES.amd64 += \
- 	$(VBOX_PATH_RUNTIME_SRC)/common/math/RTUInt128MulByU64.asm
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/math/RTUInt128MulByU64.asm \
+ 	$(VBOX_PATH_RUNTIME_SRC)/win/amd64/ASMGetCS.asm \
+ 	$(VBOX_PATH_RUNTIME_SRC)/win/amd64/ASMGetSS.asm
 
  SUPR3HardenedStatic_SOURCES.win += \
  	win/SUPR3HardenedNoCrt-win.cpp \
@@ -429,8 +438,25 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
  endif
 endif
 
-# Things specific to the posix crowd.
-if1of ($(KBUILD_TARGET), linux darwin solaris)
+# macOS specifics.
+ifeq ($(KBUILD_TARGET),darwin)
+ SUPR3HardenedStatic_DEFS += \
+ 	LOG_DISABLED
+
+ SUPR3HardenedStatic_INCS += $(VBOX_PATH_RUNTIME_SRC)/include
+
+ SUPR3HardenedStatic_SOURCES += \
+ 	darwin/SUPR3HardenedMain-darwin.cpp \
+       \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg1Weak.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2Weak.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2WeakV.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTAssertShouldPanic-generic.cpp
+endif
+
+# Things specific to the rest of the posix crowd.
+if1of ($(KBUILD_TARGET), linux solaris)
  SUPR3HardenedStatic_DEFS += \
  	IN_DIS \
 	IN_DIS_STATIC \
@@ -622,7 +648,7 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  ifdef VBOX_WITH_RAW_MODE
   VBoxDrv_DEFS.darwin    += VBOX_WITH_RAW_MODE
  endif
- ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+ if defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION) && defined(VBOX_SIGNING_MODE)
   VBoxDrv_DEFS.darwin    += VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
  endif
  ifdef VBOX_WITH_NETFLT
@@ -640,7 +666,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  ifdef VBOX_WITH_HARDENING
   VBoxDrv_ASDEFS         += VBOX_WITH_HARDENING
  endif
- if ($(VBOX_VERSION_BUILD) % 2) == 1
+ ifdef VBOX_WITH_RAM_IN_KERNEL
+  VBoxDrv_DEFS           += VBOX_WITHOUT_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITHOUT_EFLAGS_AC_PRESERVING
+ else if ($(VBOX_VERSION_BUILD) % 2) == 1
   VBoxDrv_DEFS           += VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITH_EFLAGS_AC_PRESERVING
  endif
 
@@ -741,6 +769,7 @@ endif
 
 
 if1of ($(KBUILD_TARGET), linux freebsd)
+ if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
  #
  # Targets for installing the linux sources.
  #
@@ -759,20 +788,25 @@ if1of ($(KBUILD_TARGET), linux freebsd)
  $$(vboxdrv-src_0_OUTDIR)/Makefile: \
 		$(PATH_SUB_CURRENT)/$(KBUILD_TARGET)/Makefile \
 		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
+		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_RAM_IN_KERNEL),$$(VBOX_WITH_RAM_IN_KERNEL)),,FORCE) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
 	$(QUIET)$(SED) -e "" \
 		$(if-expr !defined(VBOX_WITH_HARDENING)   ,-e "s;VBOX_WITH_HARDENING;;g",) \
-		$(if-expr ($(VBOX_VERSION_BUILD) % 2) == 0 \
+		$(if-expr ($(VBOX_VERSION_BUILD) % 2) == 0 || defined(VBOX_WITH_RAM_IN_KERNEL) \
 		 , -e "s;VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV;;g" -e "s;IPRT_WITH_EFLAGS_AC_PRESERVING;;g",) \
+		$(if-expr !defined(VBOX_WITH_RAM_IN_KERNEL) \
+		 , -e 's;VBOX_WITHOUT_EFLAGS_AC_SET_IN_VBOXDRV;;g' -e 's;IPRT_WITHOUT_EFLAGS_AC_PRESERVING;;g',) \
 		--output $@ $<
 	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-src-1.dep' \
-		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
+		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)' \
+		'Support/$(KBUILD_TARGET)/Makefile_VBOX_RAM_IN_KERNEL=$(VBOX_WITH_RAM_IN_KERNEL)'
 
  #
  # Build test for the linux host kernel modules.
  #
  $(evalcall2 VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN,vboxdrv-src,,save_symvers)
+ endif # supported host arch
 endif # linux freebsd
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
  */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "VBoxUtils.h"
 #include "UIDownloader.h"
 #include "UIMessageCenter.h"
@@ -43,7 +43,7 @@ void UIDownloader::sltStartDownloading()
     m_state = UIDownloaderState_Downloading;
 
     /* Send GET request: */
-    createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << m_source);
+    createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << m_source, m_strTarget);
 }
 
 void UIDownloader::sltStartVerifying()

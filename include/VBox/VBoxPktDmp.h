@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@ DECLINLINE(const char *) vboxEthTypeStr(uint16_t uType)
 }
 
 
-DECLHIDDEN(void) vboxEthPacketDump(const char *pcszInstance, const char *pcszText, const uint8_t *pcPacket, uint32_t cb)
+DECLINLINE(void) vboxEthPacketDump(const char *pcszInstance, const char *pcszText, const uint8_t *pcPacket, uint32_t cb)
 {
 #if defined(LOG_ENABLED) && !defined(VBOX_DEVICE_STRUCT_TESTCASE)
     AssertReturnVoid(cb >= 14);

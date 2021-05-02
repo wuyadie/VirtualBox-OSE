@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,8 +36,9 @@
 {
     NOREF(hTest);
     QUrl Dummy1;
-    UserDictionary Dummy2;
-    UINetworkReplyPrivateThread TestObj(UINetworkRequestType_GET, Dummy1, Dummy2);
+    QString strDummy2;
+    UserDictionary Dummy3;
+    UINetworkReplyPrivateThread TestObj(UINetworkRequestType_GET, Dummy1, strDummy2, Dummy3);
 
     /*
      * Do the first setup things that UINetworkReplyPrivateThread::run.

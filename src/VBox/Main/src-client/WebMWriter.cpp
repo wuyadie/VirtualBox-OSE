@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,17 +24,12 @@
 #define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
 #include "LoggingNew.h"
 
-#include <iprt/cdefs.h>
-#include <iprt/critsect.h>
-#include <iprt/errcore.h>
-#include <iprt/file.h>
 #include <iprt/buildconfig.h>
+#include <iprt/errcore.h>
 
-#include <VBox/log.h>
 #include <VBox/version.h>
 
 #include "WebMWriter.h"
-#include "EBML_MKV.h"
 
 
 WebMWriter::WebMWriter(void)

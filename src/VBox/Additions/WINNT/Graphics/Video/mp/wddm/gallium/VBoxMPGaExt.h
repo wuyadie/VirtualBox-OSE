@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,8 @@ typedef struct VBOXWDDM_EXT_GA
     volatile uint32_t u32PreemptionFenceId; /* Updated in GaDxgkDdiPreemptCommand. */
     volatile uint32_t u32LastCompletedSeqNo; /* Updated in DPC routine. */
 
+    RTLISTANCHOR listHwRenderData;
+
     struct
     {
         /* Generation of SeqNo's. */
@@ -74,6 +76,7 @@ typedef struct GAFENCEOBJECT
 #define GAFENCE_STATE_SIGNALED  2
 
 #define GAFENCE_F_WAITED        0x1 /* KEVENT is initialized and there is(are) waiter(s). */
+#define GAFENCE_F_DELETED       0x2 /* The user mode driver deleted this fence. */
 
 NTSTATUS GaFenceCreate(PVBOXWDDM_EXT_GA pGaDevExt,
                        PVBOXWDDM_DEVICE pDevice,
@@ -86,8 +89,8 @@ NTSTATUS GaFenceQuery(PVBOXWDDM_EXT_GA pGaDevExt,
 NTSTATUS GaFenceWait(PVBOXWDDM_EXT_GA pGaDevExt,
                      uint32_t u32FenceHandle,
                      uint32_t u32TimeoutUS);
-NTSTATUS GaFenceUnref(PVBOXWDDM_EXT_GA pGaDevExt,
-                      uint32_t u32FenceHandle);
+NTSTATUS GaFenceDelete(PVBOXWDDM_EXT_GA pGaDevExt,
+                       uint32_t u32FenceHandle);
 
 DECLINLINE(void) gaFenceObjectsLock(VBOXWDDM_EXT_GA *pGaDevExt)
 {

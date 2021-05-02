@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,6 +106,7 @@ enum
     MODIFYVM_BIOSAPIC,
     MODIFYVM_BIOSSYSTEMTIMEOFFSET,
     MODIFYVM_BIOSPXEDEBUG,
+    MODIFYVM_SYSTEMUUIDLE,
     MODIFYVM_BOOT,
     MODIFYVM_HDA,                // deprecated
     MODIFYVM_HDB,                // deprecated
@@ -162,7 +163,12 @@ enum
     MODIFYVM_AUDIO,
     MODIFYVM_AUDIOIN,
     MODIFYVM_AUDIOOUT,
-    MODIFYVM_CLIPBOARD,
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
+    MODIFYVM_CLIPBOARD_MODE,
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    MODIFYVM_CLIPBOARD_FILE_TRANSFERS,
+# endif
+#endif
     MODIFYVM_DRAGANDDROP,
     MODIFYVM_VRDPPORT,                /* VRDE: deprecated */
     MODIFYVM_VRDPADDRESS,             /* VRDE: deprecated */
@@ -201,11 +207,6 @@ enum
     MODIFYVM_HPET,
     MODIFYVM_IOCACHE,
     MODIFYVM_IOCACHESIZE,
-    MODIFYVM_FAULT_TOLERANCE,
-    MODIFYVM_FAULT_TOLERANCE_ADDRESS,
-    MODIFYVM_FAULT_TOLERANCE_PORT,
-    MODIFYVM_FAULT_TOLERANCE_PASSWORD,
-    MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL,
     MODIFYVM_CPU_EXECTUION_CAP,
     MODIFYVM_AUTOSTART_ENABLED,
     MODIFYVM_AUTOSTART_DELAY,
@@ -232,7 +233,8 @@ enum
     MODIFYVM_RECORDING_OPTIONS,
 #endif
     MODIFYVM_CHIPSET,
-    MODIFYVM_DEFAULTFRONTEND
+    MODIFYVM_DEFAULTFRONTEND,
+    MODIFYVM_VMPROC_PRIORITY
 };
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
@@ -298,6 +300,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--biossystemtimeoffset",     MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64 },
     { "--biosapic",                 MODIFYVM_BIOSAPIC,                  RTGETOPT_REQ_STRING },
     { "--biospxedebug",             MODIFYVM_BIOSPXEDEBUG,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--system-uuid-le",           MODIFYVM_SYSTEMUUIDLE,              RTGETOPT_REQ_BOOL_ONOFF },
     { "--boot",                     MODIFYVM_BOOT,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--hda",                      MODIFYVM_HDA,                       RTGETOPT_REQ_STRING },
     { "--hdb",                      MODIFYVM_HDB,                       RTGETOPT_REQ_STRING },
@@ -355,7 +358,13 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
     { "--audioin",                  MODIFYVM_AUDIOIN,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--audioout",                 MODIFYVM_AUDIOOUT,                  RTGETOPT_REQ_BOOL_ONOFF },
-    { "--clipboard",                MODIFYVM_CLIPBOARD,                 RTGETOPT_REQ_STRING },
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
+    { "--clipboard-mode",           MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING },
+    { "--clipboard",                MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING },     /* deprecated */
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    { "--clipboard-file-transfers", MODIFYVM_CLIPBOARD_FILE_TRANSFERS,  RTGETOPT_REQ_STRING },
+# endif
+#endif
     { "--draganddrop",              MODIFYVM_DRAGANDDROP,               RTGETOPT_REQ_STRING },
     { "--vrdpport",                 MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING },     /* deprecated */
     { "--vrdpaddress",              MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING },     /* deprecated */
@@ -395,11 +404,6 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--hpet",                     MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF },
     { "--iocache",                  MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--iocachesize",              MODIFYVM_IOCACHESIZE,               RTGETOPT_REQ_UINT32 },
-    { "--faulttolerance",           MODIFYVM_FAULT_TOLERANCE,           RTGETOPT_REQ_STRING },
-    { "--faulttoleranceaddress",    MODIFYVM_FAULT_TOLERANCE_ADDRESS,   RTGETOPT_REQ_STRING },
-    { "--faulttoleranceport",       MODIFYVM_FAULT_TOLERANCE_PORT,      RTGETOPT_REQ_UINT32 },
-    { "--faulttolerancepassword",   MODIFYVM_FAULT_TOLERANCE_PASSWORD,  RTGETOPT_REQ_STRING },
-    { "--faulttolerancesyncinterval", MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL, RTGETOPT_REQ_UINT32 },
     { "--chipset",                  MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING },
 #ifdef VBOX_WITH_RECORDING
     { "--recording",                MODIFYVM_RECORDING,                 RTGETOPT_REQ_BOOL_ONOFF },
@@ -425,6 +429,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--usbcardreader",            MODIFYVM_USBCARDREADER,             RTGETOPT_REQ_BOOL_ONOFF },
 #endif
     { "--defaultfrontend",          MODIFYVM_DEFAULTFRONTEND,           RTGETOPT_REQ_STRING },
+    { "--vm-process-priority",      MODIFYVM_VMPROC_PRIORITY,           RTGETOPT_REQ_STRING },
 };
 
 static void vrdeWarningDeprecatedOption(const char *pszOption)
@@ -432,6 +437,7 @@ static void vrdeWarningDeprecatedOption(const char *pszOption)
     RTStrmPrintf(g_pStdErr, "Warning: '--vrdp%s' is deprecated. Use '--vrde%s'.\n", pszOption, pszOption);
 }
 
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
 /** Parse PCI address in format 01:02.03 and convert it to the numeric representation. */
 static int32_t parsePci(const char* szPciAddr)
 {
@@ -453,6 +459,7 @@ static int32_t parsePci(const char* szPciAddr)
 
     return (aVals[0] << 8) | (aVals[1] << 3) | (aVals[2] << 0);
 }
+#endif
 
 void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups)
 {
@@ -507,6 +514,22 @@ static int parseNum(uint32_t uIndex, unsigned cMaxIndex, const char *pszName)
     return 0;
 }
 
+VMProcPriority_T nameToVMProcPriority(const char *pszName)
+{
+    if (!RTStrICmp(pszName, "default"))
+        return VMProcPriority_Default;
+    if (!RTStrICmp(pszName, "flat"))
+        return VMProcPriority_Flat;
+    if (!RTStrICmp(pszName, "low"))
+        return VMProcPriority_Low;
+    if (!RTStrICmp(pszName, "normal"))
+        return VMProcPriority_Normal;
+    if (!RTStrICmp(pszName, "high"))
+        return VMProcPriority_High;
+
+    return VMProcPriority_Invalid;
+}
+
 RTEXITCODE handleModifyVM(HandlerArg *a)
 {
     int c;
@@ -536,6 +559,9 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
     ComPtr<IBIOSSettings> biosSettings;
     sessionMachine->COMGETTER(BIOSSettings)(biosSettings.asOutParam());
+
+    ComPtr<IGraphicsAdapter> pGraphicsAdapter;
+    sessionMachine->COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam());
 
     RTGETOPTSTATE GetOptState;
     RTGetOptInit(&GetOptState, a->argc, a->argv, g_aModifyVMOptions,
@@ -581,7 +607,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     break;
                 }
                 uint64_t cbSize;
-                vrc = RTFileGetSize(iconFile, &cbSize);
+                vrc = RTFileQuerySize(iconFile, &cbSize);
                 if (RT_FAILURE(vrc))
                 {
                     RTMsgError("Cannot get size of file \"%s\": %Rrc", ValueUnion.psz, vrc);
@@ -621,7 +647,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_VRAM:
             {
-                CHECK_ERROR(sessionMachine, COMSETTER(VRAMSize)(ValueUnion.u32));
+                CHECK_ERROR(pGraphicsAdapter, COMSETTER(VRAMSize)(ValueUnion.u32));
                 break;
             }
 
@@ -871,19 +897,19 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             {
                 if (   !RTStrICmp(ValueUnion.psz, "none")
                     || !RTStrICmp(ValueUnion.psz, "disabled"))
-                    CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_Null));
+                    CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_Null));
                 else if (   !RTStrICmp(ValueUnion.psz, "vboxvga")
                          || !RTStrICmp(ValueUnion.psz, "vbox")
                          || !RTStrICmp(ValueUnion.psz, "vga")
                          || !RTStrICmp(ValueUnion.psz, "vesa"))
-                    CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxVGA));
+                    CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxVGA));
 #ifdef VBOX_WITH_VMSVGA
                 else if (   !RTStrICmp(ValueUnion.psz, "vmsvga")
                          || !RTStrICmp(ValueUnion.psz, "vmware"))
-                    CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VMSVGA));
+                    CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VMSVGA));
                 else if (   !RTStrICmp(ValueUnion.psz, "vboxsvga")
                          || !RTStrICmp(ValueUnion.psz, "svga"))
-                    CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxSVGA));
+                    CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxSVGA));
 #endif
                 else
                 {
@@ -895,20 +921,20 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_MONITORCOUNT:
             {
-                CHECK_ERROR(sessionMachine, COMSETTER(MonitorCount)(ValueUnion.u32));
+                CHECK_ERROR(pGraphicsAdapter, COMSETTER(MonitorCount)(ValueUnion.u32));
                 break;
             }
 
             case MODIFYVM_ACCELERATE3D:
             {
-                CHECK_ERROR(sessionMachine, COMSETTER(Accelerate3DEnabled)(ValueUnion.f));
+                CHECK_ERROR(pGraphicsAdapter, COMSETTER(Accelerate3DEnabled)(ValueUnion.f));
                 break;
             }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
             case MODIFYVM_ACCELERATE2DVIDEO:
             {
-                CHECK_ERROR(sessionMachine, COMSETTER(Accelerate2DVideoEnabled)(ValueUnion.f));
+                CHECK_ERROR(pGraphicsAdapter, COMSETTER(Accelerate2DVideoEnabled)(ValueUnion.f));
                 break;
             }
 #endif
@@ -992,6 +1018,12 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_BIOSPXEDEBUG:
             {
                 CHECK_ERROR(biosSettings, COMSETTER(PXEDebugEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_SYSTEMUUIDLE:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(SMBIOSUuidLittleEndian)(ValueUnion.f));
                 break;
             }
 
@@ -1442,6 +1474,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 {
                     CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C973));
                 }
+                else if (!RTStrICmp(ValueUnion.psz, "Am79C960"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C960));
+                }
 #ifdef VBOX_WITH_E1000
                 else if (!RTStrICmp(ValueUnion.psz, "82540EM"))
                 {
@@ -1462,6 +1498,12 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Virtio));
                 }
 #endif /* VBOX_WITH_VIRTIO */
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+                else if (!RTStrICmp(ValueUnion.psz, "virtio_1.0"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Virtio_1_0));
+                }
+#endif /* VBOX_WITH_VIRTIO_NET_1_0 */
                 else
                 {
                     errorArgument("Invalid NIC type '%s' specified for NIC %u", ValueUnion.psz, GetOptState.uIndex);
@@ -1578,47 +1620,63 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
+                /*
+                 * Check if the NIC is already enabled.  Do not try to
+                 * enable it if it already is.  That makes a
+                 * difference for saved VMs for which you can change
+                 * the NIC attachment, but can't change the NIC
+                 * enabled status (yes, the setter also should not
+                 * freak out about a no-op request).
+                 */
+                BOOL fEnabled;;
+                CHECK_ERROR(nic, COMGETTER(Enabled)(&fEnabled));
+
                 if (!RTStrICmp(ValueUnion.psz, "none"))
                 {
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(FALSE));
+                    if (RT_BOOL(fEnabled))
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(FALSE));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "null"))
                 {
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_Null));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "nat"))
                 {
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_NAT));
                 }
                 else if (  !RTStrICmp(ValueUnion.psz, "bridged")
                         || !RTStrICmp(ValueUnion.psz, "hostif")) /* backward compatibility */
                 {
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_Bridged));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "intnet"))
                 {
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_Internal));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "hostonly"))
                 {
-
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "generic"))
                 {
-
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "natnetwork"))
                 {
-
-                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork));
                 }
                 else
@@ -2334,6 +2392,12 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 ComPtr<IAudioAdapter> audioAdapter;
                 sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
                 ASSERT(audioAdapter);
+/** @todo r=klaus: don't unconditionally bolt together setting the audio driver
+ * and enabling the device. Doing this more cleverly allows changing the audio
+ * driver for VMs in saved state, which can be very useful when moving VMs
+ * between systems with different setup. The driver doesn't leave any traces in
+ * saved state. The GUI also might learn this trick if it doesn't use it
+ * already. */
 
                 /* disable? */
                 if (!RTStrICmp(ValueUnion.psz, "none"))
@@ -2415,7 +2479,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_CLIPBOARD:
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
+            case MODIFYVM_CLIPBOARD_MODE:
             {
                 ClipboardMode_T mode = ClipboardMode_Disabled; /* Shut up MSC */
                 if (!RTStrICmp(ValueUnion.psz, "disabled"))
@@ -2428,7 +2493,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     mode = ClipboardMode_Bidirectional;
                 else
                 {
-                    errorArgument("Invalid --clipboard argument '%s'", ValueUnion.psz);
+                    errorArgument("Invalid --clipboard-mode argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
                 }
                 if (SUCCEEDED(rc))
@@ -2437,6 +2502,28 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 break;
             }
+
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+            case MODIFYVM_CLIPBOARD_FILE_TRANSFERS:
+            {
+                BOOL fEnabled = false; /* Shut up MSC */
+                if (!RTStrICmp(ValueUnion.psz, "enabled"))
+                    fEnabled = true;
+                else if (!RTStrICmp(ValueUnion.psz, "disabled"))
+                    fEnabled = false;
+                else
+                {
+                    errorArgument("Invalid --clipboard-file-transfers argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                if (SUCCEEDED(rc))
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(ClipboardFileTransfersEnabled)(fEnabled));
+                }
+                break;
+            }
+# endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+#endif /* VBOX_WITH_SHARED_CLIPBOARD */
 
             case MODIFYVM_DRAGANDDROP:
             {
@@ -2860,49 +2947,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_FAULT_TOLERANCE:
-            {
-                if (!RTStrICmp(ValueUnion.psz, "master"))
-                {
-                    CHECK_ERROR(sessionMachine, COMSETTER(FaultToleranceState(FaultToleranceState_Master)));
-                }
-                else
-                if (!RTStrICmp(ValueUnion.psz, "standby"))
-                {
-                    CHECK_ERROR(sessionMachine, COMSETTER(FaultToleranceState(FaultToleranceState_Standby)));
-                }
-                else
-                {
-                    errorArgument("Invalid --faulttolerance argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
-                }
-                break;
-            }
-
-            case MODIFYVM_FAULT_TOLERANCE_ADDRESS:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(FaultToleranceAddress)(Bstr(ValueUnion.psz).raw()));
-                break;
-            }
-
-            case MODIFYVM_FAULT_TOLERANCE_PORT:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(FaultTolerancePort)(ValueUnion.u32));
-                break;
-            }
-
-            case MODIFYVM_FAULT_TOLERANCE_PASSWORD:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(FaultTolerancePassword)(Bstr(ValueUnion.psz).raw()));
-                break;
-            }
-
-            case MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(FaultToleranceSyncInterval)(ValueUnion.u32));
-                break;
-            }
-
             case MODIFYVM_HARDWARE_UUID:
             {
                 CHECK_ERROR(sessionMachine, COMSETTER(HardwareUUID)(Bstr(ValueUnion.psz).raw()));
@@ -2989,7 +3033,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     case MODIFYVM_RECORDING_SCREENS:
                     {
                         ULONG cMonitors = 64;
-                        CHECK_ERROR(sessionMachine, COMGETTER(MonitorCount)(&cMonitors));
+                        CHECK_ERROR(pGraphicsAdapter, COMGETTER(MonitorCount)(&cMonitors));
                         com::SafeArray<BOOL> screens(cMonitors);
                         if (parseScreens(ValueUnion.psz, &screens))
                         {
@@ -3189,6 +3233,21 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 if (bstr == "default")
                     bstr = Bstr::Empty;
                 CHECK_ERROR(sessionMachine, COMSETTER(DefaultFrontend)(bstr.raw()));
+                break;
+            }
+
+            case MODIFYVM_VMPROC_PRIORITY:
+            {
+                VMProcPriority_T enmPriority = nameToVMProcPriority(ValueUnion.psz);
+                if (enmPriority == VMProcPriority_Invalid)
+                {
+                    errorArgument("Invalid --vm-process-priority '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                else
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(VMProcessPriority)(enmPriority));
+                }
                 break;
             }
 

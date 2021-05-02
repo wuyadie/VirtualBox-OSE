@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -335,9 +335,9 @@ uint32_t CollectorSolaris::getInstance(const char *pszIfaceName, char *pszDevNam
      * Get the instance number from the interface name, then clip it off.
      */
     int cbInstance = 0;
-    int cbIface = strlen(pszIfaceName);
+    size_t cbIface = strlen(pszIfaceName);
     const char *pszEnd = pszIfaceName + cbIface - 1;
-    for (int i = 0; i < cbIface - 1; i++)
+    for (size_t i = 0; i < cbIface - 1; i++)
     {
         if (!RT_C_IS_DIGIT(*pszEnd))
             break;

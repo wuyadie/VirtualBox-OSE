@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,27 @@
  */
 RTDECL(int) RTNetStrToMacAddr(const char *pszValue, PRTMAC pAddr)
 {
+    /*
+     * First check if it might be a 12 xdigit string without any separators.
+     */
+    size_t cchValue = strlen(pszValue);
+    if (cchValue >= 12 && memchr(pszValue, ':', 12) == NULL)
+    {
+        bool fOkay = true;
+        for (size_t off = 0; off < 12 && fOkay; off++)
+            fOkay = RT_C_IS_XDIGIT(pszValue[off]);
+        if (fOkay && cchValue > 12)
+            for (size_t off = 12; off < cchValue && fOkay; off++)
+                fOkay = RT_C_IS_SPACE(pszValue[off]);
+        if (fOkay)
+        {
+            int rc = RTStrConvertHexBytes(pszValue, pAddr, sizeof(*pAddr), 0);
+            if (RT_SUCCESS(rc))
+                rc = VINF_SUCCESS;
+            return rc;
+        }
+    }
+
     /*
      * Not quite sure if I should accept stuff like "08::27:::1" here...
      * The code is accepting "::" patterns now, except for for the first

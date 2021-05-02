@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -382,11 +382,13 @@ static D3DDDIFORMAT svgaToD3DDDIFormat(SVGA3dSurfaceFormat format)
         case SVGA3D_A1R5G5B5:       return D3DDDIFMT_A1R5G5B5;
         case SVGA3D_LUMINANCE8_ALPHA8: return D3DDDIFMT_A8L8;
         case SVGA3D_R5G6B5:         return D3DDDIFMT_R5G6B5;
+        case SVGA3D_ARGB_S10E5:     return D3DDDIFMT_A16B16G16R16F;
+        case SVGA3D_ARGB_S23E8:     return D3DDDIFMT_A32B32G32R32F;
         default: break;
     }
 
-    Assert(0);
     VBoxDispMpLoggerLogF("WDDM: EnvKMT: unsupported surface format %d\n", format);
+    Assert(0);
     return D3DDDIFMT_UNKNOWN;
 }
 
@@ -442,64 +444,74 @@ GaDrvEnvKmt::gaEnvSurfaceDefine(void *pvEnv,
          */
         if (pCreateParms->flags & SVGA3D_SURFACE_HINT_RENDERTARGET)
         {
-            GAWDDMSURFACEINFO *pSurfaceInfo = (GAWDDMSURFACEINFO *)malloc(sizeof(GAWDDMSURFACEINFO));
-            if (pSurfaceInfo)
+            /* First check if the format is supported. */
+            D3DDDIFORMAT const ddiFormat = svgaToD3DDDIFormat((SVGA3dSurfaceFormat)pCreateParms->format);
+            if (ddiFormat != D3DDDIFMT_UNKNOWN)
             {
-                memset(pSurfaceInfo, 0, sizeof(GAWDDMSURFACEINFO));
-
-                VBOXWDDM_ALLOCINFO wddmAllocInfo;
-                memset(&wddmAllocInfo, 0, sizeof(wddmAllocInfo));
-
-                wddmAllocInfo.enmType             = VBOXWDDM_ALLOC_TYPE_UMD_RC_GENERIC;
-                wddmAllocInfo.fFlags.RenderTarget = 1;
-                wddmAllocInfo.hSharedHandle       = 0;
-                wddmAllocInfo.hostID              = pData->u32Sid;
-                wddmAllocInfo.SurfDesc.slicePitch = 0;
-                wddmAllocInfo.SurfDesc.depth      = paSizes[0].cDepth;
-                wddmAllocInfo.SurfDesc.width      = paSizes[0].cWidth;
-                wddmAllocInfo.SurfDesc.height     = paSizes[0].cHeight;
-                wddmAllocInfo.SurfDesc.format     = svgaToD3DDDIFormat((SVGA3dSurfaceFormat)pCreateParms->format);
-                wddmAllocInfo.SurfDesc.VidPnSourceId = 0;
-                wddmAllocInfo.SurfDesc.bpp        = vboxWddmCalcBitsPerPixel(wddmAllocInfo.SurfDesc.format);
-                wddmAllocInfo.SurfDesc.pitch      = vboxWddmCalcPitch(wddmAllocInfo.SurfDesc.width,
-                                                                      wddmAllocInfo.SurfDesc.format);
-                wddmAllocInfo.SurfDesc.cbSize     = vboxWddmCalcSize(wddmAllocInfo.SurfDesc.pitch,
-                                                                     wddmAllocInfo.SurfDesc.height,
-                                                                     wddmAllocInfo.SurfDesc.format);
-                wddmAllocInfo.SurfDesc.d3dWidth   = vboxWddmCalcWidthForPitch(wddmAllocInfo.SurfDesc.pitch,
-                                                                              wddmAllocInfo.SurfDesc.format);
-
-                D3DDDI_ALLOCATIONINFO AllocationInfo;
-                memset(&AllocationInfo, 0, sizeof(AllocationInfo));
-                // AllocationInfo.hAllocation           = NULL;
-                // AllocationInfo.pSystemMem            = NULL;
-                AllocationInfo.pPrivateDriverData    = &wddmAllocInfo;
-                AllocationInfo.PrivateDriverDataSize = sizeof(wddmAllocInfo);
-
-                D3DKMT_CREATEALLOCATION CreateAllocation;
-                memset(&CreateAllocation, 0, sizeof(CreateAllocation));
-                CreateAllocation.hDevice         = pThis->mKmtCallbacks.hDevice;
-                CreateAllocation.NumAllocations  = 1;
-                CreateAllocation.pAllocationInfo = &AllocationInfo;
-
-                Status = pThis->mKmtCallbacks.d3dkmt->pfnD3DKMTCreateAllocation(&CreateAllocation);
-                if (Status == STATUS_SUCCESS)
+                GAWDDMSURFACEINFO *pSurfaceInfo = (GAWDDMSURFACEINFO *)malloc(sizeof(GAWDDMSURFACEINFO));
+                if (pSurfaceInfo)
                 {
-                    pSurfaceInfo->Core.Key    = pData->u32Sid;
-                    pSurfaceInfo->hAllocation = AllocationInfo.hAllocation;
-                    if (!RTAvlU32Insert(&pThis->mSurfaceTree, &pSurfaceInfo->Core))
+                    memset(pSurfaceInfo, 0, sizeof(GAWDDMSURFACEINFO));
+
+                    VBOXWDDM_ALLOCINFO wddmAllocInfo;
+                    memset(&wddmAllocInfo, 0, sizeof(wddmAllocInfo));
+
+                    wddmAllocInfo.enmType             = VBOXWDDM_ALLOC_TYPE_UMD_RC_GENERIC;
+                    wddmAllocInfo.fFlags.RenderTarget = 1;
+                    wddmAllocInfo.hSharedHandle       = 0;
+                    wddmAllocInfo.hostID              = pData->u32Sid;
+                    wddmAllocInfo.SurfDesc.slicePitch = 0;
+                    wddmAllocInfo.SurfDesc.depth      = paSizes[0].cDepth;
+                    wddmAllocInfo.SurfDesc.width      = paSizes[0].cWidth;
+                    wddmAllocInfo.SurfDesc.height     = paSizes[0].cHeight;
+                    wddmAllocInfo.SurfDesc.format     = ddiFormat;
+                    wddmAllocInfo.SurfDesc.VidPnSourceId = 0;
+                    wddmAllocInfo.SurfDesc.bpp        = vboxWddmCalcBitsPerPixel(wddmAllocInfo.SurfDesc.format);
+                    wddmAllocInfo.SurfDesc.pitch      = vboxWddmCalcPitch(wddmAllocInfo.SurfDesc.width,
+                                                                          wddmAllocInfo.SurfDesc.format);
+                    wddmAllocInfo.SurfDesc.cbSize     = vboxWddmCalcSize(wddmAllocInfo.SurfDesc.pitch,
+                                                                         wddmAllocInfo.SurfDesc.height,
+                                                                         wddmAllocInfo.SurfDesc.format);
+                    wddmAllocInfo.SurfDesc.d3dWidth   = vboxWddmCalcWidthForPitch(wddmAllocInfo.SurfDesc.pitch,
+                                                                                  wddmAllocInfo.SurfDesc.format);
+
+                    D3DDDI_ALLOCATIONINFO AllocationInfo;
+                    memset(&AllocationInfo, 0, sizeof(AllocationInfo));
+                    // AllocationInfo.hAllocation           = NULL;
+                    // AllocationInfo.pSystemMem            = NULL;
+                    AllocationInfo.pPrivateDriverData    = &wddmAllocInfo;
+                    AllocationInfo.PrivateDriverDataSize = sizeof(wddmAllocInfo);
+
+                    D3DKMT_CREATEALLOCATION CreateAllocation;
+                    memset(&CreateAllocation, 0, sizeof(CreateAllocation));
+                    CreateAllocation.hDevice         = pThis->mKmtCallbacks.hDevice;
+                    CreateAllocation.NumAllocations  = 1;
+                    CreateAllocation.pAllocationInfo = &AllocationInfo;
+
+                    Status = pThis->mKmtCallbacks.d3dkmt->pfnD3DKMTCreateAllocation(&CreateAllocation);
+                    if (Status == STATUS_SUCCESS)
                     {
-                        Status = STATUS_NOT_SUPPORTED;
+                        pSurfaceInfo->Core.Key    = pData->u32Sid;
+                        pSurfaceInfo->hAllocation = AllocationInfo.hAllocation;
+                        if (!RTAvlU32Insert(&pThis->mSurfaceTree, &pSurfaceInfo->Core))
+                        {
+                            Status = STATUS_NOT_SUPPORTED;
+                        }
+                    }
+
+                    if (Status != STATUS_SUCCESS)
+                    {
+                        free(pSurfaceInfo);
                     }
                 }
-
-                if (Status != STATUS_SUCCESS)
+                else
                 {
-                    free(pSurfaceInfo);
+                    Status = STATUS_NOT_SUPPORTED;
                 }
             }
             else
             {
+                /* Unsupported render target format. */
                 Status = STATUS_NOT_SUPPORTED;
             }
         }

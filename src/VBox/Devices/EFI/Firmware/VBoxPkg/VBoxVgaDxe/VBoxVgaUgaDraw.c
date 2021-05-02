@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -399,8 +399,8 @@ VBoxVgaUgaDrawConstructor (
     Private->ModeData[Private->CurrentMode].VerticalResolution
     );
 
-  PcdSet32(PcdVideoHorizontalResolution, HorizontalResolution);
-  PcdSet32(PcdVideoVerticalResolution, VerticalResolution);
+  PcdSet32S(PcdVideoHorizontalResolution, HorizontalResolution);
+  PcdSet32S(PcdVideoVerticalResolution, VerticalResolution);
 
   return EFI_SUCCESS;
 }

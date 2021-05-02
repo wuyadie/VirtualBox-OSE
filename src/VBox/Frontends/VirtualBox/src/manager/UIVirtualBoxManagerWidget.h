@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,15 @@ class UIVirtualBoxManagerWidget : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
+    /** Possible selection types. */
+    enum SelectionType
+    {
+        SelectionType_Invalid,
+        SelectionType_SingleGroupItem,
+        SelectionType_FirstIsGlobalItem,
+        SelectionType_FirstIsMachineItem
+    };
+
 signals:
 
     /** Notifies about Chooser-pane index change. */
@@ -64,6 +73,9 @@ signals:
 
     /** Notifies listeners about current Snapshots pane item change. */
     void sigCurrentSnapshotItemChange();
+
+    /** Notifies about state change for cloud machine with certain @a strMachineId. */
+    void sigCloudMachineStateChange(const QString &strMachineId);
 
 public:
 
@@ -144,19 +156,18 @@ private slots:
 
     /** @name Common stuff.
       * @{ */
-        /** Handles signal about Chooser-pane index change.
-          * @param  fUpdateDetails    Brings whether details should be updated.
-          * @param  fUpdateSnapshots  Brings whether snapshots should be updated.
-          * @param  fUpdateLogs       Brings whether log-viewer should be updated. */
-        void sltHandleChooserPaneIndexChange(bool fUpdateDetails = true,
-                                             bool fUpdateSnapshots = true,
-                                             bool fUpdateLogs = true);
-        /** Handles signal about Chooser-pane index change the default way. */
-        void sltHandleChooserPaneIndexChangeDefault() { sltHandleChooserPaneIndexChange(); }
+        /** Handles signal about Chooser-pane index change. */
+        void sltHandleChooserPaneIndexChange();
+
+        /** Handles signal about Chooser-pane selection invalidated. */
+        void sltHandleChooserPaneSelectionInvalidated() { recacheCurrentItemInformation(true /* fDontRaiseErrorPane */); }
 
         /** Handles sliding animation complete signal.
           * @param  enmDirection  Brings which direction was animation finished for. */
         void sltHandleSlidingAnimationComplete(SlidingDirection enmDirection);
+
+        /** Handles state change for cloud machine with specified @a strMachineId. */
+        void sltHandleCloudMachineStateChange(const QString &strId);
     /** @} */
 
     /** @name Tools stuff.
@@ -190,6 +201,13 @@ private:
         void cleanup();
     /** @} */
 
+    /** @name Common stuff.
+      * @{ */
+        /** Recaches current item information.
+          * @param  fDontRaiseErrorPane  Brings whether we should not raise error-pane. */
+        void recacheCurrentItemInformation(bool fDontRaiseErrorPane = false);
+    /** @} */
+
     /** Holds the action-pool instance. */
     UIActionPool *m_pActionPool;
 
@@ -211,6 +229,11 @@ private:
     UISlidingAnimation *m_pSlidingAnimation;
     /** Holds the Tools-pane instance. */
     UITools            *m_pPaneTools;
+
+    /** Holds the last selection type. */
+    SelectionType  m_enmSelectionType;
+    /** Holds whether the last selected item was accessible. */
+    bool           m_fSelectedMachineItemAccessible;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_UIVirtualBoxManagerWidget_h */

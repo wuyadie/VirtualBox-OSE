@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,6 +82,7 @@ public:
     GuestEnvironmentBase(void)
         : m_hEnv(NIL_RTENV)
         , m_cRefs(1)
+        , m_fFlags(0)
     { }
 
     /**
@@ -193,17 +194,23 @@ public:
      * Applies an array of putenv style strings.
      *
      * @returns IPRT status code.
-     * @param   rArray              The array with the putenv style strings.
-     * @sa      RTEnvPutEnvEx
+     * @param   rArray          The array with the putenv style strings.
+     * @param   pidxError       Where to return the index causing trouble on
+     *                          failure.  Optional.
+     * @sa      RTEnvPutEx
      */
-    int applyPutEnvArray(const std::vector<com::Utf8Str> &rArray)
+    int applyPutEnvArray(const std::vector<com::Utf8Str> &rArray, size_t *pidxError = NULL)
     {
-        size_t cArray = rArray.size();
+        size_t const cArray = rArray.size();
         for (size_t i = 0; i < cArray; i++)
         {
             int rc = RTEnvPutEx(m_hEnv, rArray[i].c_str());
             if (RT_FAILURE(rc))
+            {
+                if (pidxError)
+                    *pidxError = i;
                 return rc;
+            }
         }
         return VINF_SUCCESS;
     }
@@ -361,9 +368,10 @@ protected:
      * Copy constructor.
      * @throws HRESULT
      */
-    GuestEnvironmentBase(const GuestEnvironmentBase &rThat, bool fChangeRecord)
+    GuestEnvironmentBase(const GuestEnvironmentBase &rThat, bool fChangeRecord, uint32_t fFlags = 0)
         : m_hEnv(NIL_RTENV)
         , m_cRefs(1)
+        , m_fFlags(fFlags)
     {
         int rc = cloneCommon(rThat, fChangeRecord);
         if (RT_FAILURE(rc))
@@ -393,9 +401,9 @@ protected:
             {
                 /* Need to type convert it. */
                 if (fChangeRecord)
-                    rc = RTEnvCreateChangeRecord(&hNewEnv);
+                    rc = RTEnvCreateChangeRecordEx(&hNewEnv, rThat.m_fFlags);
                 else
-                    rc = RTEnvCreate(&hNewEnv);
+                    rc = RTEnvCreateEx(&hNewEnv, rThat.m_fFlags);
                 if (RT_SUCCESS(rc))
                 {
                     rc = RTEnvApplyChanges(hNewEnv, rThat.m_hEnv);
@@ -411,14 +419,15 @@ protected:
              * (Relevant for GuestProcessStartupInfo and internal commands.)
              */
             if (fChangeRecord)
-                rc = RTEnvCreateChangeRecord(&hNewEnv);
+                rc = RTEnvCreateChangeRecordEx(&hNewEnv, rThat.m_fFlags);
             else
-                rc = RTEnvCreate(&hNewEnv);
+                rc = RTEnvCreateEx(&hNewEnv, rThat.m_fFlags);
         }
         if (RT_SUCCESS(rc))
         {
             RTEnvDestroy(m_hEnv);
             m_hEnv = hNewEnv;
+            m_fFlags = rThat.m_fFlags;
         }
         return rc;
     }
@@ -428,6 +437,8 @@ protected:
     RTENV               m_hEnv;
     /** Reference counter. */
     uint32_t volatile   m_cRefs;
+    /** RTENV_CREATE_F_XXX. */
+    uint32_t            m_fFlags;
 };
 
 class GuestEnvironmentChanges;
@@ -469,11 +480,13 @@ public:
     /**
      * Initialize this as a normal environment block.
      * @returns IPRT status code.
+     * @param   fFlags      RTENV_CREATE_F_XXX
      */
-    int initNormal(void)
+    int initNormal(uint32_t fFlags)
     {
         AssertReturn(m_hEnv == NIL_RTENV, VERR_WRONG_ORDER);
-        return RTEnvCreate(&m_hEnv);
+        m_fFlags = fFlags;
+        return RTEnvCreateEx(&m_hEnv, fFlags);
     }
 
     /**
@@ -493,7 +506,7 @@ public:
      */
     GuestEnvironment &operator=(const GuestEnvironmentBase &rThat)
     {
-        int rc = cloneCommon(rThat, true /*fChangeRecord*/);
+        int rc = copy(rThat);
         if (RT_FAILURE(rc))
             throw (Global::vboxStatusCodeToCOM(rc));
         return *this;
@@ -549,11 +562,13 @@ public:
     /**
      * Initialize this as a environment change record.
      * @returns IPRT status code.
+     * @param   fFlags      RTENV_CREATE_F_XXX
      */
-    int initChangeRecord(void)
+    int initChangeRecord(uint32_t fFlags)
     {
         AssertReturn(m_hEnv == NIL_RTENV, VERR_WRONG_ORDER);
-        return RTEnvCreateChangeRecord(&m_hEnv);
+        m_fFlags = fFlags;
+        return RTEnvCreateChangeRecordEx(&m_hEnv, fFlags);
     }
 
     /**
@@ -573,7 +588,7 @@ public:
      */
     GuestEnvironmentChanges &operator=(const GuestEnvironmentBase &rThat)
     {
-        int rc = cloneCommon(rThat, true /*fChangeRecord*/);
+        int rc = copy(rThat);
         if (RT_FAILURE(rc))
             throw (Global::vboxStatusCodeToCOM(rc));
         return *this;
@@ -588,6 +603,105 @@ public:
     {   return operator=((const GuestEnvironmentBase &)rThat); }
 };
 
+/**
+ * Class for keeping guest error information.
+ */
+class GuestErrorInfo
+{
+public:
+
+    /**
+     * Enumeration for specifying the guest error type.
+     */
+    enum Type
+    {
+        /** Guest error is anonymous. Avoid this. */
+        Type_Anonymous = 0,
+        /** Guest error is from a guest session. */
+        Type_Session,
+        /** Guest error is from a guest process. */
+        Type_Process,
+        /** Guest error is from a guest file object. */
+        Type_File,
+        /** Guest error is from a guest directory object. */
+        Type_Directory,
+        /** Guest error is from a the built-in toolbox "vbox_cat" command. */
+        Type_ToolCat,
+        /** Guest error is from a the built-in toolbox "vbox_ls" command. */
+        Type_ToolLs,
+        /** Guest error is from a the built-in toolbox "vbox_rm" command. */
+        Type_ToolRm,
+        /** Guest error is from a the built-in toolbox "vbox_mkdir" command. */
+        Type_ToolMkDir,
+        /** Guest error is from a the built-in toolbox "vbox_mktemp" command. */
+        Type_ToolMkTemp,
+        /** Guest error is from a the built-in toolbox "vbox_stat" command. */
+        Type_ToolStat,
+        /** The usual 32-bit hack. */
+        Type_32BIT_HACK = 0x7fffffff
+    };
+
+    /**
+     * Initialization constructor.
+     *
+     * @param   eType           Error type to use.
+     * @param   rc              IPRT-style rc to use.
+     * @param   pcszWhat        Subject to use.
+     */
+    GuestErrorInfo(GuestErrorInfo::Type eType, int rc, const char *pcszWhat)
+    {
+        int rc2 = setV(eType, rc, pcszWhat);
+        if (RT_FAILURE(rc2))
+            throw rc2;
+    }
+
+    /**
+     * Returns the (IPRT-style) rc of this error.
+     *
+     * @returns VBox status code.
+     */
+    int getRc(void) const { return mRc; }
+
+    /**
+     * Returns the type of this error.
+     *
+     * @returns Error type.
+     */
+    Type getType(void) const { return mType; }
+
+    /**
+     * Returns the subject of this error.
+     *
+     * @returns Subject as a string.
+     */
+    Utf8Str getWhat(void) const { return mWhat; }
+
+    /**
+     * Sets the error information using a variable arguments list (va_list).
+     *
+     * @returns VBox status code.
+     * @param   eType           Error type to use.
+     * @param   rc              IPRT-style rc to use.
+     * @param   pcszWhat        Subject to use.
+     */
+    int setV(GuestErrorInfo::Type eType, int rc, const char *pcszWhat)
+    {
+        mType = eType;
+        mRc   = rc;
+        mWhat = pcszWhat;
+
+        return VINF_SUCCESS;
+    }
+
+protected:
+
+    /** Error type. */
+    Type    mType;
+    /** IPRT-style error code. */
+    int     mRc;
+    /** Subject string related to this error. */
+    Utf8Str mWhat;
+};
 
 /**
  * Structure for keeping all the relevant guest directory
@@ -595,6 +709,9 @@ public:
  */
 struct GuestDirectoryOpenInfo
 {
+    GuestDirectoryOpenInfo(void)
+        : mFlags(0) { }
+
     /** The directory path. */
     Utf8Str                 mPath;
     /** Then open filter. */
@@ -610,6 +727,13 @@ struct GuestDirectoryOpenInfo
  */
 struct GuestFileOpenInfo
 {
+    GuestFileOpenInfo(void)
+        : mAccessMode((FileAccessMode_T)0)
+        , mOpenAction((FileOpenAction_T)0)
+        , mSharingMode((FileSharingMode_T)0)
+        , mCreationMode(0)
+        , mfOpenEx(0) { }
+
     /** The filename. */
     Utf8Str                 mFilename;
     /** The file access mode. */
@@ -631,6 +755,23 @@ struct GuestFileOpenInfo
  */
 struct GuestFsObjData
 {
+    GuestFsObjData(void)
+        : mType(FsObjType_Unknown)
+        , mObjectSize(0)
+        , mAllocatedSize(0)
+        , mAccessTime(0)
+        , mBirthTime(0)
+        , mChangeTime(0)
+        , mModificationTime(0)
+        , mUID(0)
+        , mGID(0)
+        , mNodeID(0)
+        , mNodeIDDevice(0)
+        , mNumHardLinks(0)
+        , mDeviceNumber(0)
+        , mGenerationID(0)
+        , mUserFlags(0) { }
+
     /** @name Helper functions to extract the data from a certin VBoxService tool's guest stream block.
      * @{ */
     int FromLs(const GuestProcessStreamBlock &strmBlk, bool fLong);
@@ -681,13 +822,15 @@ class GuestSessionStartupInfo
 public:
 
     GuestSessionStartupInfo(void)
-        : mIsInternal(false /* Non-internal session */),
-          mOpenTimeoutMS(30 * 1000 /* 30s opening timeout */),
-          mOpenFlags(0 /* No opening flags set */) { }
+        : mID(UINT32_MAX)
+        , mIsInternal(false /* Non-internal session */)
+        , mOpenTimeoutMS(30 * 1000 /* 30s opening timeout */)
+        , mOpenFlags(0 /* No opening flags set */) { }
 
     /** The session's friendly name. Optional. */
     Utf8Str                     mName;
-    /** The session's unique ID. Used to encode a context ID. */
+    /** The session's unique ID. Used to encode a context ID.
+     *  UINT32_MAX if not initialized. */
     uint32_t                    mID;
     /** Flag indicating if this is an internal session
      *  or not. Internal session are not accessible by
@@ -709,9 +852,10 @@ class GuestProcessStartupInfo
 public:
 
     GuestProcessStartupInfo(void)
-        : mFlags(ProcessCreateFlag_None),
-          mTimeoutMS(UINT32_MAX /* No timeout by default */),
-          mPriority(ProcessPriority_Default) { }
+        : mFlags(ProcessCreateFlag_None)
+        , mTimeoutMS(UINT32_MAX /* No timeout by default */)
+        , mPriority(ProcessPriority_Default)
+        , mAffinity(0) { }
 
     /** The process' friendly name. */
     Utf8Str                     mName;
@@ -748,6 +892,14 @@ public:
 
     GuestProcessStreamValue(const GuestProcessStreamValue& aThat)
            : mValue(aThat.mValue) { }
+
+    /** Copy assignment operator. */
+    GuestProcessStreamValue &operator=(GuestProcessStreamValue const &a_rThat) RT_NOEXCEPT
+    {
+        mValue = a_rThat.mValue;
+
+        return *this;
+    }
 
     Utf8Str mValue;
 };
@@ -833,6 +985,9 @@ public:
 
 protected:
 
+    /** Maximum allowed size the stream buffer can grow to.
+     *  Defaults to 32 MB. */
+    size_t m_cbMax;
     /** Currently allocated size of internal stream buffer. */
     size_t m_cbAllocated;
     /** Currently used size at m_offBuffer. */
@@ -840,55 +995,11 @@ protected:
     /** Current byte offset within the internal stream buffer. */
     size_t m_offBuffer;
     /** Internal stream buffer. */
-    BYTE *m_pbBuffer;
+    BYTE  *m_pbBuffer;
 };
 
 class Guest;
 class Progress;
-
-class GuestTask
-{
-
-public:
-
-    enum TaskType
-    {
-        /** Copies a file from host to the guest. */
-        TaskType_CopyFileToGuest   = 50,
-        /** Copies a file from guest to the host. */
-        TaskType_CopyFileFromGuest = 55,
-        /** Update Guest Additions by directly copying the required installer
-         *  off the .ISO file, transfer it to the guest and execute the installer
-         *  with system privileges. */
-        TaskType_UpdateGuestAdditions = 100
-    };
-
-    GuestTask(TaskType aTaskType, Guest *aThat, Progress *aProgress);
-
-    virtual ~GuestTask();
-
-    int startThread();
-
-    static int taskThread(RTTHREAD aThread, void *pvUser);
-    static int uploadProgress(unsigned uPercent, void *pvUser);
-    static HRESULT setProgressSuccess(ComObjPtr<Progress> pProgress);
-    static HRESULT setProgressErrorMsg(HRESULT hr,
-                                       ComObjPtr<Progress> pProgress, const char * pszText, ...);
-    static HRESULT setProgressErrorParent(HRESULT hr,
-                                          ComObjPtr<Progress> pProgress, ComObjPtr<Guest> pGuest);
-
-    TaskType taskType;
-    ComObjPtr<Guest> pGuest;
-    ComObjPtr<Progress> pProgress;
-    HRESULT rc;
-
-    /* Task data. */
-    Utf8Str strSource;
-    Utf8Str strDest;
-    Utf8Str strUserName;
-    Utf8Str strPassword;
-    ULONG   uFlags;
-};
 
 class GuestWaitEventPayload
 {
@@ -900,6 +1011,13 @@ public:
           cbData(0),
           pvData(NULL) { }
 
+    /**
+     * Initialization constructor. Will throw() VBox status code (rc).
+     *
+     * @param   uTypePayload    Payload type to set.
+     * @param   pvPayload       Pointer to payload data to set (deep copy).
+     * @param   cbPayload       Size (in bytes) of payload data to set.
+     */
     GuestWaitEventPayload(uint32_t uTypePayload,
                           const void *pvPayload, uint32_t cbPayload)
         : uType(0),
@@ -1121,9 +1239,15 @@ public:
     int unregisterWaitEvent(GuestWaitEvent *pEvent);
     int waitForEvent(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, VBoxEventType_T *pType, IEvent **ppEvent);
 
+#ifndef VBOX_GUESTCTRL_TEST_CASE
+    HRESULT setErrorExternal(VirtualBoxBase *pInterface, const Utf8Str &strAction, const GuestErrorInfo &guestErrorInfo);
+#endif
+
 public:
 
     static FsObjType_T fileModeToFsObjType(RTFMODE fMode);
+    static Utf8Str getErrorAsString(const Utf8Str &strAction, const GuestErrorInfo& guestErrorInfo);
+    static Utf8Str getErrorAsString(const GuestErrorInfo &guestErrorInfo);
 
 protected:
 

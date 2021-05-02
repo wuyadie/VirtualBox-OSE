@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,30 +18,46 @@
 SUB_DEPTH = ../../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
+# Use header files from our tree for randr and xinerama. and don't link but rather dlopen libXrand
+VBOX_WITH_DISTRO_XRAND_XINERAMA=
+
 #
 # VBoxClient - clipboard and seamless.
 #
 PROGRAMS += VBoxClient
+#
+# Please make sure that you grep the source tree and modify all occurences accordingly
+# if you rename the following program name.
+#
+PROGRAMS += VBoxDRMClient
 
 VBoxClient_TEMPLATE = NewVBoxGuestR3Exe
 VBoxClient_DEFS += VBOX_X11_CLIPBOARD VBOX_WITH_HGCM
+VBoxClient_DEFS += VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\"
 ifdef VBOX_WITH_DBUS
  VBoxClient_DEFS += VBOX_WITH_DBUS
 endif
+
 VBoxClient_DEFS.linux += _GNU_SOURCE
 VBoxClient_INCS = $(VBOX_GRAPHICS_INCS)
+VBoxClient_INCS += ../x11include/panoramiXproto-1.1
+VBoxClient_INCS += ../x11include/libXrandr-1.5.2
+VBoxClient_INCS += ../x11include/randrproto-1.6.0
 VBoxClient_SOURCES = \
 	main.cpp \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-helper.cpp \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/x11-clipboard.cpp \
-	clipboard.cpp \
-	display-svga.cpp \
 	display-svga-x11.cpp \
 	seamless.cpp \
 	seamless-x11.cpp \
-	display.cpp \
-	hostversion.cpp \
-	check3d.cpp
+	logging.cpp \
+	hostversion.cpp
+
+VBoxDRMClient_TEMPLATE = NewVBoxGuestR3Exe
+VBoxDRMClient_DEFS += VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\"
+VBoxDRMClient_SOURCES = \
+    display-drm.cpp \
+    logging.cpp
+
+
 VBoxClient_SOURCES.linux = \
 	chk_stubs.c
 VBoxClient_LIBPATH = \
@@ -50,10 +66,16 @@ VBoxClient_LIBS.freebsd = \
 	iconv
 VBoxClient_LIBS.linux = \
 	dl
+VBoxClient_LIBS.netbsd = \
+	crypt
 VBoxClient_LIBS.solaris = \
 	dl
 VBoxClient_LIBS = \
-	X11 Xrandr Xt Xext Xmu
+	X11 Xt Xext Xmu
+ifdef VBOX_WITH_DISTRO_XRAND_XINERAMA
+ VBoxClient_DEFS += WITH_DISTRO_XRAND_XINERAMA
+ VBoxClient_LIBS += Xrandr
+endif
 
 # XXX: -L comes from the template, but not rpath
 VBoxClient_LDFLAGS.netbsd = \
@@ -78,6 +100,7 @@ endif
 ifdef VBOX_WITH_GUEST_PROPS
 VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
 endif
+
 ifdef VBOX_WITH_DRAG_AND_DROP
 VBoxClient_DEFS += \
 	VBOX_WITH_DRAG_AND_DROP \
@@ -87,6 +110,32 @@ VBoxClient_SOURCES += \
 VBoxClient_LIBS     += \
 	$(VBOX_LIB_VBGL_R3) \
 	$(PATH_STAGE_LIB)/additions/VBoxDnDGuestR3Lib$(VBOX_SUFF_LIB)
+endif
+
+ifdef VBOX_WITH_SHARED_CLIPBOARD
+ VBoxClient_DEFS += \
+	VBOX_WITH_SHARED_CLIPBOARD \
+	$(if $(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS),VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS,)
+ VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-x11.cpp \
+	clipboard.cpp
+ ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+  VBoxClient_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_GUEST
+  VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardPath.cpp
+  ifdef VBOX_WITH_SHARED_CLIPBOARD_FUSE
+   VBoxClient_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_FUSE
+   # @todo Make this dynamic loading more generic.
+   VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/ImageMounter/vboximg-mount/fuse.cpp \
+	clipboard-fuse.cpp
+   # @todo Ditto.
+   VBoxClient_INCS    += \
+	$(PATH_ROOT)/src/VBox/ImageMounter/vboximg-mount
+  endif
+ endif
 endif
 
 if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
@@ -133,4 +182,3 @@ $$(tstSeamlessX11-auto_0_OUTDIR)/tstSeamlessX11-auto.run: \
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

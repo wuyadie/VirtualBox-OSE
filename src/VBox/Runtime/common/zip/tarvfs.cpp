@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1003,7 +1003,7 @@ static DECLCALLBACK(int) rtZipTarFssIos_Read(void *pvThis, RTFOFF off, PCRTSGBUF
 
 
     Assert(pThis->cbFile >= pThis->offFile);
-    uint64_t cbLeft   = (uint64_t)(pThis->cbFile - pThis->offFile);
+    uint64_t cbLeft   = (uint64_t)(pThis->cbFile - off);
     size_t   cbToRead = pSgBuf->paSegs[0].cbSeg;
     if (cbToRead > cbLeft)
     {

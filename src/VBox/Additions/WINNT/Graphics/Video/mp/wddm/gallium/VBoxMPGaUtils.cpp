@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,12 +21,16 @@
 #include <iprt/assert.h>
 
 volatile uint32_t g_fu32GaLogControl =
+      GALOG_GROUP_RELEASE
 #ifdef DEBUG
-    1 /* Enable LogRels */
-#else
-    0 /* Disable LogRels, but they can be enabled if necessary. */
+    | GALOG_GROUP_TEST
+    | GALOG_GROUP_HOSTOBJECTS
+//    | GALOG_GROUP_PRESENT
+//    | GALOG_GROUP_DXGK
+//    | GALOG_GROUP_SVGA
+//    | GALOG_GROUP_SVGA_FIFO
 #endif
-;
+    ;
 
 /*
  * Helpers.

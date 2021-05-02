@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,8 +58,8 @@ public:
 
 protected:
 
-    /** Creates network-request of the passed @a type on the basis of the passed @a urls and the @a requestHeaders. */
-    void createNetworkRequest(UINetworkRequestType enmType, const QList<QUrl> urls,
+    /** Creates network-request of the passed @a type on the basis of the passed @a urls, @a strTarget and the @a requestHeaders. */
+    void createNetworkRequest(UINetworkRequestType enmType, const QList<QUrl> urls, const QString &strTarget = QString(),
                               const UserDictionary requestHeaders = UserDictionary());
 
 private:
